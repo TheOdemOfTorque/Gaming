@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0d0d2b">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>🌟 Henrys Einmaleins</title>
+  <title>🌟 Einmaleins-Trainer</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; }
@@ -110,6 +110,19 @@
     .question-sub { font-size: 0.85rem; color: rgba(255,255,255,0.4); margin-top: 8px; }
 
     .choices-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; margin-top: 10px; }
+    .type-input-wrap { width: 100%; margin-top: 10px; display: none; flex-direction: column; gap: 10px; }
+    .type-input-wrap.active { display: flex; }
+    .type-answer-input { background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 18px; padding: 22px 20px; color: #fff; font-size: 2.8rem; font-weight: 900; width: 100%; outline: none; text-align: center; -webkit-appearance: none; -moz-appearance: textfield; transition: border-color 0.2s, background 0.2s; }
+    .type-answer-input::-webkit-outer-spin-button, .type-answer-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .type-answer-input:focus { border-color: #6C63FF; }
+    .type-answer-input.correct { border-color: #10B981; background: rgba(16,185,129,0.2); animation: correctPop 0.3s ease; }
+    .type-answer-input.wrong   { border-color: #EF4444; background: rgba(239,68,68,0.2);  animation: wrongShake 0.3s ease; }
+    .btn-submit { background: linear-gradient(135deg,#6C63FF,#9B59B6); border: none; border-radius: 16px; color: #fff; font-size: 1.1rem; font-weight: 700; padding: 16px; width: 100%; cursor: pointer; transition: transform 0.1s; }
+    .btn-submit:active { transform: scale(0.96); }
+    .seg-control { display: flex; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.15); }
+    .seg-btn { flex: 1; padding: 12px 4px; background: rgba(255,255,255,0.06); border: none; color: rgba(255,255,255,0.45); font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: background 0.15s, color 0.15s; }
+    .seg-btn:not(:last-child) { border-right: 1px solid rgba(255,255,255,0.1); }
+    .seg-btn.active { background: rgba(108,99,255,0.35); color: #fff; }
     .choice-btn {
       padding: 22px 10px; background: rgba(255,255,255,0.08);
       border: 2px solid rgba(255,255,255,0.15); border-radius: 18px;
@@ -169,7 +182,9 @@
     .reihe-btn { padding: 14px 4px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12); border-radius: 12px; color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer; transition: transform 0.1s; }
     .reihe-btn:active { transform: scale(0.93); }
     .reihe-btn.selected { background: rgba(16,185,129,0.3); border-color: #10B981; }
-    .reihe-btn.visited { border-color: rgba(16,185,129,0.4); color: #6ee7b7; }
+    .reihe-btn.red    { border-color: rgba(239,68,68,0.6);   color: #fca5a5; }
+    .reihe-btn.orange { border-color: rgba(245,158,11,0.6);  color: #fcd34d; }
+    .reihe-btn.green  { border-color: rgba(16,185,129,0.6);  color: #6ee7b7; }
 
     /* NAME SCREEN */
     .name-screen-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; width: 100%; text-align: center; gap: 20px; }
@@ -212,7 +227,16 @@
 
     /* STATS SCREEN */
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
-    .stats-card { border-radius: 14px; padding: 12px 6px 10px; text-align: center; border: 2px solid; }
+    .stats-card { border-radius: 14px; padding: 12px 6px 10px; text-align: center; border: 2px solid; cursor: pointer; }
+    .reihe-detail-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; width: 100%; margin: 12px 0; }
+    .q-card { border-radius: 10px; padding: 7px 3px; text-align: center; border: 2px solid; }
+    .q-card.unseen { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+    .q-card.red    { background: rgba(239,68,68,0.12);   border-color: rgba(239,68,68,0.4); }
+    .q-card.orange { background: rgba(245,158,11,0.12);  border-color: rgba(245,158,11,0.4); }
+    .q-card.green  { background: rgba(16,185,129,0.15);  border-color: rgba(16,185,129,0.5); }
+    .q-card-fact { font-size: 0.82rem; font-weight: 800; }
+    .q-card-dots { font-size: 0.42rem; letter-spacing: 1px; margin: 2px 0; }
+    .q-card-ans  { font-size: 0.62rem; color: rgba(255,255,255,0.4); }
     .stats-card.untrained { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
     .stats-card.red    { background: rgba(239,68,68,0.12);   border-color: rgba(239,68,68,0.45); }
     .stats-card.orange { background: rgba(245,158,11,0.12);  border-color: rgba(245,158,11,0.45); }
@@ -261,7 +285,7 @@
   <button class="btn-icon" onclick="showScreen('settings')">⚙️</button>
   <div class="home-header">
     <span class="home-avatar" id="home-avatar">🚀</span>
-    <div class="home-greeting" id="home-greeting">Hallo Henry! 👋</div>
+    <div class="home-greeting" id="home-greeting">Hallo! 👋</div>
     <div class="home-subtitle" id="home-subtitle">Bereit zum Rechnen?</div>
   </div>
   <div class="stats-row">
@@ -349,6 +373,10 @@
     <button class="choice-btn" id="choice-1" onclick="selectAnswer(1)"></button>
     <button class="choice-btn" id="choice-2" onclick="selectAnswer(2)"></button>
     <button class="choice-btn" id="choice-3" onclick="selectAnswer(3)"></button>
+  </div>
+  <div class="type-input-wrap" id="type-input-wrap">
+    <input type="number" class="type-answer-input" id="type-answer-input" placeholder="?" inputmode="numeric" autocomplete="off">
+    <button class="btn-submit" onclick="submitTypedAnswer()">✓ Bestätigen</button>
   </div>
   <div class="feedback-text" id="feedback-text"></div>
   <div class="spacer"></div>
@@ -445,7 +473,7 @@
     <div class="settings-row">
       <div>
         <div style="font-size:0.95rem;font-weight:700">Großes 1×1</div>
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:2px">Faktoren über ×10 zulassen</div>
+        <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-top:2px">Reihen und Faktoren über 10 zulassen</div>
       </div>
       <label class="toggle">
         <input type="checkbox" id="toggle-grosses1x1" onchange="toggleGrosses1x1()">
@@ -459,6 +487,15 @@
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Eingabemodus</div>
+    <div class="seg-control" id="input-mode-seg">
+      <button class="seg-btn" onclick="setInputMode('tap')">👆 Antippen</button>
+      <button class="seg-btn" onclick="setInputMode('type')">⌨️ Eintippen</button>
+      <button class="seg-btn" onclick="setInputMode('both')">🔀 Beides</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Zurücksetzen</div>
     <button class="btn btn-danger" onclick="resetHighscores()">🏆 Highscores zurücksetzen</button>
     <button class="btn btn-danger mt-8" onclick="resetAll()">🗑️ Alle Daten zurücksetzen</button>
@@ -466,6 +503,39 @@
 
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
+</div>
+
+<!-- REIHE DETAIL MODAL -->
+<div class="modal-overlay" id="reihe-detail-modal">
+  <div class="modal-sheet" style="overflow-y:auto;max-height:80vh">
+    <div class="modal-title" id="reihe-detail-title"></div>
+    <div class="reihe-detail-grid" id="reihe-detail-grid"></div>
+    <button class="btn btn-secondary mt-8" onclick="closeReiheDetail()">← Zurück</button>
+  </div>
+</div>
+
+<!-- STREAK FREEZE MODAL -->
+<div class="modal-overlay" id="streak-freeze-modal">
+  <div class="modal-sheet">
+    <div style="text-align:center;font-size:3rem;margin-bottom:8px">🧊</div>
+    <div class="modal-title">Streak in Gefahr!</div>
+    <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
+      Du hast gestern nicht geübt.<br>
+      Dein <strong id="freeze-streak-count">0-Tage</strong> Streak steht auf dem Spiel.
+    </div>
+    <button class="btn btn-primary mt-8" id="freeze-buy-btn" onclick="useStreakFreeze()">🧊 Streak schützen (−2000 XP)</button>
+    <button class="btn btn-secondary mt-8" onclick="skipStreakFreeze()">Streak verlieren</button>
+  </div>
+</div>
+
+<!-- INPUT TYPE PICKER MODAL -->
+<div class="modal-overlay" id="input-type-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">Wie möchtest du antworten?</div>
+    <button class="btn btn-secondary mt-8" onclick="pickInputType('tap')">👆 Antippen</button>
+    <button class="btn btn-secondary mt-8" onclick="pickInputType('type')">⌨️ Eintippen</button>
+    <button class="btn btn-primary mt-8" onclick="pickInputType('random')">🎲 Zufall entscheiden</button>
+  </div>
 </div>
 
 <!-- TRAINING MODAL -->
@@ -482,47 +552,77 @@
 // ── CONSTANTS ──────────────────────────────────────────
 const LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
-  { xp:  100, title: '🌟 Lehrling',           avatar: '🌙' },
-  { xp:  250, title: '📚 Schüler',            avatar: '📖' },
-  { xp:  450, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
-  { xp:  700, title: '🎯 Mathe-Fan',          avatar: '🎯' },
-  { xp: 1000, title: '🦸 Zahlen-Held',        avatar: '🦸' },
-  { xp: 1400, title: '⚔️ Rechen-Ritter',      avatar: '⚔️' },
-  { xp: 1900, title: '🗡️ Mathe-Krieger',      avatar: '🗡️' },
-  { xp: 2500, title: '🏆 Zahlen-Meister',     avatar: '🏆' },
-  { xp: 3200, title: '👑 Einmaleins-Legende', avatar: '👑' },
+  { xp:  200, title: '🌟 Lehrling',           avatar: '🌙' },
+  { xp:  500, title: '📚 Schüler',            avatar: '📖' },
+  { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
+  { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
+  { xp: 2000, title: '🦸 Zahlen-Held',        avatar: '🦸' },
+  { xp: 2800, title: '⚔️ Rechen-Ritter',      avatar: '⚔️' },
+  { xp: 3800, title: '🗡️ Mathe-Krieger',      avatar: '🗡️' },
+  { xp: 5000, title: '🏆 Zahlen-Meister',     avatar: '🏆' },
+  { xp: 6500, title: '👑 Einmaleins-Legende', avatar: '👑' },
 ];
 
 const ACHIEVEMENTS = [
-  { id: 'first',     icon: '🌟', name: 'Erster Schritt',    desc: 'Erste richtige Antwort!' },
-  { id: 'combo5',    icon: '🔥', name: 'Heiße Reihe',       desc: '5er-Combo erreicht' },
-  { id: 'combo10',   icon: '⚡', name: 'Unaufhaltbar',      desc: '10er-Combo erreicht' },
-  { id: 'perfect',   icon: '💎', name: 'Perfektes Spiel',   desc: 'Turnier ohne Fehler' },
-  { id: 'blitz30',   icon: '🚀', name: 'Blitzschnell',      desc: '30+ richtig im Blitz-Modus' },
-  { id: 'blitz50',   icon: '🌠', name: 'Blitz-Meister',     desc: '50+ richtig im Blitz-Modus' },
-  { id: 'streak3',   icon: '📅', name: 'Fleißig dabei',     desc: '3 Tage hintereinander gespielt' },
-  { id: 'streak7',   icon: '💪', name: 'Eiserne Disziplin', desc: '7 Tage hintereinander gespielt' },
-  { id: 'level5',    icon: '🎖️', name: 'Halbzeit oben',    desc: 'Level 5 erreicht' },
-  { id: 'level10',   icon: '👑', name: 'Legende',           desc: 'Level 10 erreicht' },
-  { id: 'total100',  icon: '🎓', name: 'Mathe-Experte',     desc: '100 richtige Antworten gesamt' },
-  { id: 'allreihen', icon: '📊', name: 'Alle Reihen',       desc: 'Alle Reihen 1–12 trainiert' },
+  // ── Erste Schritte ──
+  { id: 'first',       icon: '🌟', name: 'Erster Schritt',       desc: 'Erste richtige Antwort!' },
+  { id: 'games10',     icon: '🎮', name: '10 Spiele',             desc: '10 Übungen gespielt' },
+  { id: 'total100',    icon: '🎓', name: '100 Richtige',          desc: '100 richtige Antworten' },
+  { id: 'total500',    icon: '📚', name: '500 Richtige',          desc: '500 richtige Antworten' },
+  { id: 'total1000',   icon: '🏅', name: '1000 Richtige',         desc: '1000 richtige Antworten' },
+  // ── Combos ──
+  { id: 'combo5',      icon: '🔥', name: 'Heiße Reihe',          desc: '5er-Combo erreicht' },
+  { id: 'combo10',     icon: '⚡', name: 'Unaufhaltbar',          desc: '10er-Combo erreicht' },
+  { id: 'combo20',     icon: '💥', name: 'Unstoppable',           desc: '20er-Combo erreicht' },
+  // ── Modi ──
+  { id: 'perfect',     icon: '💎', name: 'Perfektes Turnier',     desc: 'Turnier ohne Fehler' },
+  { id: 'blitz30',     icon: '🚀', name: 'Blitzschnell',          desc: '30+ richtig im Blitz-Modus' },
+  { id: 'blitz50',     icon: '🌠', name: 'Blitz-Meister',         desc: '50+ richtig im Blitz-Modus' },
+  { id: 'typemaster',  icon: '⌨️', name: 'Tipp-Profi',           desc: 'Übung im Eintippen-Modus abgeschlossen' },
+  // ── Ausdauer ──
+  { id: 'streak3',     icon: '📅', name: 'Fleißig dabei',         desc: '3 Tage hintereinander' },
+  { id: 'streak7',     icon: '💪', name: 'Eine Woche',            desc: '7 Tage hintereinander' },
+  { id: 'streak14',    icon: '📆', name: 'Zwei Wochen',           desc: '14 Tage hintereinander' },
+  { id: 'streak21',    icon: '🔥', name: 'Drei Wochen',           desc: '21 Tage hintereinander' },
+  { id: 'streak30',    icon: '🌟', name: 'Ein Monat',             desc: '30 Tage hintereinander' },
+  { id: 'streak60',    icon: '💎', name: 'Zwei Monate',           desc: '60 Tage hintereinander' },
+  { id: 'streak100',   icon: '👑', name: '100 Tage',              desc: '100 Tage hintereinander' },
+  { id: 'freezeused',  icon: '🧊', name: 'Streak gerettet',       desc: 'Streak-Freeze eingesetzt' },
+  // ── Level ──
+  { id: 'level5',      icon: '🎖️', name: 'Halbzeit',             desc: 'Level 5 erreicht' },
+  { id: 'level10',     icon: '👑', name: 'Legende',               desc: 'Level 10 erreicht' },
+  // ── Reihen gemeistert ──
+  { id: 'allreihen',   icon: '📊', name: 'Alle Reihen trainiert', desc: 'Alle verfügbaren Reihen trainiert' },
+  { id: 'kleines1x1',  icon: '🏅', name: 'Kleines 1×1 Experte',  desc: 'Alle Reihen 1–10 gemeistert' },
+  { id: 'grosses1x1',  icon: '🏆', name: 'Großes 1×1 Meister',   desc: 'Alle Reihen 1–20 gemeistert' },
+  // ── Einzel-Reihen (1–20) ──
+  ...Array.from({length: 20}, (_, i) => {
+    const n = i + 1;
+    const icons = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟',
+                   '⭐','⭐','💫','💫','🌙','🌙','☀️','☀️','🌠','👑'];
+    return { id: `reihe${n}`, icon: icons[i], name: `${n}er-Reihe gemeistert`, desc: `${n}er-Reihe 6× in Folge perfekt` };
+  }),
 ];
 
 // ── STATE ──────────────────────────────────────────────
 function defaultSettings() {
-  return { grosses1x1: false, reiheMax: {1:10,2:10,3:10,4:10,5:10,6:10,7:10,8:10,9:10} };
+  const reiheMax = {};
+  for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
+  return { grosses1x1: false, reiheMax, inputMode: 'tap' };
 }
 
 function defaultReiheStats() {
   const s = {};
-  for (let i = 1; i <= 12; i++) s[i] = { sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0 };
+  for (let i = 1; i <= 20; i++) s[i] = { sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0 };
   return s;
 }
 
 function defaultState() {
   return { name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
            streak: 0, lastPlayDate: null, highScores: { blitz: 0, turnier: 0 },
-           trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats() };
+           trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
+           streakFreezeUsedDate: null, streakFreezeTotal: 0,
+           questionStats: {} };
 }
 
 let state = (() => {
@@ -533,12 +633,17 @@ let state = (() => {
 // Migrate older saves that lack settings / reiheStats
 if (!state.settings) state.settings = defaultSettings();
 if (!state.settings.reiheMax) state.settings.reiheMax = defaultSettings().reiheMax;
+if (!state.settings.inputMode) state.settings.inputMode = 'tap';
+if (state.streakFreezeUsedDate === undefined) state.streakFreezeUsedDate = null;
+if (state.streakFreezeTotal    === undefined) state.streakFreezeTotal    = 0;
+if (!state.questionStats) state.questionStats = {};
 if (!state.reiheStats) state.reiheStats = defaultReiheStats();
-for (let i = 1; i <= 12; i++) { if (!state.reiheStats[i]) state.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 }; }
+for (let i = 1; i <= 20; i++) { if (!state.reiheStats[i]) state.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 }; }
+for (let i = 1; i <= 20; i++) { if (!state.settings.reiheMax[i]) state.settings.reiheMax[i] = 20; }
 
 let trainedSet = new Set(state.trainedReihen || []);
 
-function getName() { return state.name || 'Henry'; }
+function getName() { return state.name || ''; }
 
 function saveState() {
   state.trainedReihen = [...trainedSet];
@@ -657,13 +762,43 @@ function populateSettings() {
   cb.checked = state.settings.grosses1x1;
   document.getElementById('reihe-max-section').style.display = state.settings.grosses1x1 ? 'block' : 'none';
   renderStepperGrid();
+  // Segmented control for input mode
+  const modeMap = { tap: 0, type: 1, both: 2 };
+  document.querySelectorAll('#input-mode-seg .seg-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === modeMap[state.settings.inputMode]);
+  });
+}
+
+function useStreakFreeze() {
+  document.getElementById('streak-freeze-modal').classList.remove('active');
+  state.xp -= 2000;
+  state.streakFreezeUsedDate = new Date().toISOString();
+  state.streakFreezeTotal = (state.streakFreezeTotal || 0) + 1;
+  state.lastPlayDate = new Date().toDateString(); // treat today as played
+  saveState();
+  updateHomeUI();
+}
+
+function skipStreakFreeze() {
+  document.getElementById('streak-freeze-modal').classList.remove('active');
+  state.streak = 0; saveState();
+  document.getElementById('stat-streak').textContent = '🔥 0';
+}
+
+function setInputMode(mode) {
+  state.settings.inputMode = mode;
+  saveState();
+  const modeMap = { tap: 0, type: 1, both: 2 };
+  document.querySelectorAll('#input-mode-seg .seg-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === modeMap[mode]);
+  });
 }
 
 function renderStepperGrid() {
   const grid = document.getElementById('stepper-grid');
   grid.innerHTML = '';
-  for (let i = 1; i <= 9; i++) {
-    const val = state.settings.reiheMax[i] || 10;
+  for (let i = 1; i <= 20; i++) {
+    const val = state.settings.reiheMax[i] || 20;
     const cell = document.createElement('div');
     cell.className = 'stepper-cell';
     cell.innerHTML =
@@ -678,7 +813,7 @@ function renderStepperGrid() {
 }
 
 function adjustMax(reihe, delta) {
-  const cur = state.settings.reiheMax[reihe] || 10;
+  const cur = state.settings.reiheMax[reihe] || 20;
   state.settings.reiheMax[reihe] = Math.max(10, Math.min(20, cur + delta));
   document.getElementById('max-val-' + reihe).textContent = '×' + state.settings.reiheMax[reihe];
   saveState();
@@ -725,28 +860,37 @@ function updateHomeUI() {
   document.getElementById('level-xp-home').textContent   = `${info.xpIn} / ${info.xpNeed} XP`;
   document.getElementById('xp-fill-home').style.width    = (info.progress * 100) + '%';
   document.getElementById('trophy-progress').textContent = `${state.achievements.length} / ${ACHIEVEMENTS.length}`;
-  const masteredCount = Object.values(state.reiheStats).filter(r => r.consecutivePerfect >= 6).length;
-  document.getElementById('stats-home-desc').textContent = `${masteredCount} von 12 Reihen gemeistert`;
+  const maxReihe = getMaxReihe();
+  const masteredCount = Object.entries(state.reiheStats).filter(([k, r]) => parseInt(k) <= maxReihe && r.consecutivePerfect >= 6).length;
+  document.getElementById('stats-home-desc').textContent = `${masteredCount} von ${getMaxReihe()} Reihen gemeistert`;
   document.getElementById('footer-note').textContent = state.settings.grosses1x1
     ? 'Einmaleins-Trainer · Großes 1×1 aktiv' : 'Einmaleins-Trainer · Kleines 1×1';
 
   // Greeting by time of day
   const name = getName();
   const h = new Date().getHours();
-  let greeting = `Hallo ${name}! 👋`, sub = 'Bereit zum Rechnen?';
-  if (h < 12) { greeting = `Guten Morgen, ${name}! ☀️`; sub = 'Ein guter Start in den Tag!'; }
-  else if (h >= 18) { greeting = `Guten Abend, ${name}! 🌙`; sub = 'Noch eine Runde?'; }
+  let greeting = name ? `Hallo ${name}! 👋` : 'Hallo! 👋', sub = 'Bereit zum Rechnen?';
+  if (h < 12) { greeting = name ? `Guten Morgen, ${name}! ☀️` : 'Guten Morgen! ☀️'; sub = 'Ein guter Start in den Tag!'; }
+  else if (h >= 18) { greeting = name ? `Guten Abend, ${name}! 🌙` : 'Guten Abend! 🌙'; sub = 'Noch eine Runde?'; }
   if (state.totalGames > 0) sub = `${info.title} · ${state.xp} XP gesamt`;
   document.getElementById('home-greeting').textContent = greeting;
   document.getElementById('home-subtitle').textContent  = sub;
 
-  // Break streak if more than 1 day missed
+  // Break streak if more than 1 day missed (or offer freeze)
   if (state.lastPlayDate) {
     const today = new Date().toDateString();
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
     if (state.lastPlayDate !== today && state.lastPlayDate !== yesterday.toDateString()) {
-      state.streak = 0; saveState();
-      document.getElementById('stat-streak').textContent = '🔥 0';
+      const lastFreeze = state.streakFreezeUsedDate ? new Date(state.streakFreezeUsedDate) : null;
+      const daysSinceFreeze = lastFreeze ? Math.floor((Date.now() - lastFreeze) / 86400000) : 999;
+      const canFreeze = state.xp >= 2000 && daysSinceFreeze >= 7 && state.streak >= 2;
+      if (canFreeze) {
+        document.getElementById('freeze-streak-count').textContent = state.streak + '-Tage';
+        document.getElementById('streak-freeze-modal').classList.add('active');
+      } else {
+        state.streak = 0; saveState();
+        document.getElementById('stat-streak').textContent = '🔥 0';
+      }
     }
   }
 }
@@ -769,14 +913,21 @@ function renderTrophies() {
 // ── TRAINING MODAL ─────────────────────────────────────
 let selectedReihe = null;
 
+function getReiheColorClass(i) {
+  const rs = state.reiheStats[i];
+  if (!rs || rs.sessions === 0) return '';
+  if (areAllQuestionsMastered(i)) return 'green';
+  return 'orange';
+}
+
 function showTrainingPicker() {
   selectedReihe = null;
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
-  for (let i = 1; i <= 12; i++) {
-    const visited = trainedSet.has(i);
+  for (let i = 1; i <= getMaxReihe(); i++) {
     const btn = document.createElement('button');
-    btn.className = 'reihe-btn' + (visited ? ' visited' : '');
+    const colorClass = getReiheColorClass(i);
+    btn.className = 'reihe-btn' + (colorClass ? ' ' + colorClass : '');
     btn.textContent = i + 'er';
     btn.onclick = () => selectReihe(i, btn);
     grid.appendChild(btn);
@@ -821,20 +972,57 @@ function shuffle(a) {
 }
 function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 
-function getMaxFactor(reihe) {
-  if (reihe >= 10) return 12;
-  if (state.settings.grosses1x1) return state.settings.reiheMax[reihe] || 10;
-  return 10;
+function getMaxReihe()       { return state.settings.grosses1x1 ? 20 : 10; }
+function getMaxFactor(reihe) { if (!state.settings.grosses1x1) return 10; return state.settings.reiheMax[reihe] || 20; }
+
+function getQS(reihe, factor) {
+  if (!state.questionStats[reihe]) state.questionStats[reihe] = {};
+  if (!state.questionStats[reihe][factor]) state.questionStats[reihe][factor] = { correct:0, wrong:0, consecutiveCorrect:0 };
+  return state.questionStats[reihe][factor];
+}
+
+function getQuestionWeight(reihe, factor) {
+  const qs = state.questionStats[reihe]?.[factor];
+  if (!qs || (qs.correct === 0 && qs.wrong === 0)) return 5;
+  if (qs.consecutiveCorrect >= 6) return 1;
+  if (qs.consecutiveCorrect === 5) return 2;
+  if (qs.consecutiveCorrect >= 3) return 3;
+  if (qs.consecutiveCorrect >= 1) return 5;
+  return Math.min(4 + qs.wrong * 2, 12); // never correct yet: boost by wrong count
+}
+
+function pickWeightedFactor(reihe, maxF) {
+  const weights = Array.from({length: maxF}, (_, i) => getQuestionWeight(reihe, i + 1));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < maxF; i++) { r -= weights[i]; if (r <= 0) return i + 1; }
+  return maxF;
+}
+
+function generateTrainingSequence(reihe) {
+  const maxF = getMaxFactor(reihe);
+  const totalQ = maxF >= 20 ? 30 : 20;
+  const required = shuffle(Array.from({length: maxF}, (_, i) => i + 1));
+  const extras = Array.from({length: totalQ - maxF}, () => pickWeightedFactor(reihe, maxF));
+  return shuffle([...required, ...extras]);
+}
+
+function areAllQuestionsMastered(reihe) {
+  const maxF = getMaxFactor(reihe);
+  for (let f = 1; f <= maxF; f++) {
+    if ((state.questionStats[reihe]?.[f]?.consecutiveCorrect ?? 0) < 6) return false;
+  }
+  return true;
 }
 
 function makeQuestion() {
   let a, b;
   if (game.mode === 'training') {
-    a = game.reihe; b = rnd(1, getMaxFactor(a));
+    a = game.reihe; b = game.sequence[game.qCount];
   } else if (game.mode === 'blitz') {
-    a = rnd(1,10); b = rnd(1, getMaxFactor(a));
+    a = rnd(1, getMaxReihe()); b = rnd(1, getMaxFactor(a));
   } else { // turnier: difficulty grows each round
-    const max = Math.min(3 + Math.floor(game.qCount * 0.8), 12);
+    const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
     a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
   }
   const ans = a * b;
@@ -850,9 +1038,28 @@ function makeQuestion() {
 }
 
 // ── START GAME ─────────────────────────────────────────
+let _pendingMode = null, _pendingReihe = null;
+
 function startGame(mode, reihe = null) {
+  const im = state.settings.inputMode;
+  if (im === 'both') {
+    _pendingMode = mode; _pendingReihe = reihe;
+    document.getElementById('input-type-modal').classList.add('active');
+    return;
+  }
+  _doStartGame(mode, reihe, im);
+}
+
+function pickInputType(type) {
+  document.getElementById('input-type-modal').classList.remove('active');
+  const resolved = type === 'random' ? (Math.random() < 0.5 ? 'tap' : 'type') : type;
+  _doStartGame(_pendingMode, _pendingReihe, resolved);
+}
+
+function _doStartGame(mode, reihe, inputType) {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  game = { mode, reihe, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
+  const sequence = mode === 'training' ? generateTrainingSequence(reihe) : null;
+  game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
            answered:false, active:true, q:null };
 
@@ -893,7 +1100,7 @@ function startTimer() {
 function nextQuestion() {
   if (!game.active) return;
   if (game.mode === 'turnier' && game.qCount >= 10) { endGame('complete'); return; }
-  if (game.mode === 'training' && game.qCount >= 20) { endGame('complete'); return; }
+  if (game.mode === 'training' && game.qCount >= game.sequence.length) { endGame('complete'); return; }
 
   game.answered = false;
   game.q = makeQuestion();
@@ -905,14 +1112,24 @@ function nextQuestion() {
   if (game.mode === 'blitz') {
     document.getElementById('question-progress').textContent = `${game.correct} richtig`;
   } else {
-    const total = game.mode === 'turnier' ? 10 : 20;
+    const total = game.mode === 'turnier' ? 10 : game.sequence.length;
     document.getElementById('question-progress').textContent = `Frage ${game.qCount+1} von ${total}`;
   }
 
-  q.choices.forEach((v,i) => {
-    const b = document.getElementById('choice-'+i);
-    b.textContent = v; b.className = 'choice-btn'; b.disabled = false;
-  });
+  const useType = game.inputType === 'type';
+  document.getElementById('choices-grid').style.display = useType ? 'none' : 'grid';
+  document.getElementById('type-input-wrap').classList.toggle('active', useType);
+
+  if (useType) {
+    const inp = document.getElementById('type-answer-input');
+    inp.value = ''; inp.className = 'type-answer-input'; inp.disabled = false;
+    setTimeout(() => inp.focus(), 80);
+  } else {
+    q.choices.forEach((v,i) => {
+      const b = document.getElementById('choice-'+i);
+      b.textContent = v; b.className = 'choice-btn'; b.disabled = false;
+    });
+  }
   renderCombo();
 }
 
@@ -932,29 +1149,54 @@ function selectAnswer(idx) {
     document.getElementById('choice-'+ci).classList.add('correct');
   }
 
+  const rect = document.getElementById('choice-'+idx).getBoundingClientRect();
+  processAnswer(ok, rect.left + rect.width/2 - 20, rect.top - 10);
+}
+
+function submitTypedAnswer() {
+  if (game.answered || !game.active) return;
+  const inp = document.getElementById('type-answer-input');
+  const entered = parseInt(inp.value, 10);
+  if (isNaN(entered) || inp.value.trim() === '') { inp.focus(); return; }
+  game.answered = true;
+  inp.disabled = true;
+  const ok = entered === game.q.ans;
+  inp.classList.add(ok ? 'correct' : 'wrong');
+  if (!ok) {
+    showFeedback(`Richtig wäre: ${game.q.ans}`, '#EF4444');
+  }
+  const rect = inp.getBoundingClientRect();
+  processAnswer(ok, rect.left + rect.width/2 - 20, rect.top - 10);
+}
+
+function processAnswer(ok, xpX, xpY) {
   if (ok) {
     playCorrect();
     game.correct++; game.combo++;
     if (game.combo > game.maxCombo) game.maxCombo = game.combo;
     if (game.combo >= 2) playCombo(game.combo);
 
-    let xp = game.combo >= 10 ? 25 : game.combo >= 5 ? 18 : game.combo >= 3 ? 14 : 10;
+    let xp = game.combo >= 10 ? 13 : game.combo >= 5 ? 9 : game.combo >= 3 ? 7 : 5;
     if (game.mode === 'turnier') xp = Math.round(xp * 1.3);
     game.xpEarned += xp;
     game.score += 10 + Math.max(0, (game.combo-1)*3);
     document.getElementById('game-score').textContent = game.score;
-
-    const rect = document.getElementById('choice-'+idx).getBoundingClientRect();
-    floatXP(`+${xp} XP`, rect.left + rect.width/2 - 20, rect.top - 10);
-
+    floatXP(`+${xp} XP`, xpX, xpY);
     const msgs = ['Super! 🎉','Richtig! ✅','Toll! 🌟','Perfekt! 💎','Bravo! 👏','Genial! 🚀'];
     showFeedback(msgs[Math.floor(Math.random()*msgs.length)], '#10B981');
   } else {
     playWrong();
     game.combo = 0; game.wrong++;
     if (game.mode !== 'blitz') { game.lives--; renderLives(); }
-    const msgs = ['Fast! Nicht ganz…','Nochmal versuchen!','Das war knapp!',`Nicht aufgeben, ${getName()}!`];
+    const msgs = ['Fast! Nicht ganz…','Nochmal versuchen!','Das war knapp!', getName() ? `Nicht aufgeben, ${getName()}!` : 'Nicht aufgeben!'];
     showFeedback(msgs[Math.floor(Math.random()*msgs.length)], '#EF4444');
+  }
+
+  // Per-question Leitner tracking (training mode only)
+  if (game.mode === 'training') {
+    const qs = getQS(game.reihe, game.q.b);
+    if (ok) { qs.correct++; qs.consecutiveCorrect++; }
+    else    { qs.wrong++;   qs.consecutiveCorrect = 0; }
   }
 
   game.qCount++;
@@ -1042,18 +1284,34 @@ function checkAchievements() {
   const give = (id, cond) => {
     if (cond && !state.achievements.includes(id)) { state.achievements.push(id); earned.push(id); }
   };
-  give('first',     state.totalCorrect >= 1);
-  give('combo5',    game.maxCombo >= 5);
-  give('combo10',   game.maxCombo >= 10);
-  give('perfect',   game.mode==='turnier' && game.wrong===0 && game.qCount===10);
-  give('blitz30',   game.mode==='blitz' && game.correct >= 30);
-  give('blitz50',   game.mode==='blitz' && game.correct >= 50);
-  give('streak3',   state.streak >= 3);
-  give('streak7',   state.streak >= 7);
-  give('level5',    getLevelInfo(state.xp).level >= 5);
-  give('level10',   getLevelInfo(state.xp).level >= 10);
-  give('total100',  state.totalCorrect >= 100);
-  give('allreihen', trainedSet.size >= 12);
+  give('first',      state.totalCorrect >= 1);
+  give('games10',    state.totalGames >= 10);
+  give('total100',   state.totalCorrect >= 100);
+  give('total500',   state.totalCorrect >= 500);
+  give('total1000',  state.totalCorrect >= 1000);
+  give('combo5',     game.maxCombo >= 5);
+  give('combo10',    game.maxCombo >= 10);
+  give('combo20',    game.maxCombo >= 20);
+  give('perfect',    game.mode==='turnier' && game.wrong===0 && game.qCount===10);
+  give('blitz30',    game.mode==='blitz' && game.correct >= 30);
+  give('blitz50',    game.mode==='blitz' && game.correct >= 50);
+  give('typemaster', game.inputType==='type' && game.correct > 0);
+  give('streak3',    state.streak >= 3);
+  give('streak7',    state.streak >= 7);
+  give('streak14',   state.streak >= 14);
+  give('streak21',   state.streak >= 21);
+  give('streak30',   state.streak >= 30);
+  give('streak60',   state.streak >= 60);
+  give('streak100',  state.streak >= 100);
+  give('freezeused', (state.streakFreezeTotal || 0) >= 1);
+  give('level5',     getLevelInfo(state.xp).level >= 5);
+  give('level10',    getLevelInfo(state.xp).level >= 10);
+  give('allreihen',  trainedSet.size >= getMaxReihe());
+  give('kleines1x1', [1,2,3,4,5,6,7,8,9,10].every(i => areAllQuestionsMastered(i)));
+  give('grosses1x1', Array.from({length:20},(_,i)=>i+1).every(i => areAllQuestionsMastered(i)));
+  for (let i = 1; i <= 20; i++) {
+    give(`reihe${i}`, areAllQuestionsMastered(i));
+  }
   return earned;
 }
 
@@ -1062,19 +1320,20 @@ function showResults(reason, leveledUp, newAchs) {
   const acc = game.correct + game.wrong > 0
     ? Math.round(game.correct / (game.correct+game.wrong) * 100) : 0;
 
-  let emoji = '🎉', title = `Gut gemacht, ${getName()}!`, sub = '';
+  const n = getName();
+  let emoji = '🎉', title = n ? `Gut gemacht, ${n}!` : 'Gut gemacht!', sub = '';
 
   if (leveledUp) {
     emoji = '🎊'; title = `LEVEL UP! ${getLevelInfo(state.xp).title}`;
   } else if (reason === 'timeout') {
     emoji = game.correct>=40?'🚀':game.correct>=20?'⭐':'💪';
-    title = game.correct>=40?`Unglaublich, ${getName()}!`:game.correct>=20?'Klasse gemacht!':`Gut geübt, ${getName()}!`;
+    title = game.correct>=40?(n?`Unglaublich, ${n}!`:'Unglaublich!'):game.correct>=20?'Klasse gemacht!':(n?`Gut geübt, ${n}!`:'Gut geübt!');
     sub   = `Blitz-Modus · ${game.correct} richtig · Rekord: ${state.highScores.blitz}`;
   } else if (reason === 'no-lives') {
     emoji='😤'; title='Nächstes Mal klappt\'s!';
     sub = `Turnier · ${game.correct} von 10 richtig`;
   } else {
-    if (game.wrong===0) { emoji='👑'; title=`PERFEKT, ${getName()}! 🤩`; }
+    if (game.wrong===0) { emoji='👑'; title=n?`PERFEKT, ${n}! 🤩`:'PERFEKT! 🤩'; }
     else if (acc>=80)   { emoji='🌟'; title='Super Ergebnis!'; }
     const label = game.mode==='turnier'?'Turnier':`${game.reihe}er-Reihe`;
     sub = `${label} · ${acc}% richtig`;
@@ -1115,6 +1374,38 @@ function playAgain() {
 }
 
 // ── STATS SCREEN ───────────────────────────────────────
+function showReiheDetail(reihe) {
+  const maxF = getMaxFactor(reihe);
+  const MASTERY = 6;
+  document.getElementById('reihe-detail-title').textContent = `${reihe}er-Reihe — Aufgaben`;
+  const grid = document.getElementById('reihe-detail-grid');
+  grid.innerHTML = '';
+  for (let f = 1; f <= maxF; f++) {
+    const qs = state.questionStats[reihe]?.[f];
+    const cc  = qs?.consecutiveCorrect ?? 0;
+    const seen = qs && (qs.correct > 0 || qs.wrong > 0);
+    let colorClass = 'unseen';
+    if (seen) {
+      if (cc >= MASTERY) colorClass = 'green';
+      else if (cc > 0)   colorClass = 'orange';
+      else               colorClass = 'red';
+    }
+    const dots = '●'.repeat(Math.min(cc, MASTERY)) + '○'.repeat(Math.max(MASTERY - cc, 0));
+    const card = document.createElement('div');
+    card.className = `q-card ${colorClass}`;
+    card.innerHTML =
+      `<div class="q-card-fact">${reihe}×${f}</div>` +
+      `<div class="q-card-dots">${dots}</div>` +
+      `<div class="q-card-ans">= ${reihe * f}</div>`;
+    grid.appendChild(card);
+  }
+  document.getElementById('reihe-detail-modal').classList.add('active');
+}
+
+function closeReiheDetail() {
+  document.getElementById('reihe-detail-modal').classList.remove('active');
+}
+
 function renderStats() {
   const MASTERY = 6;
   let mastered = 0;
@@ -1122,7 +1413,7 @@ function renderStats() {
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = '';
 
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= getMaxReihe(); i++) {
     const rs = state.reiheStats[i];
     const untrained = rs.sessions === 0;
     const rate = rs.totalQuestions > 0 ? Math.round(rs.totalCorrect / rs.totalQuestions * 100) : null;
@@ -1130,17 +1421,14 @@ function renderStats() {
     const isMastered = rs.consecutivePerfect >= MASTERY;
     if (isMastered) mastered++;
 
-    let colorClass;
-    if (untrained)        colorClass = 'untrained';
-    else if (isMastered)  colorClass = 'green';
-    else if (cp >= 1)     colorClass = 'orange';
-    else                  colorClass = 'red';
+    const colorClass = untrained ? 'untrained' : getReiheColorClass(i);
 
     // Progress dots: ● filled, ○ empty
     const dots = '●'.repeat(cp) + '○'.repeat(MASTERY - cp);
 
     const card = document.createElement('div');
     card.className = `stats-card ${colorClass}`;
+    card.onclick = () => showReiheDetail(i);
     card.innerHTML =
       `<div class="stats-card-num">${i}er</div>` +
       `<div class="stats-card-rate">${rate !== null ? rate + '%' : '–'}</div>` +
@@ -1149,8 +1437,8 @@ function renderStats() {
     grid.appendChild(card);
   }
 
-  const fill = Math.round(mastered / 12 * 100);
-  document.getElementById('stats-mastered-count').textContent = `${mastered} / 12`;
+  const fill = Math.round(mastered / getMaxReihe() * 100);
+  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe()}`;
   document.getElementById('stats-progress-fill').style.width = fill + '%';
 }
 
@@ -1160,6 +1448,7 @@ window.addEventListener('load', () => {
   initStars();
   document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
   document.getElementById('settings-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveSettingsName(); });
+  document.getElementById('type-answer-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitTypedAnswer(); });
   if (!state.name) {
     showScreen('name');
   } else {
