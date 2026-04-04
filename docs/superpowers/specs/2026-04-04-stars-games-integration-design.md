@@ -56,7 +56,7 @@ Nach jeder Übung wird geprüft ob der Spieler genug XP für einen neuen Stern h
 
 ```js
 state.stars: number           // aktuelle Sterne (0–n)
-state.gameMinutesLeft: number // verbleibende Spielminuten (über Sessions persistent)
+state.gameSecondsLeft: number // verbleibende Sekunden im laufenden 10-min-Block (persistent)
 ```
 
 ### Stern verdienen
@@ -69,28 +69,47 @@ state.gameMinutesLeft: number // verbleibende Spielminuten (über Sessions persi
 ### Spielzeit
 
 - 1 Stern = 10 Minuten
-- Sterne werden beim Betreten des Spiele-Screens eingelöst (alle verfügbaren Sterne → Minuten umrechnen, `state.stars` auf 0 setzen)
-- `state.gameMinutesLeft` bleibt über Sessions gespeichert → nicht verbrauchte Spielzeit geht nicht verloren
+- Sterne werden **blockweise** eingelöst — immer nur 1 Stern auf einmal:
+  - Beim Betreten des Spiele-Screens: 1 Stern sofort abgezogen, 10-Minuten-Countdown startet
+  - Wenn ein 10-Minuten-Block abläuft und noch Sterne vorhanden: nächster Stern automatisch abgezogen, neuer Block startet
+  - Wenn Block abläuft und keine Sterne mehr: Spiel endet
+- `state.gameSecondsLeft`: verbleibende Sekunden im aktuellen Block (über Sessions persistent)
+- `state.stars` zählt die noch nicht eingelösten Sterne
 
 ---
 
 ## 3. UI
 
+### Streak-Gate
+
+Das Spiele-Menü ist **gesperrt** solange `state.streak < 3`.
+
+- Erstmalige Freischaltung: Streak erreicht 3 Tage
+- Wenn Streak bricht (auf 0 zurückgesetzt): Spiele wieder gesperrt bis Streak erneut ≥ 3
+- Spielzeit zählt **nicht** zum Streak — nur Blitz-, Turnier- und Trainings-Modus
+- Der Streak-Check läuft in `updateHomeUI()` (bereits dort verankert)
+
 ### Home-Screen — Spiele-Leiste (Option C)
 
-Breite Leiste unterhalb der 4 Mode-Cards:
+Breite Leiste unterhalb der 4 Mode-Cards. Drei Zustände:
 
-**Mit Sternen (≥1):**
+**Streak zu niedrig (< 3 Tage):**
+```
+🔒 Spiele    Erst ab 3 Tagen Streak verfügbar
+```
+Ausgegraut, nicht anklickbar.
+
+**Streak OK aber keine Sterne:**
+```
+🔒 Spiele    Du hast gerade keine Sterne!
+```
+Ausgegraut, nicht anklickbar.
+
+**Bereit (Streak ≥ 3 + Sterne vorhanden):**
 ```
 🎮 Spiele          ⭐⭐ · 20 min    [Los! →]
 ```
 Goldener Gradient-Border, anklickbar.
-
-**Ohne Sterne (0):**
-```
-🔒 Spiele    Du hast gerade keine Sterne!
-```
-Ausgegraut, nicht anklickbar (`pointer-events: none`).
 
 ### Spiele-Screen
 
