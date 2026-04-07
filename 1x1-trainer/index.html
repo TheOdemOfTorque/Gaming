@@ -262,6 +262,31 @@
     .mt-16 { margin-top: 16px; }
     .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.1); margin: 12px 0; }
     .footer-note { text-align: center; font-size: 0.7rem; color: rgba(255,255,255,0.2); margin-top: 20px; }
+
+    /* SPIELE-LEISTE */
+    .games-bar { width: 100%; }
+    .games-bar-inner {
+      border-radius: 16px; padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .games-bar-inner.ready {
+      background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(239,68,68,0.1));
+      border: 1px solid rgba(245,158,11,0.4);
+    }
+    .games-bar-inner.locked {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      opacity: 0.5;
+    }
+    .games-bar-title { font-size: 0.88rem; font-weight: 800; }
+    .games-bar-sub { font-size: 0.65rem; color: rgba(255,255,255,0.45); margin-top: 2px; }
+    .games-bar-btn {
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border: none; border-radius: 10px; color: #fff;
+      font-weight: 800; font-size: 0.78rem;
+      padding: 8px 14px; cursor: pointer; -webkit-appearance: none;
+    }
+    .games-bar-btn:active { transform: scale(0.95); }
   </style>
 </head>
 <body>
@@ -337,6 +362,10 @@
         <div class="mode-desc" id="stats-home-desc">0 von 12 Reihen gemeistert</div>
       </div>
     </div>
+  </div>
+  <!-- SPIELE-LEISTE -->
+  <div id="games-bar" class="games-bar mt-12">
+    <div id="games-bar-content"></div>
   </div>
   <div class="spacer"></div>
   <div class="footer-note" id="footer-note">Einmaleins-Trainer · Kleines 1×1</div>
@@ -550,6 +579,8 @@
 
 <script>
 // ── CONSTANTS ──────────────────────────────────────────
+const STAR_COSTS = [400, 600, 900, 1200]; // XP cost for next star (caps at index 3)
+
 const LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
   { xp:  200, title: '🌟 Lehrling',           avatar: '🌙' },
@@ -622,7 +653,8 @@ function defaultState() {
            streak: 0, lastPlayDate: null, highScores: { blitz: 0, turnier: 0 },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
-           questionStats: {} };
+           questionStats: {},
+           stars: 0, gameSecondsLeft: 0 };
 }
 
 let state = (() => {
@@ -637,6 +669,8 @@ if (!state.settings.inputMode) state.settings.inputMode = 'tap';
 if (state.streakFreezeUsedDate === undefined) state.streakFreezeUsedDate = null;
 if (state.streakFreezeTotal    === undefined) state.streakFreezeTotal    = 0;
 if (!state.questionStats) state.questionStats = {};
+if (state.stars           === undefined) state.stars           = 0;
+if (state.gameSecondsLeft === undefined) state.gameSecondsLeft = 0;
 if (!state.reiheStats) state.reiheStats = defaultReiheStats();
 for (let i = 1; i <= 20; i++) { if (!state.reiheStats[i]) state.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 }; }
 for (let i = 1; i <= 20; i++) { if (!state.settings.reiheMax[i]) state.settings.reiheMax[i] = 20; }
@@ -724,6 +758,18 @@ function confetti(n = 40) {
     document.body.appendChild(el);
     setTimeout(()=>el.remove(), 4000);
   }
+}
+
+// ── TOAST ──────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);' +
+    'background:rgba(245,158,11,0.95);color:#000;font-weight:800;font-size:0.9rem;' +
+    'padding:10px 18px;border-radius:20px;z-index:500;white-space:nowrap;' +
+    'animation:floatUp 2.5s ease forwards;pointer-events:none;';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
 }
 
 // ── FLOAT XP ───────────────────────────────────────────
@@ -875,6 +921,36 @@ function updateHomeUI() {
   if (state.totalGames > 0) sub = `${info.title} · ${state.xp} XP gesamt`;
   document.getElementById('home-greeting').textContent = greeting;
   document.getElementById('home-subtitle').textContent  = sub;
+
+  // ── Spiele-Leiste ───────────────────────────────────
+  const gBar = document.getElementById('games-bar-content');
+  if (state.streak < 3) {
+    gBar.innerHTML = `<div class="games-bar-inner locked">
+      <div>
+        <div class="games-bar-title">🔒 Spiele</div>
+        <div class="games-bar-sub">Erst ab 3 Tagen Streak verfügbar (aktuell: ${state.streak})</div>
+      </div>
+    </div>`;
+  } else if (state.stars === 0 && state.gameSecondsLeft <= 0) {
+    gBar.innerHTML = `<div class="games-bar-inner locked">
+      <div>
+        <div class="games-bar-title">🔒 Spiele</div>
+        <div class="games-bar-sub">Du hast gerade keine Sterne! Übe mehr, um Sterne zu verdienen.</div>
+      </div>
+    </div>`;
+  } else {
+    const totalMin = state.gameSecondsLeft > 0
+      ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
+      : state.stars * 10;
+    const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
+    gBar.innerHTML = `<div class="games-bar-inner ready">
+      <div>
+        <div class="games-bar-title">🎮 Spiele</div>
+        <div class="games-bar-sub">${starsDisplay} · ${totalMin} min verfügbar</div>
+      </div>
+      <button class="games-bar-btn" onclick="enterInvaderScreen()">Los! →</button>
+    </div>`;
+  }
 
   // Break streak if more than 1 day missed (or offer freeze)
   if (state.lastPlayDate) {
@@ -1235,6 +1311,17 @@ function quitGame() {
   showScreen('home');
 }
 
+// ── STAR EARNING ───────────────────────────────────────
+function earnStars() {
+  const cost = STAR_COSTS[Math.min(state.stars, STAR_COSTS.length - 1)];
+  if (state.xp >= cost) {
+    state.stars++;
+    state.xp -= cost;
+    showToast('⭐ Neuer Stern! Du hast 10 Minuten Spielzeit verdient!');
+  }
+  // Max 1 star per game session — do not loop
+}
+
 // ── END GAME ───────────────────────────────────────────
 function endGame(reason) {
   if (!game.active) return;
@@ -1266,6 +1353,7 @@ function endGame(reason) {
 
   const oldLevel = getLevelInfo(state.xp).level;
   state.xp += game.xpEarned;
+  earnStars();
   const newLevel = getLevelInfo(state.xp).level;
 
   const newAchs = checkAchievements();
