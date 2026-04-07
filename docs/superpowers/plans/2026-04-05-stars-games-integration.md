@@ -634,13 +634,14 @@ Add after the existing navigation functions (near `showScreen()`):
 let invaderTimerInterval = null;
 
 function enterInvaderScreen() {
-  if (state.stars <= 0 || state.streak < 3) return;
+  if (state.streak < 3) return;
+  if (state.stars <= 0 && state.gameSecondsLeft <= 0) return;
 
-  // Deduct 1 star immediately on entry
-  state.stars--;
-  // If no active block, start a fresh 10-minute block
+  // Only deduct a star if there is no active block running already.
+  // (Player might exit and re-enter mid-block — don't double-charge.)
   if (state.gameSecondsLeft <= 0) {
-    state.gameSecondsLeft = 600; // 10 minutes
+    state.stars--;
+    state.gameSecondsLeft = 600; // start fresh 10-minute block
   }
   saveState();
   updateHomeUI();
@@ -699,13 +700,19 @@ function updateInvaderTimerDisplay() {
 - [ ] **Step 2: Test in browser console**
 
 ```js
-// Give test stars and a streak
+// Test A: fresh entry (no active block)
 state.stars = 2; state.streak = 5; state.gameSecondsLeft = 0;
 saveState(); updateHomeUI();
-// Click "Los!" button — invader screen should show
-// Timer overlay should show "⏱ 10:00"
-// state.stars should now be 1
-console.log(state.stars); // Expected: 1
+// Click "Los!" → star deducted, block starts
+// Timer shows "⏱ 10:00", state.stars = 1
+console.log(state.stars, state.gameSecondsLeft); // Expected: 1, 600
+
+// Test B: re-entry with active block (e.g. returned after ✕)
+state.stars = 1; state.streak = 5; state.gameSecondsLeft = 300;
+saveState(); updateHomeUI();
+// Click "Los!" → no star deducted, timer resumes at 5:00
+// state.stars still 1, gameSecondsLeft still 300
+console.log(state.stars, state.gameSecondsLeft); // Expected: 1, 300
 ```
 
 - [ ] **Step 3: Commit**
