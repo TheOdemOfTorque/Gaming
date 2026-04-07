@@ -263,6 +263,94 @@
     .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.1); margin: 12px 0; }
     .footer-note { text-align: center; font-size: 0.7rem; color: rgba(255,255,255,0.2); margin-top: 20px; }
 
+    /* ═══ SPACE INVADER (scoped) ══════════════════════════ */
+    #screen-invader canvas { display: block; }
+    #screen-invader #ui {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: flex-end;
+      padding: 14px 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+      pointer-events: none;
+    }
+    #screen-invader .dpad { display: flex; gap: 10px; }
+    #screen-invader .inv-btn {
+      width: 68px; height: 68px; border-radius: 50%;
+      background: rgba(100,200,255,0.12); border: 2px solid rgba(100,200,255,0.35);
+      display: flex; align-items: center; justify-content: center; font-size: 26px;
+      pointer-events: all; user-select: none; -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent; cursor: pointer;
+      font-family: 'Courier New', monospace;
+    }
+    #screen-invader .inv-btn.pressed { background: rgba(100,200,255,0.30); }
+    #screen-invader #bFire {
+      width: 78px; height: 78px;
+      background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.45); font-size: 30px;
+    }
+    #screen-invader #bFire.pressed { background: rgba(255,80,80,0.35); }
+    #screen-invader #bPause {
+      width: 52px; height: 52px; font-size: 20px; align-self: center;
+      background: rgba(200,200,255,0.08); border-color: rgba(200,200,255,0.25);
+    }
+    #screen-invader #bPause.pressed { background: rgba(200,200,255,0.20); }
+    #screen-invader #menuBtns {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      display: none; flex-direction: column; align-items: center; gap: 12px;
+      padding: 20px 24px; padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      background: linear-gradient(transparent, rgba(4,4,28,0.95) 35%);
+    }
+    #screen-invader #menuBtns .ov-btn { width: 220px; font-size: 17px; padding: 14px 0; }
+    #screen-invader #menuBtns .ov-btn.ghost { width: 220px; }
+    #screen-invader .ov {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(4,4,28,0.95); z-index: 50;
+      flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 24px; overflow-y: auto;
+      font-family: 'Courier New', monospace; color: #fff;
+    }
+    #screen-invader .ov.show { display: flex; }
+    #screen-invader #pauseOv { background: rgba(4,4,28,0.88); }
+    #screen-invader .ov-title { font-size: 50px; font-weight: bold; text-align: center; text-shadow: 0 0 24px currentColor; }
+    #screen-invader .ov-score { font-size: 24px; font-weight: bold; color: #ffff44; text-shadow: 0 0 14px #ffff44; }
+    #screen-invader .ov-record { font-size: 16px; font-weight: bold; color: #ff88ff; text-shadow: 0 0 10px #ff88ff; }
+    #screen-invader .ov-label { font-size: 12px; color: #7788aa; text-align: center; text-transform: uppercase; letter-spacing: 0.06em; }
+    #screen-invader .ov-input {
+      background: #080818; color: #fff; border: 2px solid #4477ff; border-radius: 8px;
+      padding: 11px 20px; font: bold 20px 'Courier New'; text-align: center;
+      width: 230px; outline: none; caret-color: #88aaff;
+    }
+    #screen-invader .ov-input:focus { border-color: #88aaff; box-shadow: 0 0 14px #4477ff55; }
+    #screen-invader .ov-btn {
+      background: #1e40af; color: #fff; border: none; border-radius: 8px;
+      padding: 12px 32px; font: bold 16px 'Courier New'; cursor: pointer; touch-action: manipulation;
+    }
+    #screen-invader .ov-btn:hover { background: #2554c7; }
+    #screen-invader .ov-btn.ghost {
+      background: transparent; color: #667; border: 1px solid #334; padding: 9px 22px; font-size: 13px;
+    }
+    #screen-invader .ov-btn.ghost:hover { color: #aaa; border-color: #556; }
+    #screen-invader .set-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+    #screen-invader .set-opt {
+      background: transparent; color: #778; border: 1px solid #334;
+      border-radius: 6px; padding: 8px 13px; font: bold 12px 'Courier New';
+      cursor: pointer; touch-action: manipulation; transition: all 0.12s;
+    }
+    #screen-invader .set-opt:hover { border-color: #556; color: #aaa; }
+    #screen-invader .set-opt.active { background: #1e3a8a; color: #fff; border-color: #4477ff; box-shadow: 0 0 8px #4477ff44; }
+    #screen-invader .hs-table {
+      font-family: 'Courier New'; font-size: 15px; border-collapse: collapse;
+      min-width: 290px; width: 100%; max-width: 340px;
+    }
+    #screen-invader .hs-table th {
+      color: #6677aa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 5px 10px; border-bottom: 1px solid #222;
+    }
+    #screen-invader .hs-table td { padding: 7px 10px; border-bottom: 1px solid #111; }
+    #screen-invader .hs-table tr.new td { color: #ffff44; text-shadow: 0 0 8px #ffff44; font-weight: bold; }
+    #screen-invader .hs-rank { text-align: center; }
+    #screen-invader .hs-name { text-align: left; font-weight: bold; }
+    #screen-invader .hs-pts  { text-align: right; font-variant-numeric: tabular-nums; }
+    #invader-timer.warning { color: #EF4444 !important; border-color: rgba(239,68,68,0.5) !important; animation: pulse 0.5s infinite alternate; }
+    /* ══════════════════════════════════════════════════════ */
+
     /* SPIELE-LEISTE */
     .games-bar { width: 100%; }
     .games-bar-inner {
@@ -575,6 +663,83 @@
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTrainingModal()">Abbrechen</button>
   </div>
+</div>
+
+<!-- SPACE INVADER SCREEN -->
+<div id="screen-invader" class="screen" style="padding:0;max-width:none;overflow:hidden;background:#000;">
+
+  <!-- Trainer overlay: timer + exit button (z-index 200, above invader) -->
+  <div style="position:fixed;top:0;left:0;right:0;z-index:200;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;pointer-events:none;">
+    <button id="invader-exit-btn" onclick="exitInvaderScreen()"
+      style="pointer-events:all;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.3);
+             border-radius:10px;color:#fff;font-size:1rem;font-weight:700;padding:6px 12px;cursor:pointer;">✕</button>
+    <div id="invader-timer"
+      style="pointer-events:none;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);
+             border-radius:10px;color:#fff;font-size:1rem;font-weight:800;padding:6px 12px;">⏱ 10:00</div>
+  </div>
+
+  <!-- Space Invader canvas -->
+  <canvas id="c"></canvas>
+
+  <!-- Menu buttons (invader's own — hidden on load, shown by invShowMenu) -->
+  <div id="menuBtns">
+    <button class="ov-btn" id="btnPlay">▶  SPIELEN</button>
+    <button class="ov-btn ghost" id="btnSettings">⚙  Einstellungen</button>
+  </div>
+
+  <!-- Touch controls -->
+  <div id="ui" style="display:none">
+    <div class="dpad">
+      <div class="inv-btn" id="bL">◀</div>
+      <div class="inv-btn" id="bR">▶</div>
+    </div>
+    <div class="inv-btn" id="bPause">⏸</div>
+    <div class="inv-btn" id="bFire">🔥</div>
+  </div>
+
+  <!-- Pause overlay -->
+  <div class="ov" id="pauseOv">
+    <div class="ov-title" style="color:#ffffff;font-size:40px">PAUSE</div>
+    <button class="ov-btn" id="pauseResume" style="width:200px">▶ Fortsetzen</button>
+    <button class="ov-btn ghost" id="pauseSettings" style="width:200px">⚙ Einstellungen</button>
+    <button class="ov-btn ghost" id="pauseRestart" style="width:200px">⏹ Zum Menü</button>
+  </div>
+
+  <!-- Settings overlay -->
+  <div class="ov" id="settOv">
+    <div class="ov-title" style="color:#44ffff;font-size:26px">⚙ EINSTELLUNGEN</div>
+    <div class="ov-label" style="margin-top:6px">Power-up Wahrscheinlichkeit</div>
+    <div class="set-row" id="puRow"></div>
+    <div class="ov-label" style="margin-top:10px">Schwierigkeitsgrad</div>
+    <div class="set-row" id="diffRow"></div>
+    <button class="ov-btn" id="settBack" style="margin-top:16px">✓ Fertig</button>
+  </div>
+
+  <!-- Game Over → Name Entry overlay -->
+  <div class="ov" id="goOv">
+    <div class="ov-title" style="color:#ff4444">GAME OVER</div>
+    <div class="ov-score" id="goScoreTxt">SCORE: 0</div>
+    <div class="ov-record" id="goRecord" style="display:none">🏆 NEUER REKORD!</div>
+    <div class="ov-label">Trag dich in die Highscore-Liste ein:</div>
+    <input class="ov-input" id="goName" type="text" maxlength="12"
+      placeholder="Dein Name" autocomplete="off" autocorrect="off"
+      autocapitalize="characters" inputmode="text" spellcheck="false">
+    <button class="ov-btn" id="goSubmit">Eintragen ✓</button>
+    <button class="ov-btn ghost" id="goSkip">Überspringen</button>
+  </div>
+
+  <!-- Highscore table overlay -->
+  <div class="ov" id="hsOv">
+    <div class="ov-title" style="color:#ffff44;font-size:28px">🏆 HIGHSCORES</div>
+    <div class="ov-label" id="hsDiffLabel" style="color:#8899bb;font-size:13px;text-transform:none;letter-spacing:0"></div>
+    <table class="hs-table">
+      <thead><tr><th class="hs-rank">#</th><th class="hs-name">Name</th><th class="hs-pts">Punkte</th></tr></thead>
+      <tbody id="hsTbody"></tbody>
+    </table>
+    <button class="ov-btn" id="playAgain" style="margin-top:6px">🚀 Nochmal spielen</button>
+    <button class="ov-btn ghost" id="hsSettings">⚙ Einstellungen</button>
+  </div>
+
 </div>
 
 <script>
