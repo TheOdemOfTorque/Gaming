@@ -1007,6 +1007,17 @@ function updateInvaderTimerDisplay() {
   }
 }
 
+function exitInvaderScreen() {
+  if (invaderTimerInterval) {
+    clearInterval(invaderTimerInterval);
+    invaderTimerInterval = null;
+  }
+  invShowMenu();
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-home').classList.add('active');
+  updateHomeUI();
+}
+
 // ── NAVIGATION ─────────────────────────────────────────
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -2634,6 +2645,20 @@ document.getElementById('c').addEventListener('touchstart',e=>{
 },{passive:false});
 
 // buildSettingsUI() und invShowMenu() werden von enterInvaderScreen() aufgerufen
+
+// Timer pausiert wenn Tab/App in den Hintergrund geht
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (invaderTimerInterval) {
+      clearInterval(invaderTimerInterval);
+      invaderTimerInterval = null;
+    }
+  } else {
+    if (document.getElementById('space-invader').classList.contains('active')) {
+      startInvaderTimer();
+    }
+  }
+});
 
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
