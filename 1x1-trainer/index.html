@@ -946,6 +946,67 @@ function floatXP(txt, x, y) {
   setTimeout(()=>el.remove(), 1100);
 }
 
+// ── INVADER SCREEN ──────────────────────────────────────
+let invaderTimerInterval = null;
+
+function enterInvaderScreen() {
+  if (state.streak < 3) return;
+  if (state.stars <= 0 && state.gameSecondsLeft <= 0) return;
+
+  // Stern nur abziehen wenn kein aktiver Block mehr läuft
+  if (state.gameSecondsLeft <= 0) {
+    state.stars--;
+    state.gameSecondsLeft = 600; // 10 Minuten
+  }
+  saveState();
+  updateHomeUI();
+
+  // Space Invader Screen aktivieren
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('space-invader').classList.add('active');
+  buildSettingsUI();
+  invStartGame();
+  startInvaderTimer();
+}
+
+function startInvaderTimer() {
+  if (invaderTimerInterval) clearInterval(invaderTimerInterval);
+  updateInvaderTimerDisplay();
+  invaderTimerInterval = setInterval(() => {
+    if (state.gameSecondsLeft > 0) {
+      state.gameSecondsLeft--;
+      saveState();
+      updateInvaderTimerDisplay();
+      if (state.gameSecondsLeft === 0) {
+        if (state.stars > 0) {
+          state.stars--;
+          state.gameSecondsLeft = 600;
+          saveState();
+          showToast('⭐ Nächster Stern! Noch 10 Minuten Spielzeit!');
+        } else {
+          clearInterval(invaderTimerInterval);
+          invaderTimerInterval = null;
+          showToast('⏱ Zeit abgelaufen!');
+          setTimeout(() => exitInvaderScreen(), 1500);
+        }
+      }
+    }
+  }, 1000);
+}
+
+function updateInvaderTimerDisplay() {
+  const el = document.getElementById('invader-timer');
+  if (!el) return;
+  const m = Math.floor(state.gameSecondsLeft / 60);
+  const s = state.gameSecondsLeft % 60;
+  el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
+  if (state.gameSecondsLeft <= 120) {
+    el.classList.add('warning');
+  } else {
+    el.classList.remove('warning');
+  }
+}
+
 // ── NAVIGATION ─────────────────────────────────────────
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
