@@ -1,0 +1,11 @@
+{
+  "name": "1x1-trainer-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "icons": "node generate-icons.js"
+  },
+  "dependencies": {
+    "canvas": "^2.11.2"
+  }
+}
