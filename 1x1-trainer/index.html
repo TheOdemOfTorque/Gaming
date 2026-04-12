@@ -744,7 +744,7 @@
 
 <script>
 // ── CONSTANTS ──────────────────────────────────────────
-const STAR_COSTS = [400, 600, 900, 1200]; // XP cost for next star (caps at index 3)
+const STAR_COSTS = [800, 1400, 2000, 2800]; // XP cost for next star (caps at index 3)
 
 const LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
@@ -2263,6 +2263,7 @@ function buildSettingsUI(){
     btn.textContent=d.label;
     btn.addEventListener('click',()=>{
       SETTINGS.diff=i;
+      gameDiff=i; // sofort wirksam für nächste Welle
       saveSettings();
       buildSettingsUI();
       hiScore=bestScore(gameDiff); // HUD aktualisieren
@@ -2593,10 +2594,13 @@ function drawScene(){
 
 function drawHUD(){
   ctx.save();ctx.shadowBlur=0;ctx.font='bold 15px "Courier New"';
-  ctx.textAlign='left';  ctx.fillStyle='#ffffff';ctx.fillText('SCORE: '+score,8,22);
-  ctx.textAlign='center';ctx.fillStyle='#8888ff';ctx.fillText('LEVEL '+level,W/2,22);
-  ctx.textAlign='right'; ctx.fillStyle='#555577';ctx.fillText('HI: '+hiScore,W-8,22);
-  for(let i=0;i<lives;i++) drawPlayerShip(16+i*28,H-18,10);
+  // Score-Zeile: versetzt nach unten, damit der HTML-Timer-Overlay (oben ~51px) sie nicht verdeckt
+  ctx.textAlign='left';  ctx.fillStyle='#ffffff';ctx.fillText('SCORE: '+score,8,62);
+  ctx.textAlign='center';ctx.fillStyle='#8888ff';ctx.fillText('LEVEL '+level,W/2,62);
+  ctx.textAlign='right'; ctx.fillStyle='#555577';ctx.fillText('HI: '+hiScore,W-8,62);
+  // Leben: in der oberen sicheren Zone (unter Score-Zeile), nicht am unteren Rand,
+  // der von den Touch-Controls (position:fixed; bottom:0) verdeckt wird
+  for(let i=0;i<lives;i++) drawPlayerShip(16+i*28,82,10);
   ctx.restore();
 }
 
