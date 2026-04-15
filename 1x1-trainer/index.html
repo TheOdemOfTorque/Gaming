@@ -465,9 +465,9 @@
       <div class="mode-desc" id="trophy-progress">0 / 12</div>
     </div>
     <div class="mode-card" onclick="showScreen('stats')" style="grid-column:1/-1;border-color:rgba(99,102,241,0.35);flex-direction:row;justify-content:flex-start;gap:14px;padding:14px 20px;text-align:left">
-      <span style="font-size:2rem">📊</span>
+      <span style="font-size:2rem">🌟</span>
       <div>
-        <div class="mode-name">Lern-Statistik</div>
+        <div class="mode-name">Reihen-Power</div>
         <div class="mode-desc" id="stats-home-desc">0 von 12 Reihen gemeistert</div>
       </div>
     </div>
@@ -572,7 +572,7 @@
 <!-- STATS SCREEN -->
 <div id="screen-stats" class="screen">
   <div style="text-align:center;padding:20px 0 10px;width:100%">
-    <h1 style="font-size:1.8rem;font-weight:900">📊 Lern-Statistik</h1>
+    <h1 style="font-size:1.8rem;font-weight:900">🌟 Reihen-Power</h1>
   </div>
   <div class="card" style="margin-bottom:14px;width:100%">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -663,6 +663,20 @@
     </div>
     <button class="btn btn-primary mt-8" id="freeze-buy-btn" onclick="useStreakFreeze()">🧊 Streak schützen (−2000 XP)</button>
     <button class="btn btn-secondary mt-8" onclick="skipStreakFreeze()">Streak verlieren</button>
+  </div>
+</div>
+
+<!-- STERN ABGELAUFEN MODAL -->
+<div class="modal-overlay" id="star-expired-modal">
+  <div class="modal-sheet">
+    <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
+    <div class="modal-title">10 Minuten sind um!</div>
+    <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
+      Du hast noch <strong id="star-count-in-modal">0 Sterne</strong> übrig.<br>
+      Möchtest du einen einsetzen und weiterspielen?
+    </div>
+    <button class="btn btn-primary mt-8" onclick="continueWithStar()">⭐ Stern einsetzen &amp; weiterspielen</button>
+    <button class="btn btn-secondary mt-8" onclick="stopInvader()">🏠 Aufhören</button>
   </div>
 </div>
 
@@ -772,7 +786,7 @@ const STAR_COSTS = [800, 1400, 2000, 2800]; // XP cost for next star (caps at in
 
 const LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
-  { xp:  200, title: '🌟 Lehrling',           avatar: '🌙' },
+  { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
   { xp:  500, title: '📚 Schüler',            avatar: '📖' },
   { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
   { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
@@ -846,23 +860,51 @@ function defaultState() {
            stars: 0, gameSecondsLeft: 0 };
 }
 
-let state = (() => {
-  try { const s = localStorage.getItem('henry_einmaleins'); return s ? JSON.parse(s) : defaultState(); }
-  catch { return defaultState(); }
-})();
+// ── STATE VERSIONING ──────────────────────────────────────────
+// Wenn neue Felder hinzukommen: STATE_VERSION erhöhen und eine neue
+// Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
+// werden automatisch Schritt für Schritt auf die aktuelle Version
+// gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
+const STATE_VERSION = 1;
 
-// Migrate older saves that lack settings / reiheStats
-if (!state.settings) state.settings = defaultSettings();
-if (!state.settings.reiheMax) state.settings.reiheMax = defaultSettings().reiheMax;
-if (!state.settings.inputMode) state.settings.inputMode = 'tap';
-if (state.streakFreezeUsedDate === undefined) state.streakFreezeUsedDate = null;
-if (state.streakFreezeTotal    === undefined) state.streakFreezeTotal    = 0;
-if (!state.questionStats) state.questionStats = {};
-if (state.stars           === undefined) state.stars           = 0;
-if (state.gameSecondsLeft === undefined) state.gameSecondsLeft = 0;
-if (!state.reiheStats) state.reiheStats = defaultReiheStats();
-for (let i = 1; i <= 20; i++) { if (!state.reiheStats[i]) state.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 }; }
-for (let i = 1; i <= 20; i++) { if (!state.settings.reiheMax[i]) state.settings.reiheMax[i] = 20; }
+const STATE_MIGRATIONS = [
+  // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
+  (s) => {
+    if (!s.settings)                          s.settings           = defaultSettings();
+    if (!s.settings.reiheMax)                 s.settings.reiheMax  = defaultSettings().reiheMax;
+    if (!s.settings.inputMode)                s.settings.inputMode = 'tap';
+    if (s.streakFreezeUsedDate === undefined) s.streakFreezeUsedDate = null;
+    if (s.streakFreezeTotal    === undefined) s.streakFreezeTotal    = 0;
+    if (!s.questionStats)                     s.questionStats      = {};
+    if (s.stars           === undefined)      s.stars              = 0;
+    if (s.gameSecondsLeft === undefined)      s.gameSecondsLeft    = 0;
+    if (!s.reiheStats)                        s.reiheStats         = defaultReiheStats();
+    for (let i = 1; i <= 20; i++) {
+      if (!s.reiheStats[i]) s.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 };
+    }
+    for (let i = 1; i <= 20; i++) {
+      if (!s.settings.reiheMax[i]) s.settings.reiheMax[i] = 20;
+    }
+    return s;
+  },
+  // v1 → v2, v2 → v3, … : hier künftige Migrationen ergänzen
+];
+
+function migrateState(s) {
+  const fromVersion = s._version || 0;
+  for (let v = fromVersion; v < STATE_VERSION; v++) {
+    s = STATE_MIGRATIONS[v](s) || s;
+  }
+  s._version = STATE_VERSION;
+  return s;
+}
+
+let state = (() => {
+  try {
+    const raw = localStorage.getItem('henry_einmaleins');
+    return migrateState(raw ? JSON.parse(raw) : defaultState());
+  } catch { return defaultState(); }
+})();
 
 let trainedSet = new Set(state.trainedReihen || []);
 
@@ -1002,14 +1044,19 @@ function startInvaderTimer() {
       saveState();
       updateInvaderTimerDisplay();
       if (state.gameSecondsLeft === 0) {
+        clearInterval(invaderTimerInterval);
+        invaderTimerInterval = null;
         if (state.stars > 0) {
-          state.stars--;
-          state.gameSecondsLeft = 600;
-          saveState();
-          showToast('⭐ Nächster Stern! Noch 10 Minuten Spielzeit!');
+          // Spiel pausieren und Dialog zeigen
+          if (invState === 'playing') {
+            document.getElementById('ui').style.display = 'none';
+            invState = 'paused';
+          }
+          const n = state.stars;
+          document.getElementById('star-count-in-modal').textContent =
+            n === 1 ? '1 Stern' : n + ' Sterne';
+          document.getElementById('star-expired-modal').classList.add('active');
         } else {
-          clearInterval(invaderTimerInterval);
-          invaderTimerInterval = null;
           showToast('⏱ Zeit abgelaufen!');
           setTimeout(() => exitInvaderScreen(), 1500);
         }
@@ -1040,6 +1087,25 @@ function exitInvaderScreen() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-home').classList.add('active');
   updateHomeUI();
+}
+
+// Stern-Dialog: weiterspielen (einen Stern einsetzen)
+function continueWithStar() {
+  document.getElementById('star-expired-modal').classList.remove('active');
+  state.stars--;
+  state.gameSecondsLeft = 600;
+  saveState();
+  updateHomeUI();
+  // Spiel fortsetzen
+  document.getElementById('ui').style.display = 'flex';
+  invState = 'playing';
+  startInvaderTimer();
+}
+
+// Stern-Dialog: aufhören
+function stopInvader() {
+  document.getElementById('star-expired-modal').classList.remove('active');
+  exitInvaderScreen();
 }
 
 // ── NAVIGATION ─────────────────────────────────────────
@@ -1176,9 +1242,12 @@ function updateHomeUI() {
   // Greeting by time of day
   const name = getName();
   const h = new Date().getHours();
-  let greeting = name ? `Hallo ${name}! 👋` : 'Hallo! 👋', sub = 'Bereit zum Rechnen?';
-  if (h < 12) { greeting = name ? `Guten Morgen, ${name}! ☀️` : 'Guten Morgen! ☀️'; sub = 'Ein guter Start in den Tag!'; }
-  else if (h >= 18) { greeting = name ? `Guten Abend, ${name}! 🌙` : 'Guten Abend! 🌙'; sub = 'Noch eine Runde?'; }
+  let greetWord, greetIcon, sub = 'Bereit zum Rechnen?';
+  if      (h >= 5  && h < 12) { greetWord = 'Guten Morgen'; greetIcon = '☀️';  }
+  else if (h >= 12 && h < 18) { greetWord = 'Guten Tag';    greetIcon = '🌤️'; }
+  else if (h >= 18 && h < 22) { greetWord = 'Guten Abend';  greetIcon = '🌆'; }
+  else                         { greetWord = 'Gute Nacht';   greetIcon = '🌙'; }
+  const greeting = name ? `${greetWord}, ${name}! ${greetIcon}` : `${greetWord}! ${greetIcon}`;
   if (state.totalGames > 0) sub = `${info.title} · ${state.xp} XP gesamt`;
   document.getElementById('home-greeting').textContent = greeting;
   document.getElementById('home-subtitle').textContent  = sub;
