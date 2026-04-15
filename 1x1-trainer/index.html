@@ -267,13 +267,34 @@
     #space-invader canvas { display: block; }
     #space-invader #ui {
       position: fixed; bottom: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 14px 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+      padding: 8px 14px; padding-bottom: calc(8px + env(safe-area-inset-bottom));
       pointer-events: none;
     }
-    #space-invader .dpad { display: flex; gap: 10px; }
+    #space-invader #joy-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    /* Joystick-Fläche: breite gleitende Zone statt zwei Tasten */
+    #space-invader #joystick {
+      flex: 1; height: 72px; border-radius: 16px;
+      background: rgba(100,200,255,0.10); border: 2px solid rgba(100,200,255,0.32);
+      position: relative; touch-action: none; overflow: hidden;
+      pointer-events: all; user-select: none; -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #space-invader #joystick.pressed { background: rgba(100,200,255,0.18); }
+    /* Knob-Indikator: bewegt sich mit dem Daumen */
+    #space-invader #joy-knob {
+      width: 46px; height: 46px; border-radius: 50%; pointer-events: none;
+      background: rgba(100,200,255,0.20); border: 2px solid rgba(100,200,255,0.55);
+      transition: transform 0.04s linear;
+    }
+    #space-invader #pause-row {
+      display: flex; justify-content: center;
+    }
     #space-invader .inv-btn {
-      width: 68px; height: 68px; border-radius: 50%;
+      width: 72px; height: 72px; border-radius: 50%;
       background: rgba(100,200,255,0.12); border: 2px solid rgba(100,200,255,0.35);
       display: flex; align-items: center; justify-content: center; font-size: 26px;
       pointer-events: all; user-select: none; -webkit-user-select: none;
@@ -282,13 +303,13 @@
     }
     #space-invader .inv-btn.pressed { background: rgba(100,200,255,0.30); }
     #space-invader #bFire {
-      width: 78px; height: 78px;
+      width: 72px; height: 72px;
       background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.45); font-size: 30px;
     }
     #space-invader #bFire.pressed { background: rgba(255,80,80,0.35); }
     #space-invader #bPause {
-      width: 52px; height: 52px; font-size: 20px; align-self: center;
-      background: rgba(200,200,255,0.08); border-color: rgba(200,200,255,0.25);
+      width: 120px; height: 32px; border-radius: 10px; font-size: 15px;
+      background: rgba(200,200,255,0.07); border: 1px solid rgba(200,200,255,0.22);
     }
     #space-invader #bPause.pressed { background: rgba(200,200,255,0.20); }
     #space-invader #menuBtns {
@@ -689,12 +710,15 @@
 
   <!-- Touch controls -->
   <div id="ui" style="display:none">
-    <div class="dpad">
-      <div class="inv-btn" id="bL">◀</div>
-      <div class="inv-btn" id="bR">▶</div>
+    <!-- Zeile 1: Joystick-Fläche + Feuer-Knopf -->
+    <div id="joy-row">
+      <div id="joystick"><div id="joy-knob"></div></div>
+      <div class="inv-btn" id="bFire">🔥</div>
     </div>
-    <div class="inv-btn" id="bPause">⏸</div>
-    <div class="inv-btn" id="bFire">🔥</div>
+    <!-- Zeile 2: Pause unten zentriert -->
+    <div id="pause-row">
+      <div class="inv-btn" id="bPause">⏸</div>
+    </div>
   </div>
 
   <!-- Pause overlay -->
@@ -1926,7 +1950,53 @@ function tbtn(id, prop) {
   el.addEventListener('mousedown', on);
   el.addEventListener('mouseup',   off);
 }
-tbtn('bL','left'); tbtn('bR','right'); tbtn('bFire','fire');
+tbtn('bFire','fire');
+
+// ── Joystick-Steuerung (ersetzt bL / bR) ─────────────────────
+{
+  const joy  = document.getElementById('joystick');
+  const knob = document.getElementById('joy-knob');
+  const DEAD = 18; // Totzone in CSS-Pixeln
+
+  let joyId = null, joyX0 = 0;
+
+  function joyMove(clientX) {
+    const dx = clientX - joyX0;
+    T.left  = dx < -DEAD;
+    T.right = dx >  DEAD;
+    knob.style.transform = `translateX(${Math.max(-38,Math.min(38,dx))}px)`;
+  }
+  function joyReset() {
+    T.left = false; T.right = false;
+    joyId  = null;  joyX0  = 0;
+    knob.style.transform = 'translateX(0)';
+    joy.classList.remove('pressed');
+  }
+
+  // Touch
+  joy.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    joyId = t.identifier; joyX0 = t.clientX;
+    T.left = false; T.right = false;
+    joy.classList.add('pressed');
+  }, {passive:false});
+  joy.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches)
+      if (t.identifier === joyId) { joyMove(t.clientX); break; }
+  }, {passive:false});
+  joy.addEventListener('touchend',    e => { e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === joyId) { joyReset(); break; }
+  }, {passive:false});
+  joy.addEventListener('touchcancel', e => { joyReset(); });
+
+  // Maus-Fallback (Desktop-Test)
+  let mouseDown = false;
+  joy.addEventListener('mousedown', e => { mouseDown=true; joyX0=e.clientX; joy.classList.add('pressed'); });
+  document.addEventListener('mousemove', e => { if (mouseDown) joyMove(e.clientX); });
+  document.addEventListener('mouseup',   () => { if (mouseDown) { mouseDown=false; joyReset(); } });
+}
 
 // Pause-Button: toggle
 {
@@ -2343,7 +2413,7 @@ function invStartGame(){
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
-  player.x=W/2;player.y=H-62;player.fireCD=0;player.inv=0;
+  player.x=W/2;player.y=H-155;player.fireCD=0;player.inv=0; // oberhalb der Touch-Controls
   gameDiff=SETTINGS.diff;
   hiScore=bestScore(gameDiff);
   hideAll();
