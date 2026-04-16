@@ -1,4 +1,4 @@
-const CACHE = '1x1-trainer-v13';
+const CACHE = '1x1-trainer-v14'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
 const ASSETS = [
   './',
   './index.html',

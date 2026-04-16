@@ -267,13 +267,34 @@
     #space-invader canvas { display: block; }
     #space-invader #ui {
       position: fixed; bottom: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: flex-end;
-      padding: 14px 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+      padding: 8px 14px; padding-bottom: calc(8px + env(safe-area-inset-bottom));
       pointer-events: none;
     }
-    #space-invader .dpad { display: flex; gap: 10px; }
+    #space-invader #joy-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    /* Joystick-Fläche: breite gleitende Zone statt zwei Tasten */
+    #space-invader #joystick {
+      flex: 1; height: 72px; border-radius: 16px;
+      background: rgba(100,200,255,0.10); border: 2px solid rgba(100,200,255,0.32);
+      position: relative; touch-action: none; overflow: hidden;
+      pointer-events: all; user-select: none; -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #space-invader #joystick.pressed { background: rgba(100,200,255,0.18); }
+    /* Knob-Indikator: bewegt sich mit dem Daumen */
+    #space-invader #joy-knob {
+      width: 46px; height: 46px; border-radius: 50%; pointer-events: none;
+      background: rgba(100,200,255,0.20); border: 2px solid rgba(100,200,255,0.55);
+      transition: transform 0.04s linear;
+    }
+    #space-invader #pause-row {
+      display: flex; justify-content: center;
+    }
     #space-invader .inv-btn {
-      width: 68px; height: 68px; border-radius: 50%;
+      width: 72px; height: 72px; border-radius: 50%;
       background: rgba(100,200,255,0.12); border: 2px solid rgba(100,200,255,0.35);
       display: flex; align-items: center; justify-content: center; font-size: 26px;
       pointer-events: all; user-select: none; -webkit-user-select: none;
@@ -282,13 +303,13 @@
     }
     #space-invader .inv-btn.pressed { background: rgba(100,200,255,0.30); }
     #space-invader #bFire {
-      width: 78px; height: 78px;
+      width: 72px; height: 72px;
       background: rgba(255,80,80,0.15); border-color: rgba(255,80,80,0.45); font-size: 30px;
     }
     #space-invader #bFire.pressed { background: rgba(255,80,80,0.35); }
     #space-invader #bPause {
-      width: 52px; height: 52px; font-size: 20px; align-self: center;
-      background: rgba(200,200,255,0.08); border-color: rgba(200,200,255,0.25);
+      width: 120px; height: 32px; border-radius: 10px; font-size: 15px;
+      background: rgba(200,200,255,0.07); border: 1px solid rgba(200,200,255,0.22);
     }
     #space-invader #bPause.pressed { background: rgba(200,200,255,0.20); }
     #space-invader #menuBtns {
@@ -444,9 +465,9 @@
       <div class="mode-desc" id="trophy-progress">0 / 12</div>
     </div>
     <div class="mode-card" onclick="showScreen('stats')" style="grid-column:1/-1;border-color:rgba(99,102,241,0.35);flex-direction:row;justify-content:flex-start;gap:14px;padding:14px 20px;text-align:left">
-      <span style="font-size:2rem">📊</span>
+      <span style="font-size:2rem">🌟</span>
       <div>
-        <div class="mode-name">Lern-Statistik</div>
+        <div class="mode-name">Reihen-Power</div>
         <div class="mode-desc" id="stats-home-desc">0 von 12 Reihen gemeistert</div>
       </div>
     </div>
@@ -551,7 +572,7 @@
 <!-- STATS SCREEN -->
 <div id="screen-stats" class="screen">
   <div style="text-align:center;padding:20px 0 10px;width:100%">
-    <h1 style="font-size:1.8rem;font-weight:900">📊 Lern-Statistik</h1>
+    <h1 style="font-size:1.8rem;font-weight:900">🌟 Reihen-Power</h1>
   </div>
   <div class="card" style="margin-bottom:14px;width:100%">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -620,6 +641,21 @@
 
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
+  <div id="dev-version-tap" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding-bottom:8px;cursor:default" onclick="devTap()">Version <span id="settings-version-number"></span></div>
+</div>
+
+<!-- DEV PANEL (nur localhost) -->
+<div class="modal-overlay" id="dev-panel-modal">
+  <div class="modal-sheet" style="max-width:320px">
+    <div class="modal-title" style="color:#f59e0b">🛠 Dev-Modus</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);text-align:center;margin-bottom:14px">Nur für Tests — kein echter Fortschritt</div>
+    <button class="btn btn-primary mt-8" onclick="devSetStreak(3)">🔥 Streak = 3 (Invader freischalten)</button>
+    <button class="btn btn-primary mt-8" onclick="devAddStreakDay()">📅 +1 Streak-Tag simulieren</button>
+    <button class="btn btn-primary mt-8" onclick="devAddStar()">⭐ Stern hinzufügen</button>
+    <button class="btn btn-primary mt-8" onclick="devAddPlaytime()">⏱ +10 min Spielzeit</button>
+    <button class="btn btn-danger mt-8" onclick="devResetStreak()">🗑 Streak & Stars zurücksetzen</button>
+    <button class="btn btn-secondary mt-8" onclick="closeDevPanel()">← Schließen</button>
+  </div>
 </div>
 
 <!-- REIHE DETAIL MODAL -->
@@ -642,6 +678,20 @@
     </div>
     <button class="btn btn-primary mt-8" id="freeze-buy-btn" onclick="useStreakFreeze()">🧊 Streak schützen (−2000 XP)</button>
     <button class="btn btn-secondary mt-8" onclick="skipStreakFreeze()">Streak verlieren</button>
+  </div>
+</div>
+
+<!-- STERN ABGELAUFEN MODAL -->
+<div class="modal-overlay" id="star-expired-modal">
+  <div class="modal-sheet">
+    <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
+    <div class="modal-title">10 Minuten sind um!</div>
+    <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
+      Du hast noch <strong id="star-count-in-modal">0 Sterne</strong> übrig.<br>
+      Möchtest du einen einsetzen und weiterspielen?
+    </div>
+    <button class="btn btn-primary mt-8" onclick="continueWithStar()">⭐ Stern einsetzen &amp; weiterspielen</button>
+    <button class="btn btn-secondary mt-8" onclick="stopInvader()">🏠 Aufhören</button>
   </div>
 </div>
 
@@ -689,12 +739,15 @@
 
   <!-- Touch controls -->
   <div id="ui" style="display:none">
-    <div class="dpad">
-      <div class="inv-btn" id="bL">◀</div>
-      <div class="inv-btn" id="bR">▶</div>
+    <!-- Zeile 1: Joystick-Fläche + Feuer-Knopf -->
+    <div id="joy-row">
+      <div id="joystick"><div id="joy-knob"></div></div>
+      <div class="inv-btn" id="bFire">🔥</div>
     </div>
-    <div class="inv-btn" id="bPause">⏸</div>
-    <div class="inv-btn" id="bFire">🔥</div>
+    <!-- Zeile 2: Pause unten zentriert -->
+    <div id="pause-row">
+      <div class="inv-btn" id="bPause">⏸</div>
+    </div>
   </div>
 
   <!-- Pause overlay -->
@@ -744,11 +797,11 @@
 
 <script>
 // ── CONSTANTS ──────────────────────────────────────────
-const STAR_COSTS = [400, 600, 900, 1200]; // XP cost for next star (caps at index 3)
+const STAR_COSTS = [800, 1400, 2000, 2800]; // XP cost for next star (caps at index 3)
 
 const LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
-  { xp:  200, title: '🌟 Lehrling',           avatar: '🌙' },
+  { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
   { xp:  500, title: '📚 Schüler',            avatar: '📖' },
   { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
   { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
@@ -804,7 +857,7 @@ const ACHIEVEMENTS = [
 function defaultSettings() {
   const reiheMax = {};
   for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
-  return { grosses1x1: false, reiheMax, inputMode: 'tap' };
+  return { grosses1x1: false, reiheMax, inputMode: 'both' };
 }
 
 function defaultReiheStats() {
@@ -814,7 +867,7 @@ function defaultReiheStats() {
 }
 
 function defaultState() {
-  return { name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
+  return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
            streak: 0, lastPlayDate: null, highScores: { blitz: 0, turnier: 0 },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
@@ -822,23 +875,57 @@ function defaultState() {
            stars: 0, gameSecondsLeft: 0 };
 }
 
-let state = (() => {
-  try { const s = localStorage.getItem('henry_einmaleins'); return s ? JSON.parse(s) : defaultState(); }
-  catch { return defaultState(); }
-})();
+// ── STATE VERSIONING ──────────────────────────────────────────
+// Wenn neue Felder hinzukommen: STATE_VERSION erhöhen und eine neue
+// Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
+// werden automatisch Schritt für Schritt auf die aktuelle Version
+// gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
+const APP_VERSION = '2.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const STATE_VERSION = 2;
 
-// Migrate older saves that lack settings / reiheStats
-if (!state.settings) state.settings = defaultSettings();
-if (!state.settings.reiheMax) state.settings.reiheMax = defaultSettings().reiheMax;
-if (!state.settings.inputMode) state.settings.inputMode = 'tap';
-if (state.streakFreezeUsedDate === undefined) state.streakFreezeUsedDate = null;
-if (state.streakFreezeTotal    === undefined) state.streakFreezeTotal    = 0;
-if (!state.questionStats) state.questionStats = {};
-if (state.stars           === undefined) state.stars           = 0;
-if (state.gameSecondsLeft === undefined) state.gameSecondsLeft = 0;
-if (!state.reiheStats) state.reiheStats = defaultReiheStats();
-for (let i = 1; i <= 20; i++) { if (!state.reiheStats[i]) state.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 }; }
-for (let i = 1; i <= 20; i++) { if (!state.settings.reiheMax[i]) state.settings.reiheMax[i] = 20; }
+const STATE_MIGRATIONS = [
+  // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
+  (s) => {
+    if (!s.settings)                          s.settings           = defaultSettings();
+    if (!s.settings.reiheMax)                 s.settings.reiheMax  = defaultSettings().reiheMax;
+    if (!s.settings.inputMode)                s.settings.inputMode = 'both';
+    if (s.streakFreezeUsedDate === undefined) s.streakFreezeUsedDate = null;
+    if (s.streakFreezeTotal    === undefined) s.streakFreezeTotal    = 0;
+    if (!s.questionStats)                     s.questionStats      = {};
+    if (s.stars           === undefined)      s.stars              = 0;
+    if (s.gameSecondsLeft === undefined)      s.gameSecondsLeft    = 0;
+    if (!s.reiheStats)                        s.reiheStats         = defaultReiheStats();
+    for (let i = 1; i <= 20; i++) {
+      if (!s.reiheStats[i]) s.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 };
+    }
+    for (let i = 1; i <= 20; i++) {
+      if (!s.settings.reiheMax[i]) s.settings.reiheMax[i] = 20;
+    }
+    return s;
+  },
+  // v1 → v2: inputMode-Default von 'tap' auf 'both' migrieren
+  (s) => {
+    if (s.settings && s.settings.inputMode === 'tap') s.settings.inputMode = 'both';
+    return s;
+  },
+  // v2 → v3, … : hier künftige Migrationen ergänzen
+];
+
+function migrateState(s) {
+  const fromVersion = s._version || 0;
+  for (let v = fromVersion; v < STATE_VERSION; v++) {
+    s = STATE_MIGRATIONS[v](s) || s;
+  }
+  s._version = STATE_VERSION;
+  return s;
+}
+
+let state = (() => {
+  try {
+    const raw = localStorage.getItem('henry_einmaleins');
+    return migrateState(raw ? JSON.parse(raw) : defaultState());
+  } catch { return defaultState(); }
+})();
 
 let trainedSet = new Set(state.trainedReihen || []);
 
@@ -846,7 +933,9 @@ function getName() { return state.name || ''; }
 
 function saveState() {
   state.trainedReihen = [...trainedSet];
-  try { localStorage.setItem('henry_einmaleins', JSON.stringify(state)); } catch {}
+  // URL-Param Dev-Overrides nie in localStorage schreiben — Original-Werte aus Snapshot verwenden
+  const toSave = (_devMode && _devSnapshot) ? Object.assign({}, state, _devSnapshot) : state;
+  try { localStorage.setItem('henry_einmaleins', JSON.stringify(toSave)); } catch {}
 }
 
 // ── LEVEL HELPER ───────────────────────────────────────
@@ -978,14 +1067,19 @@ function startInvaderTimer() {
       saveState();
       updateInvaderTimerDisplay();
       if (state.gameSecondsLeft === 0) {
+        clearInterval(invaderTimerInterval);
+        invaderTimerInterval = null;
         if (state.stars > 0) {
-          state.stars--;
-          state.gameSecondsLeft = 600;
-          saveState();
-          showToast('⭐ Nächster Stern! Noch 10 Minuten Spielzeit!');
+          // Spiel pausieren und Dialog zeigen
+          if (invState === 'playing') {
+            document.getElementById('ui').style.display = 'none';
+            invState = 'paused';
+          }
+          const n = state.stars;
+          document.getElementById('star-count-in-modal').textContent =
+            n === 1 ? '1 Stern' : n + ' Sterne';
+          document.getElementById('star-expired-modal').classList.add('active');
         } else {
-          clearInterval(invaderTimerInterval);
-          invaderTimerInterval = null;
           showToast('⏱ Zeit abgelaufen!');
           setTimeout(() => exitInvaderScreen(), 1500);
         }
@@ -1016,6 +1110,25 @@ function exitInvaderScreen() {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-home').classList.add('active');
   updateHomeUI();
+}
+
+// Stern-Dialog: weiterspielen (einen Stern einsetzen)
+function continueWithStar() {
+  document.getElementById('star-expired-modal').classList.remove('active');
+  state.stars--;
+  state.gameSecondsLeft = 600;
+  saveState();
+  updateHomeUI();
+  // Spiel fortsetzen
+  document.getElementById('ui').style.display = 'flex';
+  invState = 'playing';
+  startInvaderTimer();
+}
+
+// Stern-Dialog: aufhören
+function stopInvader() {
+  document.getElementById('star-expired-modal').classList.remove('active');
+  exitInvaderScreen();
 }
 
 // ── NAVIGATION ─────────────────────────────────────────
@@ -1152,9 +1265,12 @@ function updateHomeUI() {
   // Greeting by time of day
   const name = getName();
   const h = new Date().getHours();
-  let greeting = name ? `Hallo ${name}! 👋` : 'Hallo! 👋', sub = 'Bereit zum Rechnen?';
-  if (h < 12) { greeting = name ? `Guten Morgen, ${name}! ☀️` : 'Guten Morgen! ☀️'; sub = 'Ein guter Start in den Tag!'; }
-  else if (h >= 18) { greeting = name ? `Guten Abend, ${name}! 🌙` : 'Guten Abend! 🌙'; sub = 'Noch eine Runde?'; }
+  let greetWord, greetIcon, sub = 'Bereit zum Rechnen?';
+  if      (h >= 5  && h < 12) { greetWord = 'Guten Morgen'; greetIcon = '☀️';  }
+  else if (h >= 12 && h < 18) { greetWord = 'Guten Tag';    greetIcon = '🌤️'; }
+  else if (h >= 18 && h < 22) { greetWord = 'Guten Abend';  greetIcon = '🌆'; }
+  else                         { greetWord = 'Gute Nacht';   greetIcon = '🌙'; }
+  const greeting = name ? `${greetWord}, ${name}! ${greetIcon}` : `${greetWord}! ${greetIcon}`;
   if (state.totalGames > 0) sub = `${info.title} · ${state.xp} XP gesamt`;
   document.getElementById('home-greeting').textContent = greeting;
   document.getElementById('home-subtitle').textContent  = sub;
@@ -1190,7 +1306,7 @@ function updateHomeUI() {
   }
 
   // Break streak if more than 1 day missed (or offer freeze)
-  if (state.lastPlayDate) {
+  if (!_devMode && state.lastPlayDate) {
     const today = new Date().toDateString();
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
     if (state.lastPlayDate !== today && state.lastPlayDate !== yesterday.toDateString()) {
@@ -1926,7 +2042,53 @@ function tbtn(id, prop) {
   el.addEventListener('mousedown', on);
   el.addEventListener('mouseup',   off);
 }
-tbtn('bL','left'); tbtn('bR','right'); tbtn('bFire','fire');
+tbtn('bFire','fire');
+
+// ── Joystick-Steuerung (ersetzt bL / bR) ─────────────────────
+{
+  const joy  = document.getElementById('joystick');
+  const knob = document.getElementById('joy-knob');
+  const DEAD = 18; // Totzone in CSS-Pixeln
+
+  let joyId = null, joyX0 = 0;
+
+  function joyMove(clientX) {
+    const dx = clientX - joyX0;
+    T.left  = dx < -DEAD;
+    T.right = dx >  DEAD;
+    knob.style.transform = `translateX(${Math.max(-38,Math.min(38,dx))}px)`;
+  }
+  function joyReset() {
+    T.left = false; T.right = false;
+    joyId  = null;  joyX0  = 0;
+    knob.style.transform = 'translateX(0)';
+    joy.classList.remove('pressed');
+  }
+
+  // Touch
+  joy.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    joyId = t.identifier; joyX0 = t.clientX;
+    T.left = false; T.right = false;
+    joy.classList.add('pressed');
+  }, {passive:false});
+  joy.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches)
+      if (t.identifier === joyId) { joyMove(t.clientX); break; }
+  }, {passive:false});
+  joy.addEventListener('touchend',    e => { e.preventDefault();
+    for (const t of e.changedTouches) if (t.identifier === joyId) { joyReset(); break; }
+  }, {passive:false});
+  joy.addEventListener('touchcancel', e => { joyReset(); });
+
+  // Maus-Fallback (Desktop-Test)
+  let mouseDown = false;
+  joy.addEventListener('mousedown', e => { mouseDown=true; joyX0=e.clientX; joy.classList.add('pressed'); });
+  document.addEventListener('mousemove', e => { if (mouseDown) joyMove(e.clientX); });
+  document.addEventListener('mouseup',   () => { if (mouseDown) { mouseDown=false; joyReset(); } });
+}
 
 // Pause-Button: toggle
 {
@@ -2263,6 +2425,7 @@ function buildSettingsUI(){
     btn.textContent=d.label;
     btn.addEventListener('click',()=>{
       SETTINGS.diff=i;
+      gameDiff=i; // sofort wirksam für nächste Welle
       saveSettings();
       buildSettingsUI();
       hiScore=bestScore(gameDiff); // HUD aktualisieren
@@ -2342,7 +2505,7 @@ function invStartGame(){
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
-  player.x=W/2;player.y=H-62;player.fireCD=0;player.inv=0;
+  player.x=W/2;player.y=H-155;player.fireCD=0;player.inv=0; // oberhalb der Touch-Controls
   gameDiff=SETTINGS.diff;
   hiScore=bestScore(gameDiff);
   hideAll();
@@ -2593,10 +2756,13 @@ function drawScene(){
 
 function drawHUD(){
   ctx.save();ctx.shadowBlur=0;ctx.font='bold 15px "Courier New"';
-  ctx.textAlign='left';  ctx.fillStyle='#ffffff';ctx.fillText('SCORE: '+score,8,22);
-  ctx.textAlign='center';ctx.fillStyle='#8888ff';ctx.fillText('LEVEL '+level,W/2,22);
-  ctx.textAlign='right'; ctx.fillStyle='#555577';ctx.fillText('HI: '+hiScore,W-8,22);
-  for(let i=0;i<lives;i++) drawPlayerShip(16+i*28,H-18,10);
+  // Score-Zeile: versetzt nach unten, damit der HTML-Timer-Overlay (oben ~51px) sie nicht verdeckt
+  ctx.textAlign='left';  ctx.fillStyle='#ffffff';ctx.fillText('SCORE: '+score,8,62);
+  ctx.textAlign='center';ctx.fillStyle='#8888ff';ctx.fillText('LEVEL '+level,W/2,62);
+  ctx.textAlign='right'; ctx.fillStyle='#555577';ctx.fillText('HI: '+hiScore,W-8,62);
+  // Leben: in der oberen sicheren Zone (unter Score-Zeile), nicht am unteren Rand,
+  // der von den Touch-Controls (position:fixed; bottom:0) verdeckt wird
+  for(let i=0;i<lives;i++) drawPlayerShip(16+i*28,82,10);
   ctx.restore();
 }
 
@@ -2646,23 +2812,98 @@ document.getElementById('c').addEventListener('touchstart',e=>{
 
 // buildSettingsUI() und invShowMenu() werden von enterInvaderScreen() aufgerufen
 
-// Timer pausiert wenn Tab/App in den Hintergrund geht
+// Timer pausiert wenn Tab/App in den Hintergrund geht; SW-Update-Check beim Aufwachen (max. 1×/h)
+let _lastSwCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (invaderTimerInterval) {
-      clearInterval(invaderTimerInterval);
-      invaderTimerInterval = null;
-    }
+    if (invaderTimerInterval) { clearInterval(invaderTimerInterval); invaderTimerInterval = null; }
   } else {
-    if (document.getElementById('space-invader').classList.contains('active')) {
-      startInvaderTimer();
-    }
+    if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
+    if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });
+let _swReg = null;
+
+// ── DEV PANEL ──────────────────────────────────────────
+let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-Leak unterdrückt
+let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
+let _devTapCount = 0, _devTapTimer = null;
+function devTap() {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  _devTapCount++;
+  clearTimeout(_devTapTimer);
+  _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 2000);
+  if (_devTapCount >= 5) {
+    _devTapCount = 0;
+    document.getElementById('dev-panel-modal').classList.add('active');
+  }
+}
+function closeDevPanel() { document.getElementById('dev-panel-modal').classList.remove('active'); }
+function devSetStreak(n) {
+  state.streak = n;
+  state.lastPlayDate = new Date().toDateString();
+  if (state.stars <= 0 && state.gameSecondsLeft <= 0) state.stars = 1;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddStreakDay() {
+  state.streak++;
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  state.lastPlayDate = d.toDateString();
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddStar() {
+  state.stars++; saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddPlaytime() {
+  state.gameSecondsLeft = (state.gameSecondsLeft || 0) + 600;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devResetStreak() {
+  state.streak = 0; state.lastPlayDate = null; state.stars = 0; state.gameSecondsLeft = 0;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
 
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  document.getElementById('settings-version-number').textContent = APP_VERSION;
+
+  // URL-Param Overrides (session-only, kein saveState)
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    const p = new URLSearchParams(location.search);
+    const anyParam = p.has('devStreak') || p.has('devStars') || p.has('devPlaytime');
+    if (anyParam) {
+      _devMode = true;
+      _devSnapshot = {}; // Original-Werte sichern — saveState() schreibt diese, nie die Overrides
+      if (p.has('devStreak')) {
+        _devSnapshot.streak = state.streak;
+        _devSnapshot.lastPlayDate = state.lastPlayDate;
+        state.streak = parseInt(p.get('devStreak'), 10);
+        state.lastPlayDate = new Date().toDateString();
+      }
+      if (p.has('devStars')) {
+        _devSnapshot.stars = state.stars;
+        state.stars = parseInt(p.get('devStars'), 10);
+        // devStars=0 setzt auch Spielzeit zurück, damit der "keine Sterne"-Zustand korrekt getestet werden kann
+        if (!p.has('devPlaytime')) { _devSnapshot.gameSecondsLeft = state.gameSecondsLeft; state.gameSecondsLeft = 0; }
+      }
+      if (p.has('devPlaytime')) {
+        if (!_devSnapshot.gameSecondsLeft) _devSnapshot.gameSecondsLeft = state.gameSecondsLeft;
+        state.gameSecondsLeft = parseInt(p.get('devPlaytime'), 10) * 60;
+      }
+      updateHomeUI();
+    }
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; });
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      const banner = document.createElement('div');
+      banner.id = 'update-banner';
+      banner.innerHTML = '🆕 Neue Version verfügbar! &nbsp;<button onclick="location.reload()" style="background:#fff;color:#1a1a2e;border:none;border-radius:12px;padding:6px 14px;font-weight:800;font-size:0.85rem;cursor:pointer">Jetzt laden</button>';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;';
+      document.body.prepend(banner);
+    });
+  }
   initStars();
   document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
   document.getElementById('settings-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveSettingsName(); });
