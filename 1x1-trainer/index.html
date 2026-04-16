@@ -2858,22 +2858,13 @@ function devResetStreak() {
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
   _devEnabled = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
-  const devBtn = document.getElementById('dev-version-tap');
-  let _devTapCount = 0, _devTapTimer = null;
-  devBtn.addEventListener('click', () => {
-    if (!_devEnabled) return;
-    _devTapCount++;
-    clearTimeout(_devTapTimer);
-    _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 3000);
-    // Visuelles Feedback: Versionsnummer kurz aufleuchten
-    devBtn.style.color = `rgba(255,255,255,${0.25 + _devTapCount * 0.15})`;
-    setTimeout(() => { devBtn.style.color = 'rgba(255,255,255,0.25)'; }, 300);
-    if (_devTapCount >= 5) {
-      _devTapCount = 0;
-      document.getElementById('dev-panel-modal').classList.add('active');
-    }
-  });
-  devBtn.addEventListener('contextmenu', e => { if (_devEnabled) e.preventDefault(); });
+  if (_devEnabled) {
+    const fab = document.createElement('button');
+    fab.textContent = '🛠';
+    fab.style.cssText = 'position:fixed;bottom:110px;right:14px;z-index:9000;background:rgba(124,58,237,0.85);color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:22px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4)';
+    fab.onclick = () => document.getElementById('dev-panel-modal').classList.add('active');
+    document.body.appendChild(fab);
+  }
 
   // URL-Param Overrides (session-only, kein saveState)
   if (_devEnabled) {
