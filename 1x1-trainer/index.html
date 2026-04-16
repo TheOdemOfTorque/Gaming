@@ -2905,7 +2905,7 @@ window.addEventListener('load', () => {
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; });
+    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; reg.update(); });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';
