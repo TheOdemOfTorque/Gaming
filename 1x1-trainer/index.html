@@ -867,7 +867,7 @@ function defaultReiheStats() {
 }
 
 function defaultState() {
-  return { name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
+  return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
            streak: 0, lastPlayDate: null, highScores: { blitz: 0, turnier: 0 },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
@@ -880,7 +880,7 @@ function defaultState() {
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.1';
+const APP_VERSION = '2.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 const STATE_VERSION = 2;
 
 const STATE_MIGRATIONS = [
@@ -933,7 +933,9 @@ function getName() { return state.name || ''; }
 
 function saveState() {
   state.trainedReihen = [...trainedSet];
-  try { localStorage.setItem('henry_einmaleins', JSON.stringify(state)); } catch {}
+  // URL-Param Dev-Overrides nie in localStorage schreiben — Original-Werte aus Snapshot verwenden
+  const toSave = (_devMode && _devSnapshot) ? Object.assign({}, state, _devSnapshot) : state;
+  try { localStorage.setItem('henry_einmaleins', JSON.stringify(toSave)); } catch {}
 }
 
 // ── LEVEL HELPER ───────────────────────────────────────
@@ -2810,22 +2812,21 @@ document.getElementById('c').addEventListener('touchstart',e=>{
 
 // buildSettingsUI() und invShowMenu() werden von enterInvaderScreen() aufgerufen
 
-// Timer pausiert wenn Tab/App in den Hintergrund geht
+// Timer pausiert wenn Tab/App in den Hintergrund geht; SW-Update-Check beim Aufwachen (max. 1×/h)
+let _lastSwCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (invaderTimerInterval) {
-      clearInterval(invaderTimerInterval);
-      invaderTimerInterval = null;
-    }
+    if (invaderTimerInterval) { clearInterval(invaderTimerInterval); invaderTimerInterval = null; }
   } else {
-    if (document.getElementById('space-invader').classList.contains('active')) {
-      startInvaderTimer();
-    }
+    if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
+    if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });
+let _swReg = null;
 
 // ── DEV PANEL ──────────────────────────────────────────
-let _devMode = false; // true = URL-Params aktiv, Streak-Reset in updateHomeUI unterdrückt
+let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-Leak unterdrückt
+let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
 let _devTapCount = 0, _devTapTimer = null;
 function devTap() {
   if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
@@ -2870,21 +2871,31 @@ window.addEventListener('load', () => {
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     const p = new URLSearchParams(location.search);
     const anyParam = p.has('devStreak') || p.has('devStars') || p.has('devPlaytime');
-    if (p.has('devStreak')) state.streak          = parseInt(p.get('devStreak'), 10);
-    if (p.has('devStars')) {
-      state.stars = parseInt(p.get('devStars'), 10);
-      if (!p.has('devPlaytime')) state.gameSecondsLeft = 0; // explizit auf 0, außer devPlaytime überschreibt es
+    if (anyParam) {
+      _devMode = true;
+      _devSnapshot = {}; // Original-Werte sichern — saveState() schreibt diese, nie die Overrides
+      if (p.has('devStreak')) {
+        _devSnapshot.streak = state.streak;
+        _devSnapshot.lastPlayDate = state.lastPlayDate;
+        state.streak = parseInt(p.get('devStreak'), 10);
+        state.lastPlayDate = new Date().toDateString();
+      }
+      if (p.has('devStars')) {
+        _devSnapshot.stars = state.stars;
+        state.stars = parseInt(p.get('devStars'), 10);
+        // devStars=0 setzt auch Spielzeit zurück, damit der "keine Sterne"-Zustand korrekt getestet werden kann
+        if (!p.has('devPlaytime')) { _devSnapshot.gameSecondsLeft = state.gameSecondsLeft; state.gameSecondsLeft = 0; }
+      }
+      if (p.has('devPlaytime')) {
+        if (!_devSnapshot.gameSecondsLeft) _devSnapshot.gameSecondsLeft = state.gameSecondsLeft;
+        state.gameSecondsLeft = parseInt(p.get('devPlaytime'), 10) * 60;
+      }
+      updateHomeUI();
     }
-    if (p.has('devPlaytime')) state.gameSecondsLeft = parseInt(p.get('devPlaytime'), 10) * 60;
-    if (anyParam) { _devMode = true; updateHomeUI(); }
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(reg => {
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update();
-      });
-    });
+    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';
