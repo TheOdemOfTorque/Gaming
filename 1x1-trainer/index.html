@@ -641,9 +641,7 @@
 
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
-  <div id="dev-version-tap" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding:16px 24px;cursor:default;-webkit-touch-callout:none;user-select:none"
-    ontouchstart="devPressStart(event)" ontouchend="devPressEnd()" ontouchcancel="devPressEnd()"
-    onmousedown="devPressStart(event)" onmouseup="devPressEnd()" onmouseleave="devPressEnd()">Version <span id="settings-version-number"></span></div>
+  <div id="dev-version-tap" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding:16px 24px;cursor:default" oncontextmenu="devContextMenu(event)">Version <span id="settings-version-number"></span></div>
 </div>
 
 <!-- DEV PANEL (nur localhost) -->
@@ -2829,16 +2827,12 @@ let _swReg = null;
 // ── DEV PANEL ──────────────────────────────────────────
 let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-Leak unterdrückt
 let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
-let _devPressTimer = null;
-function devPressStart(e) {
+function devContextMenu(e) {
   const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
   if (!isDev) return;
-  e.preventDefault();
-  _devPressTimer = setTimeout(() => {
-    document.getElementById('dev-panel-modal').classList.add('active');
-  }, 1000);
+  e.preventDefault(); // unterdrückt iOS-Kopier-Menü und Desktop-Kontextmenü
+  document.getElementById('dev-panel-modal').classList.add('active');
 }
-function devPressEnd() { clearTimeout(_devPressTimer); }
 function closeDevPanel() { document.getElementById('dev-panel-modal').classList.remove('active'); }
 function devSetStreak(n) {
   state.streak = n;
