@@ -641,6 +641,21 @@
 
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
+  <div id="dev-version-tap" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding-bottom:8px;cursor:default" onclick="devTap()">Version <span id="settings-version-number"></span></div>
+</div>
+
+<!-- DEV PANEL (nur localhost) -->
+<div class="modal-overlay" id="dev-panel-modal">
+  <div class="modal-sheet" style="max-width:320px">
+    <div class="modal-title" style="color:#f59e0b">🛠 Dev-Modus</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);text-align:center;margin-bottom:14px">Nur für Tests — kein echter Fortschritt</div>
+    <button class="btn btn-primary mt-8" onclick="devSetStreak(3)">🔥 Streak = 3 (Invader freischalten)</button>
+    <button class="btn btn-primary mt-8" onclick="devAddStreakDay()">📅 +1 Streak-Tag simulieren</button>
+    <button class="btn btn-primary mt-8" onclick="devAddStar()">⭐ Stern hinzufügen</button>
+    <button class="btn btn-primary mt-8" onclick="devAddPlaytime()">⏱ +10 min Spielzeit</button>
+    <button class="btn btn-danger mt-8" onclick="devResetStreak()">🗑 Streak & Stars zurücksetzen</button>
+    <button class="btn btn-secondary mt-8" onclick="closeDevPanel()">← Schließen</button>
+  </div>
 </div>
 
 <!-- REIHE DETAIL MODAL -->
@@ -842,7 +857,7 @@ const ACHIEVEMENTS = [
 function defaultSettings() {
   const reiheMax = {};
   for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
-  return { grosses1x1: false, reiheMax, inputMode: 'tap' };
+  return { grosses1x1: false, reiheMax, inputMode: 'both' };
 }
 
 function defaultReiheStats() {
@@ -865,14 +880,15 @@ function defaultState() {
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const STATE_VERSION = 1;
+const APP_VERSION = '2.1';
+const STATE_VERSION = 2;
 
 const STATE_MIGRATIONS = [
   // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
   (s) => {
     if (!s.settings)                          s.settings           = defaultSettings();
     if (!s.settings.reiheMax)                 s.settings.reiheMax  = defaultSettings().reiheMax;
-    if (!s.settings.inputMode)                s.settings.inputMode = 'tap';
+    if (!s.settings.inputMode)                s.settings.inputMode = 'both';
     if (s.streakFreezeUsedDate === undefined) s.streakFreezeUsedDate = null;
     if (s.streakFreezeTotal    === undefined) s.streakFreezeTotal    = 0;
     if (!s.questionStats)                     s.questionStats      = {};
@@ -887,7 +903,12 @@ const STATE_MIGRATIONS = [
     }
     return s;
   },
-  // v1 → v2, v2 → v3, … : hier künftige Migrationen ergänzen
+  // v1 → v2: inputMode-Default von 'tap' auf 'both' migrieren
+  (s) => {
+    if (s.settings && s.settings.inputMode === 'tap') s.settings.inputMode = 'both';
+    return s;
+  },
+  // v2 → v3, … : hier künftige Migrationen ergänzen
 ];
 
 function migrateState(s) {
@@ -1283,7 +1304,7 @@ function updateHomeUI() {
   }
 
   // Break streak if more than 1 day missed (or offer freeze)
-  if (state.lastPlayDate) {
+  if (!_devMode && state.lastPlayDate) {
     const today = new Date().toDateString();
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
     if (state.lastPlayDate !== today && state.lastPlayDate !== yesterday.toDateString()) {
@@ -2803,9 +2824,71 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── DEV PANEL ──────────────────────────────────────────
+let _devMode = false; // true = URL-Params aktiv, Streak-Reset in updateHomeUI unterdrückt
+let _devTapCount = 0, _devTapTimer = null;
+function devTap() {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  _devTapCount++;
+  clearTimeout(_devTapTimer);
+  _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 2000);
+  if (_devTapCount >= 5) {
+    _devTapCount = 0;
+    document.getElementById('dev-panel-modal').classList.add('active');
+  }
+}
+function closeDevPanel() { document.getElementById('dev-panel-modal').classList.remove('active'); }
+function devSetStreak(n) {
+  state.streak = n;
+  state.lastPlayDate = new Date().toDateString();
+  if (state.stars <= 0 && state.gameSecondsLeft <= 0) state.stars = 1;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddStreakDay() {
+  state.streak++;
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  state.lastPlayDate = d.toDateString();
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddStar() {
+  state.stars++; saveState(); updateHomeUI(); closeDevPanel();
+}
+function devAddPlaytime() {
+  state.gameSecondsLeft = (state.gameSecondsLeft || 0) + 600;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+function devResetStreak() {
+  state.streak = 0; state.lastPlayDate = null; state.stars = 0; state.gameSecondsLeft = 0;
+  saveState(); updateHomeUI(); closeDevPanel();
+}
+
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  document.getElementById('settings-version-number').textContent = APP_VERSION;
+
+  // URL-Param Overrides (session-only, kein saveState)
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    const p = new URLSearchParams(location.search);
+    const anyParam = p.has('devStreak') || p.has('devStars') || p.has('devPlaytime');
+    if (p.has('devStreak')) state.streak          = parseInt(p.get('devStreak'), 10);
+    if (p.has('devStars')) {
+      state.stars = parseInt(p.get('devStars'), 10);
+      if (!p.has('devPlaytime')) state.gameSecondsLeft = 0; // explizit auf 0, außer devPlaytime überschreibt es
+    }
+    if (p.has('devPlaytime')) state.gameSecondsLeft = parseInt(p.get('devPlaytime'), 10) * 60;
+    if (anyParam) { _devMode = true; updateHomeUI(); }
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js');
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      const banner = document.createElement('div');
+      banner.id = 'update-banner';
+      banner.innerHTML = '🆕 Neue Version verfügbar! &nbsp;<button onclick="location.reload()" style="background:#fff;color:#1a1a2e;border:none;border-radius:12px;padding:6px 14px;font-weight:800;font-size:0.85rem;cursor:pointer">Jetzt laden</button>';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;';
+      document.body.prepend(banner);
+    });
+  }
   initStars();
   document.getElementById('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveName(); });
   document.getElementById('settings-name-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveSettingsName(); });
