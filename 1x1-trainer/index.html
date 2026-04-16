@@ -2860,14 +2860,18 @@ function devResetStreak() {
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
   const devBtn = document.getElementById('dev-version-tap');
+  let _devTapCount = 0, _devTapTimer = null;
   devBtn.addEventListener('pointerdown', () => {
     if (!_isDevHost()) return;
-    _devPressTimer = setTimeout(() => document.getElementById('dev-panel-modal').classList.add('active'), 700);
+    _devTapCount++;
+    clearTimeout(_devTapTimer);
+    _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 3000);
+    if (_devTapCount >= 5) {
+      _devTapCount = 0;
+      document.getElementById('dev-panel-modal').classList.add('active');
+    }
   });
-  devBtn.addEventListener('pointerup',     () => clearTimeout(_devPressTimer));
-  devBtn.addEventListener('pointercancel', () => clearTimeout(_devPressTimer));
-  devBtn.addEventListener('pointermove',   () => clearTimeout(_devPressTimer));
-  devBtn.addEventListener('contextmenu',   e  => { if (_isDevHost()) e.preventDefault(); });
+  devBtn.addEventListener('contextmenu', e => { if (_isDevHost()) e.preventDefault(); });
 
   // URL-Param Overrides (session-only, kein saveState)
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
