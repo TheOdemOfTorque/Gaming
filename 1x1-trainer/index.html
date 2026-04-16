@@ -2858,6 +2858,17 @@ function devResetStreak() {
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
   _devEnabled = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
+  const devBtn = document.getElementById('dev-version-tap');
+  let _devTapCount = 0, _devTapTimer = null;
+  devBtn.addEventListener('click', () => {
+    if (!_devEnabled) return;
+    _devTapCount++;
+    clearTimeout(_devTapTimer);
+    _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 3000);
+    devBtn.style.color = `rgba(255,255,255,${0.25 + _devTapCount * 0.15})`;
+    setTimeout(() => { devBtn.style.color = 'rgba(255,255,255,0.25)'; }, 300);
+    if (_devTapCount >= 5) { _devTapCount = 0; document.getElementById('dev-panel-modal').classList.add('active'); }
+  });
   if (_devEnabled) {
     const fab = document.createElement('button');
     fab.textContent = '🛠';
