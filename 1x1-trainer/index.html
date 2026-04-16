@@ -272,11 +272,11 @@
       pointer-events: none;
     }
     #space-invader #joy-row {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
     }
     /* Joystick-Fläche: breite gleitende Zone statt zwei Tasten */
     #space-invader #joystick {
-      flex: 1; height: 72px; border-radius: 16px;
+      width: 45%; flex: 0 0 auto; height: 72px; border-radius: 16px;
       background: rgba(100,200,255,0.10); border: 2px solid rgba(100,200,255,0.32);
       position: relative; touch-action: none; overflow: hidden;
       pointer-events: all; user-select: none; -webkit-user-select: none;
