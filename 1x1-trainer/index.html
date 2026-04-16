@@ -641,7 +641,7 @@
 
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
-  <div id="dev-version-tap" style="text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding:16px 24px;cursor:default" oncontextmenu="devContextMenu(event)">Version <span id="settings-version-number"></span></div>
+  <button id="dev-version-tap" style="background:none;border:none;width:100%;text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding:16px 24px;cursor:default;display:block;-webkit-touch-callout:none">Version <span id="settings-version-number"></span></button>
 </div>
 
 <!-- DEV PANEL (nur localhost) -->
@@ -2827,11 +2827,9 @@ let _swReg = null;
 // ── DEV PANEL ──────────────────────────────────────────
 let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-Leak unterdrückt
 let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
-function devContextMenu(e) {
-  const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
-  if (!isDev) return;
-  e.preventDefault(); // unterdrückt iOS-Kopier-Menü und Desktop-Kontextmenü
-  document.getElementById('dev-panel-modal').classList.add('active');
+let _devPressTimer = null;
+function _isDevHost() {
+  return location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
 }
 function closeDevPanel() { document.getElementById('dev-panel-modal').classList.remove('active'); }
 function devSetStreak(n) {
@@ -2861,6 +2859,15 @@ function devResetStreak() {
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
+  const devBtn = document.getElementById('dev-version-tap');
+  devBtn.addEventListener('pointerdown', () => {
+    if (!_isDevHost()) return;
+    _devPressTimer = setTimeout(() => document.getElementById('dev-panel-modal').classList.add('active'), 700);
+  });
+  devBtn.addEventListener('pointerup',     () => clearTimeout(_devPressTimer));
+  devBtn.addEventListener('pointercancel', () => clearTimeout(_devPressTimer));
+  devBtn.addEventListener('pointermove',   () => clearTimeout(_devPressTimer));
+  devBtn.addEventListener('contextmenu',   e  => { if (_isDevHost()) e.preventDefault(); });
 
   // URL-Param Overrides (session-only, kein saveState)
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
