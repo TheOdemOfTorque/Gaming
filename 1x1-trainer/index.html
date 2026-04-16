@@ -2827,10 +2827,8 @@ let _swReg = null;
 // ── DEV PANEL ──────────────────────────────────────────
 let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-Leak unterdrückt
 let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
+let _devEnabled = false; // wird beim Load gesetzt
 let _devPressTimer = null;
-function _isDevHost() {
-  return location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
-}
 function closeDevPanel() { document.getElementById('dev-panel-modal').classList.remove('active'); }
 function devSetStreak(n) {
   state.streak = n;
@@ -2859,22 +2857,26 @@ function devResetStreak() {
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
+  _devEnabled = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
   const devBtn = document.getElementById('dev-version-tap');
   let _devTapCount = 0, _devTapTimer = null;
-  devBtn.addEventListener('pointerdown', () => {
-    if (!_isDevHost()) return;
+  devBtn.addEventListener('click', () => {
+    if (!_devEnabled) return;
     _devTapCount++;
     clearTimeout(_devTapTimer);
     _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 3000);
+    // Visuelles Feedback: Versionsnummer kurz aufleuchten
+    devBtn.style.color = `rgba(255,255,255,${0.25 + _devTapCount * 0.15})`;
+    setTimeout(() => { devBtn.style.color = 'rgba(255,255,255,0.25)'; }, 300);
     if (_devTapCount >= 5) {
       _devTapCount = 0;
       document.getElementById('dev-panel-modal').classList.add('active');
     }
   });
-  devBtn.addEventListener('contextmenu', e => { if (_isDevHost()) e.preventDefault(); });
+  devBtn.addEventListener('contextmenu', e => { if (_devEnabled) e.preventDefault(); });
 
   // URL-Param Overrides (session-only, kein saveState)
-  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+  if (_devEnabled) {
     const p = new URLSearchParams(location.search);
     const anyParam = p.has('devStreak') || p.has('devStars') || p.has('devPlaytime');
     if (anyParam) {
