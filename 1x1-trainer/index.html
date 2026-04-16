@@ -2829,7 +2829,8 @@ let _devMode = false;     // true = URL-Params aktiv, Streak-Reset + saveState-L
 let _devSnapshot = null;  // Original-State-Felder vor URL-Param-Override (für saveState)
 let _devTapCount = 0, _devTapTimer = null;
 function devTap() {
-  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') return;
+  const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
+  if (!isDev) return;
   _devTapCount++;
   clearTimeout(_devTapTimer);
   _devTapTimer = setTimeout(() => { _devTapCount = 0; }, 2000);
