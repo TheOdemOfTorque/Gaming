@@ -467,7 +467,7 @@
       <div class="mode-desc">60 Sekunden</div>
       <div id="blitz-rekord-label" style="font-size:0.7rem;color:#fbbf24;margin-top:4px;display:none">🏆 Rekord: <strong id="blitz-rekord-val">0</strong></div>
     </div>
-    <div class="mode-card turnier" onclick="startGame('turnier')">
+    <div class="mode-card turnier" onclick="showTurnierPicker()">
       <span class="mode-icon">🏆</span>
       <div class="mode-name">Turnier</div>
       <div class="mode-desc">10 Fragen, 3 Leben</div>
@@ -773,6 +773,22 @@
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px" id="blitz-reihe-grid"></div>
     <button class="btn btn-primary" id="blitz-start-btn" onclick="startBlitz()">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeBlitzModal()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- TURNIER-PICKER -->
+<div class="modal-overlay" id="turnier-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">🏆 Turnier</div>
+    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">10 Fragen · steigende Schwierigkeit</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+    <div class="rechenart-toggle" id="turnier-rechenart-toggle">
+      <button class="rechenart-btn" data-r="mult"     onclick="selectTurnierRechenart('mult')">×</button>
+      <button class="rechenart-btn" data-r="div"      onclick="selectTurnierRechenart('div')">÷</button>
+      <button class="rechenart-btn" data-r="gemischt" onclick="selectTurnierRechenart('gemischt')">× ÷</button>
+    </div>
+    <button class="btn btn-primary" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8);box-shadow:0 4px 20px rgba(59,130,246,0.4)" onclick="startTurnier()">▶ Los geht's!</button>
+    <button class="btn btn-secondary mt-8" onclick="closeTurnierModal()">Abbrechen</button>
   </div>
 </div>
 
@@ -1634,6 +1650,37 @@ function startBlitz() {
 
 document.getElementById('blitz-modal').addEventListener('click', function(e) {
   if (e.target === this) closeBlitzModal();
+});
+
+// ── TURNIER-PICKER ─────────────────────────────────────────
+function showTurnierPicker() {
+  const cfg = state.turnierConfig;
+  document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-turnier', b.dataset.r === (cfg.rechenart || 'mult'));
+  });
+  document.getElementById('turnier-modal').classList.add('active');
+}
+
+function selectTurnierRechenart(r) {
+  state.turnierConfig.rechenart = r;
+  saveState();
+  document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-turnier', b.dataset.r === r);
+  });
+}
+
+function closeTurnierModal() {
+  document.getElementById('turnier-modal').classList.remove('active');
+}
+
+function startTurnier() {
+  saveState();
+  closeTurnierModal();
+  startGame('turnier');
+}
+
+document.getElementById('turnier-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeTurnierModal();
 });
 
 // ── GAME STATE ─────────────────────────────────────────
