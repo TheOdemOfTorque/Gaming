@@ -453,6 +453,7 @@
       <span class="mode-icon">⚡</span>
       <div class="mode-name">Blitz-Modus</div>
       <div class="mode-desc">60 Sekunden</div>
+      <div id="blitz-rekord-label" style="font-size:0.7rem;color:#fbbf24;margin-top:4px;display:none">🏆 Rekord: <strong id="blitz-rekord-val">0</strong></div>
     </div>
     <div class="mode-card turnier" onclick="startGame('turnier')">
       <span class="mode-icon">🏆</span>
@@ -1353,6 +1354,7 @@ function updateHomeUI() {
       }
     }
   }
+  updateBlitzRekordLabel();
 }
 
 // ── TROPHIES SCREEN ────────────────────────────────────
@@ -1484,6 +1486,18 @@ function updateBlitzStartBtn() {
     btn.textContent = '▶ Los geht\'s! (Alle)';
   } else {
     btn.textContent = '▶ Los geht\'s! (' + cfg.reihen.slice().sort((a,b)=>a-b).map(r=>r+'er').join(', ') + ')';
+  }
+}
+
+function updateBlitzRekordLabel() {
+  const best = state.highScores.blitz;
+  const el = document.getElementById('blitz-rekord-label');
+  if (!el) return;
+  if (best > 0) {
+    document.getElementById('blitz-rekord-val').textContent = best;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
   }
 }
 
