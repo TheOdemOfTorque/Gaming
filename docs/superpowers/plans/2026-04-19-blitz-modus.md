@@ -488,3 +488,295 @@ git add 1x1-trainer/index.html 1x1-trainer/sw.js
 git commit -m "feat(blitz): resetHighscores + SW v16 + APP_VERSION 2.2"
 git push
 ```
+
+---
+
+### Task 8: Jest Unit-Tests für Pure Logic
+
+**Files:**
+- Create: `1x1-trainer/logic.js` — extrahierte Pure Functions
+- Create: `tests/unit/blitz-logic.test.js`
+- Modify: `1x1-trainer/index.html` — `<script src="logic.js">` statt inline
+
+- [ ] **Schritt 1: `logic.js` erstellen mit den drei testbaren Funktionen**
+
+```js
+// 1x1-trainer/logic.js
+// Pure functions — kein DOM, kein localStorage, keine Globals
+
+function pickBlitzReihe(blitzConfig, maxReihe) {
+  if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
+    return null; // caller uses rnd(1, maxReihe)
+  const reihen = blitzConfig.reihen;
+  return reihen[Math.floor(Math.random() * reihen.length)];
+}
+
+function addBlitzListeEntry(liste, entry) {
+  const neu = [...liste, entry];
+  neu.sort((a, b) => b.score - a.score);
+  return neu.slice(0, 5);
+}
+
+function migrateBlitzState(s) {
+  if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true };
+  if (!s.highScores) s.highScores = {};
+  if (!s.highScores.blitzListe) s.highScores.blitzListe = [];
+  return s;
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { pickBlitzReihe, addBlitzListeEntry, migrateBlitzState };
+}
+```
+
+- [ ] **Schritt 2: `<script src="logic.js">` in index.html einbinden**
+
+Im `<head>` von `index.html`, direkt vor dem schließenden `</head>`-Tag:
+```html
+<script src="logic.js"></script>
+```
+Die entsprechenden Inline-Definitionen von `pickBlitzReihe`, `addBlitzListeEntry` und den Migrations-Inhalt aus `index.html` entfernen (sie sind jetzt in `logic.js`).
+
+- [ ] **Schritt 3: Jest einrichten**
+
+```bash
+cd /Users/marco/dev/gaming
+npm init -y
+npm install --save-dev jest
+```
+
+In `package.json` ergänzen:
+```json
+"scripts": {
+  "test": "jest",
+  "test:unit": "jest tests/unit"
+}
+```
+
+- [ ] **Schritt 4: Testdatei schreiben**
+
+```js
+// tests/unit/blitz-logic.test.js
+const { pickBlitzReihe, addBlitzListeEntry, migrateBlitzState } = require('../../1x1-trainer/logic.js');
+
+describe('pickBlitzReihe', () => {
+  test('gibt null zurück wenn alleReihen true', () => {
+    expect(pickBlitzReihe({ alleReihen: true, reihen: [] }, 10)).toBeNull();
+  });
+
+  test('gibt null zurück wenn reihen leer', () => {
+    expect(pickBlitzReihe({ alleReihen: false, reihen: [] }, 10)).toBeNull();
+  });
+
+  test('gibt immer eine Zahl aus reihen zurück', () => {
+    const cfg = { alleReihen: false, reihen: [3, 5] };
+    for (let i = 0; i < 50; i++) {
+      expect([3, 5]).toContain(pickBlitzReihe(cfg, 10));
+    }
+  });
+});
+
+describe('addBlitzListeEntry', () => {
+  test('fügt einen Eintrag hinzu', () => {
+    const result = addBlitzListeEntry([], { score: 10, reihen: [], alleReihen: true, datum: '19.04.2026' });
+    expect(result).toHaveLength(1);
+    expect(result[0].score).toBe(10);
+  });
+
+  test('sortiert absteigend nach score', () => {
+    const liste = [{ score: 20 }, { score: 15 }, { score: 30 }];
+    const result = addBlitzListeEntry(liste, { score: 25 });
+    expect(result.map(e => e.score)).toEqual([30, 25, 20, 15]);
+  });
+
+  test('begrenzt auf 5 Einträge', () => {
+    const liste = [{ score: 50 }, { score: 40 }, { score: 30 }, { score: 20 }, { score: 10 }];
+    const result = addBlitzListeEntry(liste, { score: 45 });
+    expect(result).toHaveLength(5);
+    expect(result[0].score).toBe(50);
+    expect(result[4].score).toBe(20); // score:10 fällt raus
+  });
+
+  test('neuer Rekord landet auf Platz 1', () => {
+    const liste = [{ score: 30 }, { score: 20 }];
+    const result = addBlitzListeEntry(liste, { score: 99 });
+    expect(result[0].score).toBe(99);
+  });
+});
+
+describe('migrateBlitzState', () => {
+  test('fügt blitzConfig hinzu wenn fehlend', () => {
+    const s = { highScores: {} };
+    const result = migrateBlitzState(s);
+    expect(result.blitzConfig).toEqual({ reihen: [], alleReihen: true });
+  });
+
+  test('fügt blitzListe hinzu wenn fehlend', () => {
+    const s = { highScores: { blitz: 5, turnier: 3 } };
+    const result = migrateBlitzState(s);
+    expect(result.highScores.blitzListe).toEqual([]);
+  });
+
+  test('überschreibt vorhandene blitzConfig nicht', () => {
+    const s = { blitzConfig: { reihen: [3], alleReihen: false }, highScores: {} };
+    const result = migrateBlitzState(s);
+    expect(result.blitzConfig.reihen).toEqual([3]);
+  });
+});
+```
+
+- [ ] **Schritt 5: Tests ausführen**
+
+```bash
+npm test
+```
+Erwartung: 9 Tests, alle grün. Ausgabe:
+```
+PASS tests/unit/blitz-logic.test.js
+  pickBlitzReihe
+    ✓ gibt null zurück wenn alleReihen true
+    ✓ gibt null zurück wenn reihen leer
+    ✓ gibt immer eine Zahl aus reihen zurück
+  addBlitzListeEntry
+    ✓ fügt einen Eintrag hinzu
+    ✓ sortiert absteigend nach score
+    ✓ begrenzt auf 5 Einträge
+    ✓ neuer Rekord landet auf Platz 1
+  migrateBlitzState
+    ✓ fügt blitzConfig hinzu wenn fehlend
+    ✓ fügt blitzListe hinzu wenn fehlend
+    ✓ überschreibt vorhandene blitzConfig nicht
+```
+
+- [ ] **Schritt 6: Commit**
+```bash
+git add 1x1-trainer/logic.js tests/unit/blitz-logic.test.js package.json package-lock.json
+git commit -m "test(blitz): Jest Unit-Tests für pickBlitzReihe, addBlitzListeEntry, migrateBlitzState"
+```
+
+---
+
+### Task 9: Playwright E2E-Tests
+
+**Files:**
+- Create: `tests/e2e/blitz.spec.js`
+- Create: `playwright.config.js`
+- Modify: `package.json` — test:e2e Script
+
+- [ ] **Schritt 1: Playwright installieren**
+
+```bash
+npm install --save-dev @playwright/test
+npx playwright install chromium
+```
+
+- [ ] **Schritt 2: `playwright.config.js` erstellen**
+
+```js
+// playwright.config.js
+const { defineConfig } = require('@playwright/test');
+module.exports = defineConfig({
+  testDir: './tests/e2e',
+  use: {
+    baseURL: 'http://localhost:8080',
+  },
+  webServer: {
+    command: 'python3 -m http.server 8080',
+    url: 'http://localhost:8080',
+    reuseExistingServer: !process.env.CI,
+  },
+});
+```
+
+- [ ] **Schritt 3: `package.json` ergänzen**
+
+```json
+"scripts": {
+  "test": "jest",
+  "test:unit": "jest tests/unit",
+  "test:e2e": "playwright test"
+}
+```
+
+- [ ] **Schritt 4: E2E-Testdatei schreiben**
+
+```js
+// tests/e2e/blitz.spec.js
+const { test, expect } = require('@playwright/test');
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/1x1-trainer/');
+  // localStorage leeren für sauberen State
+  await page.evaluate(() => localStorage.removeItem('henry_einmaleins'));
+  await page.reload();
+});
+
+test('Blitz-Karte öffnet Reihen-Picker', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  await expect(page.locator('#blitz-modal')).toBeVisible();
+});
+
+test('Alle-Reihen ist nach erstem Start vorausgewählt', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  await expect(page.locator('#blitz-alle-btn')).toHaveClass(/selected/);
+});
+
+test('Reihe auswählen deaktiviert Alle-Reihen-Toggle', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  // Erste Reihe im Grid antippen
+  await page.locator('#blitz-reihe-grid .blitz-reihe-btn').first().click();
+  await expect(page.locator('#blitz-alle-btn')).not.toHaveClass(/selected/);
+});
+
+test('Maximal 4 Reihen auswählbar — 5. verdrängt älteste', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  const btns = page.locator('#blitz-reihe-grid .blitz-reihe-btn');
+  // Reihen 1–5 nacheinander antippen
+  for (let i = 0; i < 5; i++) await btns.nth(i).click();
+  // Reihe 1 (erste) sollte nicht mehr selected sein
+  await expect(btns.nth(0)).not.toHaveClass(/selected/);
+  // Reihe 5 (letzte) sollte selected sein
+  await expect(btns.nth(4)).toHaveClass(/selected/);
+  // Genau 4 selected
+  await expect(page.locator('#blitz-reihe-grid .blitz-reihe-btn.selected')).toHaveCount(4);
+});
+
+test('Start-Button zeigt gewählte Reihen an', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  const btns = page.locator('#blitz-reihe-grid .blitz-reihe-btn');
+  await btns.nth(2).click(); // 3er
+  await btns.nth(4).click(); // 5er
+  await expect(page.locator('#blitz-start-btn')).toContainText('3er');
+  await expect(page.locator('#blitz-start-btn')).toContainText('5er');
+});
+
+test('Letzte Konfiguration wird beim erneuten Öffnen wiederhergestellt', async ({ page }) => {
+  await page.click('.mode-card.blitz');
+  await page.locator('#blitz-reihe-grid .blitz-reihe-btn').nth(2).click(); // 3er
+  await page.locator('#blitz-modal').press('Escape');
+  // Modal schließen via Abbrechen
+  await page.click('#blitz-modal .btn-secondary');
+  // Erneut öffnen
+  await page.click('.mode-card.blitz');
+  await expect(page.locator('#blitz-reihe-grid .blitz-reihe-btn').nth(2)).toHaveClass(/selected/);
+});
+
+test('Highscore-Seite ist über Hauptmenü erreichbar', async ({ page }) => {
+  await page.click('text=Blitz-Rekorde');
+  await expect(page.locator('#screen-blitz-highscores')).toBeVisible();
+  await expect(page.locator('text=Noch keine Runden gespielt')).toBeVisible();
+});
+```
+
+- [ ] **Schritt 5: Tests ausführen**
+
+```bash
+npm run test:e2e
+```
+Erwartung: 7 Tests, alle grün. Bei Fehler: `npx playwright test --headed` für visuelles Debugging.
+
+- [ ] **Schritt 6: Commit**
+```bash
+git add tests/e2e/blitz.spec.js playwright.config.js package.json package-lock.json
+git commit -m "test(blitz): Playwright E2E-Tests für Blitz-Picker und Highscore-Navigation"
+```
