@@ -188,6 +188,18 @@
     .blitz-reihe-btn { padding: 10px 4px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12); border-radius: 10px; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: transform 0.1s; }
     .blitz-reihe-btn:active { transform: scale(0.93); }
     .blitz-reihe-btn.selected { background: rgba(245,158,11,0.25); border-color: #F59E0B; }
+    /* RECHENART-TOGGLE (alle Modi) */
+    .rechenart-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
+    .rechenart-btn {
+      flex: 1; text-align: center; background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15); border-radius: 10px;
+      padding: 10px 4px; font-size: 1.1rem; font-weight: 800;
+      color: rgba(255,255,255,0.4); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+      -webkit-appearance: none;
+    }
+    .rechenart-btn.active-blitz   { background: rgba(245,158,11,0.25); border-color: rgba(245,158,11,0.8);  color: #fbbf24; }
+    .rechenart-btn.active-turnier { background: rgba(59,130,246,0.25); border-color: rgba(59,130,246,0.8);  color: #93c5fd; }
+    .rechenart-btn.active-training{ background: rgba(16,185,129,0.25); border-color: rgba(16,185,129,0.8);  color: #6ee7b7; }
     .blitz-alle-btn { width: 100%; padding: 12px; background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; color: rgba(255,255,255,0.8); font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
     .blitz-alle-btn.selected { background: rgba(245,158,11,0.15); border-color: #F59E0B; color: #fbbf24; }
 
@@ -455,7 +467,7 @@
       <div class="mode-desc">60 Sekunden</div>
       <div id="blitz-rekord-label" style="font-size:0.7rem;color:#fbbf24;margin-top:4px;display:none">🏆 Rekord: <strong id="blitz-rekord-val">0</strong></div>
     </div>
-    <div class="mode-card turnier" onclick="startGame('turnier')">
+    <div class="mode-card turnier" onclick="showTurnierPicker()">
       <span class="mode-icon">🏆</span>
       <div class="mode-name">Turnier</div>
       <div class="mode-desc">10 Fragen, 3 Leben</div>
@@ -733,6 +745,12 @@
 <div class="modal-overlay" id="training-modal">
   <div class="modal-sheet">
     <div class="modal-title">📚 Welche Reihe möchtest du üben?</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+    <div class="rechenart-toggle" id="training-rechenart-toggle">
+      <button class="rechenart-btn" data-r="mult"     onclick="selectTrainingRechenart('mult')">×</button>
+      <button class="rechenart-btn" data-r="div"      onclick="selectTrainingRechenart('div')">÷</button>
+      <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
+    </div>
     <div class="reihe-grid" id="reihe-grid"></div>
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTrainingModal()">Abbrechen</button>
@@ -743,6 +761,12 @@
 <div class="modal-overlay" id="blitz-modal">
   <div class="modal-sheet">
     <div class="modal-title">⚡ Blitz-Modus</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+    <div class="rechenart-toggle" id="blitz-rechenart-toggle">
+      <button class="rechenart-btn" data-r="mult" onclick="selectBlitzRechenart('mult')">×</button>
+      <button class="rechenart-btn" data-r="div"  onclick="selectBlitzRechenart('div')">÷</button>
+      <button class="rechenart-btn" data-r="gemischt" onclick="selectBlitzRechenart('gemischt')">× ÷</button>
+    </div>
     <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:12px">Welche Reihen sollen abgefragt werden?</div>
     <button class="blitz-alle-btn" id="blitz-alle-btn" onclick="toggleBlitzAlle()">
       <span id="blitz-alle-icon">☐</span>
@@ -755,6 +779,22 @@
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px" id="blitz-reihe-grid"></div>
     <button class="btn btn-primary" id="blitz-start-btn" onclick="startBlitz()">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeBlitzModal()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- TURNIER-PICKER -->
+<div class="modal-overlay" id="turnier-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">🏆 Turnier</div>
+    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">10 Fragen · steigende Schwierigkeit</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+    <div class="rechenart-toggle" id="turnier-rechenart-toggle">
+      <button class="rechenart-btn" data-r="mult"     onclick="selectTurnierRechenart('mult')">×</button>
+      <button class="rechenart-btn" data-r="div"      onclick="selectTurnierRechenart('div')">÷</button>
+      <button class="rechenart-btn" data-r="gemischt" onclick="selectTurnierRechenart('gemischt')">× ÷</button>
+    </div>
+    <button class="btn btn-primary" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8);box-shadow:0 4px 20px rgba(59,130,246,0.4)" onclick="startTurnier()">▶ Los geht's!</button>
+    <button class="btn btn-secondary mt-8" onclick="closeTurnierModal()">Abbrechen</button>
   </div>
 </div>
 
@@ -905,15 +945,22 @@ function defaultSettings() {
 
 function defaultReiheStats() {
   const s = {};
-  for (let i = 1; i <= 20; i++) s[i] = { sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0 };
+  for (let i = 1; i <= 20; i++) s[i] = {
+    sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0,
+    divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0
+  };
   return s;
 }
 
 function defaultState() {
   return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
            streak: 0, lastPlayDate: null,
-           highScores: { blitz: 0, turnier: 0, blitzListe: [] },
-           blitzConfig: { reihen: [], alleReihen: true },
+           highScores: { blitz: 0, turnier: 0, blitzListe: [],
+                         blitzDiv: 0, blitzGemischt: 0,
+                         turnierDiv: 0, turnierGemischt: 0 },
+           blitzConfig: { reihen: [], alleReihen: true, rechenart: 'mult' },
+           trainingConfig: { rechenart: 'mult' },
+           turnierConfig: { rechenart: 'mult' },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
            questionStats: {},
@@ -925,8 +972,8 @@ function defaultState() {
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.2.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
-const STATE_VERSION = 3;
+const APP_VERSION = '2.3'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const STATE_VERSION = 4;
 
 const STATE_MIGRATIONS = [
   // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
@@ -958,6 +1005,25 @@ const STATE_MIGRATIONS = [
     if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true };
     if (!s.highScores) s.highScores = {};
     if (!s.highScores.blitzListe) s.highScores.blitzListe = [];
+    return s;
+  },
+  // v3 → v4: Division-Rechenart + separate Highscores + reiheStats-Div-Felder
+  (s) => {
+    if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
+    if (!s.turnierConfig)  s.turnierConfig  = { rechenart: 'mult' };
+    if (!s.blitzConfig.rechenart) s.blitzConfig.rechenart = 'mult';
+    if (!s.highScores) s.highScores = {};
+    if (s.highScores.blitzDiv      === undefined) s.highScores.blitzDiv      = 0;
+    if (s.highScores.blitzGemischt === undefined) s.highScores.blitzGemischt = 0;
+    if (s.highScores.turnierDiv      === undefined) s.highScores.turnierDiv      = 0;
+    if (s.highScores.turnierGemischt === undefined) s.highScores.turnierGemischt = 0;
+    if (!s.reiheStats) s.reiheStats = defaultReiheStats();
+    for (let i = 1; i <= 20; i++) {
+      if (!s.reiheStats[i]) s.reiheStats[i] = defaultReiheStats()[i];
+      if (s.reiheStats[i].divConsecutivePerfect === undefined) s.reiheStats[i].divConsecutivePerfect = 0;
+      if (s.reiheStats[i].divCorrect            === undefined) s.reiheStats[i].divCorrect            = 0;
+      if (s.reiheStats[i].divWrong              === undefined) s.reiheStats[i].divWrong              = 0;
+    }
     return s;
   },
 ];
@@ -1285,7 +1351,9 @@ function saveSettingsName() {
 
 function resetHighscores() {
   if (!confirm('Highscores wirklich zurücksetzen?')) return;
-  state.highScores = { blitz: 0, turnier: 0, blitzListe: [] };
+  state.highScores = { blitz: 0, turnier: 0, blitzListe: [],
+                       blitzDiv: 0, blitzGemischt: 0,
+                       turnierDiv: 0, turnierGemischt: 0 };
   saveState();
 }
 
@@ -1405,13 +1473,36 @@ function getReiheColorClass(i) {
 
 function showTrainingPicker() {
   selectedReihe = null;
+  // Rechenart-Toggle
+  const rcfg = state.trainingConfig || { rechenart: 'mult' };
+  document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-training', b.dataset.r === (rcfg.rechenart || 'mult'));
+  });
+  // Reihen-Grid mit Dual-Progress
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
+  grid.style.gridTemplateColumns = '1fr 1fr';
+  grid.style.gap = '8px';
   for (let i = 1; i <= getMaxReihe(); i++) {
+    const rs = state.reiheStats[i] || {};
+    const multMastered = areAllQuestionsMastered(i);
+    const multPlayed   = (rs.totalQuestions || 0) > 0;
+    const divMastered  = (rs.divConsecutivePerfect || 0) >= 6;
+    const divPlayed    = (rs.divCorrect || 0) + (rs.divWrong || 0) > 0;
+    const multText = multMastered ? '× gemeistert ✅'
+                   : multPlayed   ? `× ${Math.min(rs.consecutivePerfect||0,5)} von 6 ⭐`
+                   : '× noch nicht geübt';
+    const divText  = divMastered  ? '÷ gemeistert ✅'
+                   : divPlayed    ? `÷ ${Math.min(rs.divConsecutivePerfect||0,5)} von 6 ⭐`
+                   : '÷ noch nicht geübt';
+    const borderColor = multMastered && divMastered ? 'rgba(16,185,129,0.6)'
+                      : multPlayed || divPlayed      ? 'rgba(245,158,11,0.4)'
+                      : 'rgba(255,255,255,0.1)';
     const btn = document.createElement('button');
-    const colorClass = getReiheColorClass(i);
-    btn.className = 'reihe-btn' + (colorClass ? ' ' + colorClass : '');
-    btn.textContent = i + 'er';
+    btn.style.cssText = `background:rgba(255,255,255,0.06);border:1px solid ${borderColor};border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;color:#fff;display:flex;flex-direction:column;gap:3px;-webkit-appearance:none;`;
+    btn.innerHTML = `<div style="font-weight:800;font-size:0.95rem">${i}er-Reihe</div>
+      <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${multText}</div>
+      <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${divText}</div>`;
     btn.onclick = () => selectReihe(i, btn);
     grid.appendChild(btn);
   }
@@ -1422,8 +1513,8 @@ function showTrainingPicker() {
 
 function selectReihe(n, el) {
   selectedReihe = n;
-  document.querySelectorAll('.reihe-btn').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
+  document.querySelectorAll('#reihe-grid button').forEach(b => b.style.outline = '');
+  el.style.outline = '2px solid #6C63FF';
   const sb = document.getElementById('start-training-btn');
   sb.disabled = false; sb.style.opacity = '1';
   sb.textContent = `▶ ${n}er-Reihe üben!`;
@@ -1432,6 +1523,14 @@ function selectReihe(n, el) {
 function closeTrainingModal() {
   document.getElementById('training-modal').classList.remove('active');
   selectedReihe = null;
+}
+
+function selectTrainingRechenart(r) {
+  state.trainingConfig.rechenart = r;
+  saveState();
+  document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-training', b.dataset.r === r);
+  });
 }
 
 function startTraining() {
@@ -1449,6 +1548,9 @@ document.getElementById('training-modal').addEventListener('click', function(e) 
 // ── BLITZ-MODUS PICKER ─────────────────────────────────
 function showBlitzPicker() {
   const cfg = state.blitzConfig;
+  document.querySelectorAll('#blitz-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-blitz', b.dataset.r === (cfg.rechenart || 'mult'));
+  });
   const maxR = getMaxReihe();
   const alleBtn = document.getElementById('blitz-alle-btn');
   document.getElementById('blitz-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
@@ -1467,6 +1569,15 @@ function showBlitzPicker() {
   }
   updateBlitzStartBtn();
   document.getElementById('blitz-modal').classList.add('active');
+}
+
+function selectBlitzRechenart(r) {
+  state.blitzConfig.rechenart = r;
+  saveState();
+  document.querySelectorAll('#blitz-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-blitz', b.dataset.r === r);
+  });
+  updateBlitzStartBtn();
 }
 
 function toggleBlitzAlle() {
@@ -1502,20 +1613,27 @@ function toggleBlitzReihe(n, btn) {
 
 function updateBlitzStartBtn() {
   const cfg = state.blitzConfig;
+  const rLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
+  const rLabel = rLabels[cfg.rechenart || 'mult'];
   const btn = document.getElementById('blitz-start-btn');
   if (cfg.alleReihen || !cfg.reihen.length) {
-    btn.textContent = '▶ Los geht\'s! (Alle)';
+    btn.textContent = `▶ Los geht's! (Alle · ${rLabel})`;
   } else {
-    btn.textContent = '▶ Los geht\'s! (' + cfg.reihen.slice().sort((a,b)=>a-b).map(r=>r+'er').join(', ') + ')';
+    btn.textContent = `▶ Los geht's! (${cfg.reihen.slice().sort((a,b)=>a-b).map(r=>r+'er').join(', ')} · ${rLabel})`;
   }
 }
 
 function updateBlitzRekordLabel() {
-  const best = state.highScores.blitz;
+  const cfg = state.blitzConfig;
+  const hsKey = (cfg.rechenart || 'mult') === 'div' ? 'blitzDiv'
+              : (cfg.rechenart || 'mult') === 'gemischt' ? 'blitzGemischt'
+              : 'blitz';
+  const best = state.highScores[hsKey] || 0;
   const el = document.getElementById('blitz-rekord-label');
   if (!el) return;
+  const rLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
   if (best > 0) {
-    document.getElementById('blitz-rekord-val').textContent = best;
+    document.getElementById('blitz-rekord-val').textContent = `${best} (${rLabels[cfg.rechenart || 'mult']})`;
     el.style.display = 'block';
   } else {
     el.style.display = 'none';
@@ -1534,6 +1652,8 @@ function renderBlitzHighscores() {
   container.innerHTML = list.map((entry, i) => {
     const reihenText = entry.alleReihen ? 'Alle Reihen' : 'Reihen: ' + entry.reihen.join(', ');
     const inputText = entry.inputType === 'type' ? '⌨️ Eintippen' : '👆 Antippen';
+    const rLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
+    const rText = rLabels[entry.rechenart || 'mult'];
     const rank = i < 3 ? medals[i] : `<span style="color:rgba(255,255,255,0.3);font-size:0.9rem">${i+1}.</span>`;
     const highlight = i === 0 ? 'background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35)' : 'background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1)';
     const scoreColor = i === 0 ? '#fbbf24' : i < 3 ? '#e5e7eb' : '#9ca3af';
@@ -1542,7 +1662,7 @@ function renderBlitzHighscores() {
       <div style="font-size:${i < 3 ? '1.3rem' : '1rem'};min-width:28px;text-align:center">${rank}</div>
       <div style="flex:1">
         <div style="font-weight:800;color:${scoreColor};font-size:${scoreSize}">${entry.score} richtig</div>
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.35)">${reihenText} · ${inputText} · ${entry.datum}</div>
+        <div style="font-size:0.72rem;color:rgba(255,255,255,0.35)">${reihenText} · ${rText} · ${inputText} · ${entry.datum}</div>
       </div>
     </div>`;
   }).join('');
@@ -1569,6 +1689,37 @@ function startBlitz() {
 
 document.getElementById('blitz-modal').addEventListener('click', function(e) {
   if (e.target === this) closeBlitzModal();
+});
+
+// ── TURNIER-PICKER ─────────────────────────────────────────
+function showTurnierPicker() {
+  const cfg = state.turnierConfig;
+  document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-turnier', b.dataset.r === (cfg.rechenart || 'mult'));
+  });
+  document.getElementById('turnier-modal').classList.add('active');
+}
+
+function selectTurnierRechenart(r) {
+  state.turnierConfig.rechenart = r;
+  saveState();
+  document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-turnier', b.dataset.r === r);
+  });
+}
+
+function closeTurnierModal() {
+  document.getElementById('turnier-modal').classList.remove('active');
+}
+
+function startTurnier() {
+  saveState();
+  closeTurnierModal();
+  startGame('turnier');
+}
+
+document.getElementById('turnier-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeTurnierModal();
 });
 
 // ── GAME STATE ─────────────────────────────────────────
@@ -1629,6 +1780,18 @@ function pickBlitzReihe() {
   return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
 }
 
+function resolveRechenart(cfg) {
+  const r = (cfg && cfg.rechenart) || 'mult';
+  if (r === 'gemischt') return Math.random() < 0.5 ? 'mult' : 'div';
+  return r;
+}
+
+function getActiveRechenartCfg() {
+  if (game.mode === 'blitz')    return state.blitzConfig;
+  if (game.mode === 'turnier')  return state.turnierConfig;
+  return state.trainingConfig;
+}
+
 function makeQuestion() {
   let a, b;
   if (game.mode === 'training') {
@@ -1639,16 +1802,28 @@ function makeQuestion() {
     const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
     a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
   }
-  const ans = a * b;
-  // Build plausible distractors
-  const pool = new Set();
-  [[a+1,b],[a-1,b],[a,b+1],[a,b-1],[a+1,b+1],[a-1,b-1],
-   [a+2,b],[a,b+2]].forEach(([x,y])=>{ if(x>0&&y>0) pool.add(x*y); });
-  [1,2,3,5,b,a].forEach(d=>{ if(ans+d>0) pool.add(ans+d); if(ans-d>0) pool.add(ans-d); });
+
+  const rechenart = resolveRechenart(getActiveRechenartCfg());
+  let ans, display, pool;
+
+  if (rechenart === 'div') {
+    ans = b;
+    display = `${a * b} ÷ ${a} = ?`;
+    pool = new Set();
+    [-2, -1, 1, 2, 3, 4].forEach(d => { if (b + d > 0) pool.add(b + d); });
+    [1, 2, 3].forEach(d => { pool.add(b + d); if (b - d > 0) pool.add(b - d); });
+  } else {
+    ans = a * b;
+    display = `${a} × ${b} = ?`;
+    pool = new Set();
+    [[a+1,b],[a-1,b],[a,b+1],[a,b-1],[a+1,b+1],[a-1,b-1],
+     [a+2,b],[a,b+2]].forEach(([x,y])=>{ if(x>0&&y>0) pool.add(x*y); });
+    [1,2,3,5,b,a].forEach(d=>{ if(ans+d>0) pool.add(ans+d); if(ans-d>0) pool.add(ans-d); });
+  }
   pool.delete(ans);
-  const wrongs = shuffle([...pool]).slice(0,3);
+  const wrongs = shuffle([...pool]).slice(0, 3);
   while (wrongs.length < 3) wrongs.push(ans + wrongs.length + 1);
-  return { a, b, ans, choices: shuffle([ans, ...wrongs]) };
+  return { a, b, rechenart, ans, display, choices: shuffle([ans, ...wrongs]) };
 }
 
 // ── START GAME ─────────────────────────────────────────
@@ -1675,11 +1850,16 @@ function _doStartGame(mode, reihe, inputType) {
   const sequence = mode === 'training' ? generateTrainingSequence(reihe) : null;
   game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
-           answered:false, active:true, q:null };
+           answered:false, active:true, q:null,
+           rechenart: (mode === 'blitz' ? state.blitzConfig
+                     : mode === 'turnier' ? state.turnierConfig
+                     : state.trainingConfig).rechenart || 'mult' };
 
-  const labels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
+  const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
+  const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
+  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
   document.getElementById('game-mode-label').textContent =
-    labels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '');
+    modeLabels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '') + rechenartSuffix;
 
   const timerWrap = document.getElementById('game-timer-wrap');
   const livesWrap = document.getElementById('game-lives-wrap');
@@ -1720,7 +1900,7 @@ function nextQuestion() {
   game.q = makeQuestion();
   const q = game.q;
 
-  document.getElementById('question-text').textContent = `${q.a} × ${q.b} = ?`;
+  document.getElementById('question-text').textContent = q.display;
   document.getElementById('feedback-text').textContent = '';
 
   if (game.mode === 'blitz') {
@@ -1877,13 +2057,17 @@ function endGame(reason) {
   state.totalCorrect += game.correct;
   state.totalGames++;
   if (game.mode === 'blitz') {
-    if (game.correct > state.highScores.blitz) state.highScores.blitz = game.correct;
+    const hsKey = game.rechenart === 'div' ? 'blitzDiv'
+                : game.rechenart === 'gemischt' ? 'blitzGemischt'
+                : 'blitz';
+    if (game.correct > state.highScores[hsKey]) state.highScores[hsKey] = game.correct;
     if (game.correct > 0) {
       const entry = {
         score: game.correct,
         reihen: state.blitzConfig.alleReihen ? [] : state.blitzConfig.reihen.slice().sort((a,b)=>a-b),
         alleReihen: state.blitzConfig.alleReihen || !state.blitzConfig.reihen.length,
         inputType: game.inputType,
+        rechenart: game.rechenart,
         datum: new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
       };
       state.highScores.blitzListe.push(entry);
@@ -1891,7 +2075,12 @@ function endGame(reason) {
       state.highScores.blitzListe = state.highScores.blitzListe.slice(0, 5);
     }
   }
-  if (game.mode==='turnier' && game.score   > state.highScores.turnier) state.highScores.turnier = game.score;
+  if (game.mode === 'turnier') {
+    const tsKey = game.rechenart === 'div' ? 'turnierDiv'
+                : game.rechenart === 'gemischt' ? 'turnierGemischt'
+                : 'turnier';
+    if (game.score > state.highScores[tsKey]) state.highScores[tsKey] = game.score;
+  }
 
   // Per-row stats (training mode only, only if at least 1 question answered)
   if (game.mode === 'training' && game.correct + game.wrong > 0) {
@@ -1899,8 +2088,16 @@ function endGame(reason) {
     rs.sessions++;
     rs.totalCorrect   += game.correct;
     rs.totalQuestions += game.correct + game.wrong;
-    if (game.wrong === 0) rs.consecutivePerfect++;
-    else                  rs.consecutivePerfect = 0;
+    if (game.rechenart === 'div') {
+      rs.divCorrect += game.correct;
+      rs.divWrong   += game.wrong;
+      if (game.wrong === 0) rs.divConsecutivePerfect++;
+      else                  rs.divConsecutivePerfect = 0;
+    } else if (game.rechenart === 'mult') {
+      if (game.wrong === 0) rs.consecutivePerfect++;
+      else                  rs.consecutivePerfect = 0;
+    }
+    // 'gemischt': nur Totals werden gezählt, kein Leitner-Fortschritt
   }
 
   const oldLevel = getLevelInfo(state.xp).level;
