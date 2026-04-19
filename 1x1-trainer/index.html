@@ -185,6 +185,11 @@
     .reihe-btn.red    { border-color: rgba(239,68,68,0.6);   color: #fca5a5; }
     .reihe-btn.orange { border-color: rgba(245,158,11,0.6);  color: #fcd34d; }
     .reihe-btn.green  { border-color: rgba(16,185,129,0.6);  color: #6ee7b7; }
+    .blitz-reihe-btn { padding: 10px 4px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12); border-radius: 10px; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: transform 0.1s; }
+    .blitz-reihe-btn:active { transform: scale(0.93); }
+    .blitz-reihe-btn.selected { background: rgba(245,158,11,0.25); border-color: #F59E0B; }
+    .blitz-alle-btn { width: 100%; padding: 12px; background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; color: rgba(255,255,255,0.8); font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .blitz-alle-btn.selected { background: rgba(245,158,11,0.15); border-color: #F59E0B; color: #fbbf24; }
 
     /* NAME SCREEN */
     .name-screen-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; width: 100%; text-align: center; gap: 20px; }
@@ -444,7 +449,7 @@
     <div class="xp-bar"><div class="xp-fill" id="xp-fill-home" style="width:0%"></div></div>
   </div>
   <div class="mode-grid mt-12">
-    <div class="mode-card blitz" onclick="startGame('blitz')">
+    <div class="mode-card blitz" onclick="showBlitzPicker()">
       <span class="mode-icon">⚡</span>
       <div class="mode-name">Blitz-Modus</div>
       <div class="mode-desc">60 Sekunden</div>
@@ -712,6 +717,25 @@
     <div class="reihe-grid" id="reihe-grid"></div>
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTrainingModal()">Abbrechen</button>
+  </div>
+</div>
+
+<!-- BLITZ-MODUS REIHEN-PICKER -->
+<div class="modal-overlay" id="blitz-modal">
+  <div class="modal-sheet">
+    <div class="modal-title">⚡ Blitz-Modus</div>
+    <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:12px">Welche Reihen sollen abgefragt werden?</div>
+    <button class="blitz-alle-btn" id="blitz-alle-btn" onclick="toggleBlitzAlle()">
+      <span id="blitz-alle-icon">☐</span>
+      <div>
+        <div style="font-weight:700">Alle Reihen</div>
+        <div style="font-size:0.72rem;color:rgba(255,255,255,0.4)" id="blitz-alle-sub">Reihen 1–10 gemischt</div>
+      </div>
+    </button>
+    <div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:6px">Oder bis zu 4 Reihen auswählen:</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px" id="blitz-reihe-grid"></div>
+    <button class="btn btn-primary" id="blitz-start-btn" onclick="startBlitz()">▶ Los geht's!</button>
+    <button class="btn btn-secondary mt-8" onclick="closeBlitzModal()">Abbrechen</button>
   </div>
 </div>
 
@@ -1397,6 +1421,86 @@ function startTraining() {
 
 document.getElementById('training-modal').addEventListener('click', function(e) {
   if (e.target === this) closeTrainingModal();
+});
+
+// ── BLITZ-MODUS PICKER ─────────────────────────────────
+function showBlitzPicker() {
+  const cfg = state.blitzConfig;
+  const maxR = getMaxReihe();
+  const alleBtn = document.getElementById('blitz-alle-btn');
+  document.getElementById('blitz-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
+  alleBtn.classList.toggle('selected', cfg.alleReihen);
+  document.getElementById('blitz-alle-sub').textContent = `Reihen 1–${maxR} gemischt`;
+  const grid = document.getElementById('blitz-reihe-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= maxR; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'blitz-reihe-btn' + (cfg.reihen.includes(i) ? ' selected' : '');
+    btn.textContent = i + 'er';
+    btn.disabled = cfg.alleReihen;
+    btn.style.opacity = cfg.alleReihen ? '0.4' : '1';
+    btn.onclick = () => toggleBlitzReihe(i, btn);
+    grid.appendChild(btn);
+  }
+  updateBlitzStartBtn();
+  document.getElementById('blitz-modal').classList.add('active');
+}
+
+function toggleBlitzAlle() {
+  const cfg = state.blitzConfig;
+  cfg.alleReihen = !cfg.alleReihen;
+  if (cfg.alleReihen) cfg.reihen = [];
+  saveState();
+  showBlitzPicker();
+}
+
+function toggleBlitzReihe(n, btn) {
+  const cfg = state.blitzConfig;
+  cfg.alleReihen = false;
+  const idx = cfg.reihen.indexOf(n);
+  if (idx >= 0) {
+    cfg.reihen.splice(idx, 1);
+    btn.classList.remove('selected');
+  } else {
+    if (cfg.reihen.length >= 4) {
+      const oldest = cfg.reihen.shift();
+      document.querySelectorAll('#blitz-reihe-grid .blitz-reihe-btn').forEach(b => {
+        if (b.textContent === oldest + 'er') b.classList.remove('selected');
+      });
+    }
+    cfg.reihen.push(n);
+    btn.classList.add('selected');
+  }
+  saveState();
+  document.getElementById('blitz-alle-icon').textContent = '☐';
+  document.getElementById('blitz-alle-btn').classList.remove('selected');
+  updateBlitzStartBtn();
+}
+
+function updateBlitzStartBtn() {
+  const cfg = state.blitzConfig;
+  const btn = document.getElementById('blitz-start-btn');
+  if (cfg.alleReihen || !cfg.reihen.length) {
+    btn.textContent = '▶ Los geht\'s! (Alle)';
+  } else {
+    btn.textContent = '▶ Los geht\'s! (' + cfg.reihen.slice().sort((a,b)=>a-b).map(r=>r+'er').join(', ') + ')';
+  }
+}
+
+function closeBlitzModal() {
+  document.getElementById('blitz-modal').classList.remove('active');
+}
+
+function startBlitz() {
+  const cfg = state.blitzConfig;
+  if (!cfg.alleReihen && cfg.reihen.length === 0) cfg.alleReihen = true;
+  saveState();
+  closeBlitzModal();
+  startGame('blitz');
+}
+
+document.getElementById('blitz-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeBlitzModal();
 });
 
 // ── GAME STATE ─────────────────────────────────────────
