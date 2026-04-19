@@ -1934,13 +1934,17 @@ function endGame(reason) {
   state.totalCorrect += game.correct;
   state.totalGames++;
   if (game.mode === 'blitz') {
-    if (game.correct > state.highScores.blitz) state.highScores.blitz = game.correct;
+    const hsKey = game.rechenart === 'div' ? 'blitzDiv'
+                : game.rechenart === 'gemischt' ? 'blitzGemischt'
+                : 'blitz';
+    if (game.correct > state.highScores[hsKey]) state.highScores[hsKey] = game.correct;
     if (game.correct > 0) {
       const entry = {
         score: game.correct,
         reihen: state.blitzConfig.alleReihen ? [] : state.blitzConfig.reihen.slice().sort((a,b)=>a-b),
         alleReihen: state.blitzConfig.alleReihen || !state.blitzConfig.reihen.length,
         inputType: game.inputType,
+        rechenart: game.rechenart,
         datum: new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
       };
       state.highScores.blitzListe.push(entry);
@@ -1948,7 +1952,12 @@ function endGame(reason) {
       state.highScores.blitzListe = state.highScores.blitzListe.slice(0, 5);
     }
   }
-  if (game.mode==='turnier' && game.score   > state.highScores.turnier) state.highScores.turnier = game.score;
+  if (game.mode === 'turnier') {
+    const tsKey = game.rechenart === 'div' ? 'turnierDiv'
+                : game.rechenart === 'gemischt' ? 'turnierGemischt'
+                : 'turnier';
+    if (game.score > state.highScores[tsKey]) state.highScores[tsKey] = game.score;
+  }
 
   // Per-row stats (training mode only, only if at least 1 question answered)
   if (game.mode === 'training' && game.correct + game.wrong > 0) {
@@ -1956,8 +1965,16 @@ function endGame(reason) {
     rs.sessions++;
     rs.totalCorrect   += game.correct;
     rs.totalQuestions += game.correct + game.wrong;
-    if (game.wrong === 0) rs.consecutivePerfect++;
-    else                  rs.consecutivePerfect = 0;
+    if (game.rechenart === 'div') {
+      rs.divCorrect += game.correct;
+      rs.divWrong   += game.wrong;
+      if (game.wrong === 0) rs.divConsecutivePerfect++;
+      else                  rs.divConsecutivePerfect = 0;
+    } else if (game.rechenart === 'mult') {
+      if (game.wrong === 0) rs.consecutivePerfect++;
+      else                  rs.consecutivePerfect = 0;
+    }
+    // 'gemischt': nur Totals werden gezählt, kein Leitner-Fortschritt
   }
 
   const oldLevel = getLevelInfo(state.xp).level;
