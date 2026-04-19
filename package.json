@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "jest",
-    "test:unit": "jest tests/unit"
+    "test:unit": "jest tests/unit",
+    "test:e2e": "playwright test"
   },
   "repository": {
     "type": "git",
@@ -22,6 +23,7 @@
   },
   "homepage": "https://github.com/TheOdemOfTorque/Gaming#readme",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "jest": "^30.3.0"
   }
 }
