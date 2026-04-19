@@ -1,4 +1,4 @@
-const { resolveRechenart, migrateDivState } = require('../../.worktrees/feature-division/1x1-trainer/logic.js');
+const { resolveRechenart, migrateDivState } = require('../../1x1-trainer/logic.js');
 
 describe('resolveRechenart', () => {
   test('gibt mult zurück wenn rechenart mult', () => {
