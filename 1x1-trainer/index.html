@@ -188,6 +188,18 @@
     .blitz-reihe-btn { padding: 10px 4px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12); border-radius: 10px; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: transform 0.1s; }
     .blitz-reihe-btn:active { transform: scale(0.93); }
     .blitz-reihe-btn.selected { background: rgba(245,158,11,0.25); border-color: #F59E0B; }
+    /* RECHENART-TOGGLE (alle Modi) */
+    .rechenart-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
+    .rechenart-btn {
+      flex: 1; text-align: center; background: rgba(255,255,255,0.06);
+      border: 1.5px solid rgba(255,255,255,0.15); border-radius: 10px;
+      padding: 10px 4px; font-size: 1.1rem; font-weight: 800;
+      color: rgba(255,255,255,0.4); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+      -webkit-appearance: none;
+    }
+    .rechenart-btn.active-blitz   { background: rgba(245,158,11,0.25); border-color: rgba(245,158,11,0.8);  color: #fbbf24; }
+    .rechenart-btn.active-turnier { background: rgba(59,130,246,0.25); border-color: rgba(59,130,246,0.8);  color: #93c5fd; }
+    .rechenart-btn.active-training{ background: rgba(16,185,129,0.25); border-color: rgba(16,185,129,0.8);  color: #6ee7b7; }
     .blitz-alle-btn { width: 100%; padding: 12px; background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.15); border-radius: 12px; color: rgba(255,255,255,0.8); font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: left; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
     .blitz-alle-btn.selected { background: rgba(245,158,11,0.15); border-color: #F59E0B; color: #fbbf24; }
 
