@@ -868,7 +868,9 @@ function defaultReiheStats() {
 
 function defaultState() {
   return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
-           streak: 0, lastPlayDate: null, highScores: { blitz: 0, turnier: 0 },
+           streak: 0, lastPlayDate: null,
+           highScores: { blitz: 0, turnier: 0, blitzListe: [] },
+           blitzConfig: { reihen: [], alleReihen: true },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
            questionStats: {},
@@ -881,7 +883,7 @@ function defaultState() {
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
 const APP_VERSION = '2.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 
 const STATE_MIGRATIONS = [
   // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
@@ -908,7 +910,12 @@ const STATE_MIGRATIONS = [
     if (s.settings && s.settings.inputMode === 'tap') s.settings.inputMode = 'both';
     return s;
   },
-  // v2 → v3, … : hier künftige Migrationen ergänzen
+  // v2 → v3: blitzConfig + blitzListe
+  (s) => {
+    if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true };
+    if (!s.highScores.blitzListe) s.highScores.blitzListe = [];
+    return s;
+  },
 ];
 
 function migrateState(s) {
