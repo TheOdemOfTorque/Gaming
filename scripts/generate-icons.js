@@ -2,46 +2,68 @@ const { createCanvas } = require('canvas');
 const fs = require('fs');
 const path = require('path');
 
+function drawStar(ctx, cx, cy, outerR, innerR, points) {
+  const step = Math.PI / points;
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = i * step - Math.PI / 2;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
 function generateIcon(size) {
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
 
-  // Background: dark blue-violet with radial gradient
-  const bg = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size*0.7);
-  bg.addColorStop(0, '#1a1a4e');
-  bg.addColorStop(1, '#0d0d2b');
-  ctx.fillStyle = bg;
+  // Background: pure black with rounded corners
+  ctx.fillStyle = '#000000';
   ctx.beginPath();
   ctx.roundRect(0, 0, size, size, size * 0.22);
   ctx.fill();
 
-  // Glow border: purple #6C63FF
-  ctx.strokeStyle = '#6C63FF';
-  ctx.lineWidth = size * 0.025;
-  ctx.shadowColor = '#6C63FF';
-  ctx.shadowBlur = size * 0.04;
-  ctx.beginPath();
-  ctx.roundRect(size*0.025, size*0.025, size*0.95, size*0.95, size * 0.20);
-  ctx.stroke();
+  const cx = size / 2;
+  const cy = size / 2 + size * 0.03;
+  const outerR = size * 0.38;
+  const innerR = size * 0.16;
+
+  // Outer glow
+  ctx.shadowColor = 'rgba(255, 210, 50, 0.5)';
+  ctx.shadowBlur = size * 0.12;
+  drawStar(ctx, cx, cy, outerR, innerR, 5);
+  const glow = ctx.createRadialGradient(cx, cy - outerR * 0.1, 0, cx, cy, outerR);
+  glow.addColorStop(0, '#fff7a0');
+  glow.addColorStop(0.35, '#ffd700');
+  glow.addColorStop(0.7, '#f0a000');
+  glow.addColorStop(1, '#c07000');
+  ctx.fillStyle = glow;
+  ctx.fill();
   ctx.shadowBlur = 0;
 
-  // "1×1" text — bold white, centered
-  const fontSize = size * 0.36;
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `900 ${fontSize}px Arial, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(108,99,255,0.6)';
-  ctx.shadowBlur = size * 0.05;
-  ctx.fillText('1\u00d71', size / 2, size * 0.42);
-  ctx.shadowBlur = 0;
-
-  // Golden star below
-  const starSize = size * 0.18;
-  ctx.font = `${starSize}px serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('\u2b50', size / 2, size * 0.72);
+  // Sparkle triangles (top-left and top-right of star)
+  const sparkleColor = '#ffe566';
+  const sp = size * 0.08;
+  function sparkle(x, y, angle) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.moveTo(0, -sp);
+    ctx.lineTo(sp * 0.28, 0);
+    ctx.lineTo(0, sp * 0.5);
+    ctx.lineTo(-sp * 0.28, 0);
+    ctx.closePath();
+    ctx.fillStyle = sparkleColor;
+    ctx.shadowColor = '#fff200';
+    ctx.shadowBlur = size * 0.03;
+    ctx.fill();
+    ctx.restore();
+  }
+  sparkle(cx - outerR * 0.62, cy - outerR * 0.72, -0.3);
+  sparkle(cx + outerR * 0.62, cy - outerR * 0.72, 0.3);
 
   return canvas;
 }
