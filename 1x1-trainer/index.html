@@ -1652,6 +1652,8 @@ function renderBlitzHighscores() {
   container.innerHTML = list.map((entry, i) => {
     const reihenText = entry.alleReihen ? 'Alle Reihen' : 'Reihen: ' + entry.reihen.join(', ');
     const inputText = entry.inputType === 'type' ? '⌨️ Eintippen' : '👆 Antippen';
+    const rLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
+    const rText = rLabels[entry.rechenart || 'mult'];
     const rank = i < 3 ? medals[i] : `<span style="color:rgba(255,255,255,0.3);font-size:0.9rem">${i+1}.</span>`;
     const highlight = i === 0 ? 'background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.35)' : 'background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.1)';
     const scoreColor = i === 0 ? '#fbbf24' : i < 3 ? '#e5e7eb' : '#9ca3af';
@@ -1660,7 +1662,7 @@ function renderBlitzHighscores() {
       <div style="font-size:${i < 3 ? '1.3rem' : '1rem'};min-width:28px;text-align:center">${rank}</div>
       <div style="flex:1">
         <div style="font-weight:800;color:${scoreColor};font-size:${scoreSize}">${entry.score} richtig</div>
-        <div style="font-size:0.72rem;color:rgba(255,255,255,0.35)">${reihenText} · ${inputText} · ${entry.datum}</div>
+        <div style="font-size:0.72rem;color:rgba(255,255,255,0.35)">${reihenText} · ${rText} · ${inputText} · ${entry.datum}</div>
       </div>
     </div>`;
   }).join('');
