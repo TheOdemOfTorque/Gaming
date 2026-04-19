@@ -28,6 +28,7 @@ function resolveRechenart(cfg) {
 }
 
 // Migration v3→v4: Division-Felder zu einem State-Objekt hinzufügen.
+// Voraussetzung: blitzConfig.reihen/alleReihen bereits vorhanden (migrateBlitzState zuerst ausführen).
 function migrateDivState(s) {
   if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
   if (!s.turnierConfig)  s.turnierConfig  = { rechenart: 'mult' };
@@ -38,7 +39,7 @@ function migrateDivState(s) {
     if (s.highScores[k] === undefined) s.highScores[k] = 0;
   });
   if (!s.reiheStats) s.reiheStats = {};
-  for (let i = 1; i <= 20; i++) {
+  for (let i = 1; i <= 20; i++) { // 20 = MAX_REIHE (sync mit index.html)
     if (!s.reiheStats[i]) s.reiheStats[i] = {};
     const r = s.reiheStats[i];
     if (r.divConsecutivePerfect === undefined) r.divConsecutivePerfect = 0;
