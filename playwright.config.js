@@ -6,7 +6,7 @@ module.exports = defineConfig({
     viewport: { width: 390, height: 844 },
   },
   webServer: {
-    command: 'python3 -m http.server 8080 --directory /Users/marco/dev/gaming/.worktrees/feature-blitz',
+    command: 'python3 -m http.server 8080 --directory /Users/marco/dev/gaming/.worktrees/feature-division',
     url: 'http://localhost:8080',
     reuseExistingServer: !process.env.CI,
   },
