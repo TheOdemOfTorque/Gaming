@@ -1657,6 +1657,18 @@ function pickBlitzReihe() {
   return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
 }
 
+function resolveRechenart(cfg) {
+  const r = (cfg && cfg.rechenart) || 'mult';
+  if (r === 'gemischt') return Math.random() < 0.5 ? 'mult' : 'div';
+  return r;
+}
+
+function getActiveRechenartCfg() {
+  if (game.mode === 'blitz')    return state.blitzConfig;
+  if (game.mode === 'turnier')  return state.turnierConfig;
+  return state.trainingConfig;
+}
+
 function makeQuestion() {
   let a, b;
   if (game.mode === 'training') {
@@ -1667,16 +1679,28 @@ function makeQuestion() {
     const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
     a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
   }
-  const ans = a * b;
-  // Build plausible distractors
-  const pool = new Set();
-  [[a+1,b],[a-1,b],[a,b+1],[a,b-1],[a+1,b+1],[a-1,b-1],
-   [a+2,b],[a,b+2]].forEach(([x,y])=>{ if(x>0&&y>0) pool.add(x*y); });
-  [1,2,3,5,b,a].forEach(d=>{ if(ans+d>0) pool.add(ans+d); if(ans-d>0) pool.add(ans-d); });
+
+  const rechenart = resolveRechenart(getActiveRechenartCfg());
+  let ans, display, pool;
+
+  if (rechenart === 'div') {
+    ans = b;
+    display = `${a * b} ÷ ${a} = ?`;
+    pool = new Set();
+    [-2, -1, 1, 2, 3, 4].forEach(d => { if (b + d > 0) pool.add(b + d); });
+    [1, 2, 3].forEach(d => { pool.add(b + d); if (b - d > 0) pool.add(b - d); });
+  } else {
+    ans = a * b;
+    display = `${a} × ${b} = ?`;
+    pool = new Set();
+    [[a+1,b],[a-1,b],[a,b+1],[a,b-1],[a+1,b+1],[a-1,b-1],
+     [a+2,b],[a,b+2]].forEach(([x,y])=>{ if(x>0&&y>0) pool.add(x*y); });
+    [1,2,3,5,b,a].forEach(d=>{ if(ans+d>0) pool.add(ans+d); if(ans-d>0) pool.add(ans-d); });
+  }
   pool.delete(ans);
-  const wrongs = shuffle([...pool]).slice(0,3);
+  const wrongs = shuffle([...pool]).slice(0, 3);
   while (wrongs.length < 3) wrongs.push(ans + wrongs.length + 1);
-  return { a, b, ans, choices: shuffle([ans, ...wrongs]) };
+  return { a, b, rechenart, ans, display, choices: shuffle([ans, ...wrongs]) };
 }
 
 // ── START GAME ─────────────────────────────────────────
@@ -1703,11 +1727,16 @@ function _doStartGame(mode, reihe, inputType) {
   const sequence = mode === 'training' ? generateTrainingSequence(reihe) : null;
   game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
-           answered:false, active:true, q:null };
+           answered:false, active:true, q:null,
+           rechenart: (mode === 'blitz' ? state.blitzConfig
+                     : mode === 'turnier' ? state.turnierConfig
+                     : state.trainingConfig).rechenart || 'mult' };
 
-  const labels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
+  const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
+  const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
+  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
   document.getElementById('game-mode-label').textContent =
-    labels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '');
+    modeLabels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '') + rechenartSuffix;
 
   const timerWrap = document.getElementById('game-timer-wrap');
   const livesWrap = document.getElementById('game-lives-wrap');
@@ -1748,7 +1777,7 @@ function nextQuestion() {
   game.q = makeQuestion();
   const q = game.q;
 
-  document.getElementById('question-text').textContent = `${q.a} × ${q.b} = ?`;
+  document.getElementById('question-text').textContent = q.display;
   document.getElementById('feedback-text').textContent = '';
 
   if (game.mode === 'blitz') {
