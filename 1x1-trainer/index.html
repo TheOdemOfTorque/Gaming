@@ -1451,12 +1451,18 @@ function areAllQuestionsMastered(reihe) {
   return true;
 }
 
+function pickBlitzReihe() {
+  const cfg = state.blitzConfig;
+  if (cfg.alleReihen || !cfg.reihen.length) return rnd(1, getMaxReihe());
+  return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
+}
+
 function makeQuestion() {
   let a, b;
   if (game.mode === 'training') {
     a = game.reihe; b = game.sequence[game.qCount];
   } else if (game.mode === 'blitz') {
-    a = rnd(1, getMaxReihe()); b = rnd(1, getMaxFactor(a));
+    a = pickBlitzReihe(); b = rnd(1, getMaxFactor(a));
   } else { // turnier: difficulty grows each round
     const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
     a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
