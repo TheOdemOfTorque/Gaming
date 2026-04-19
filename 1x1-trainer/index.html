@@ -1822,7 +1822,18 @@ function endGame(reason) {
 
   state.totalCorrect += game.correct;
   state.totalGames++;
-  if (game.mode==='blitz'   && game.correct > state.highScores.blitz)   state.highScores.blitz   = game.correct;
+  if (game.mode === 'blitz') {
+    if (game.correct > state.highScores.blitz) state.highScores.blitz = game.correct;
+    const entry = {
+      score: game.correct,
+      reihen: state.blitzConfig.alleReihen ? [] : state.blitzConfig.reihen.slice().sort((a,b)=>a-b),
+      alleReihen: state.blitzConfig.alleReihen || !state.blitzConfig.reihen.length,
+      datum: new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
+    };
+    state.highScores.blitzListe.push(entry);
+    state.highScores.blitzListe.sort((a,b) => b.score - a.score);
+    state.highScores.blitzListe = state.highScores.blitzListe.slice(0, 5);
+  }
   if (game.mode==='turnier' && game.score   > state.highScores.turnier) state.highScores.turnier = game.score;
 
   // Per-row stats (training mode only, only if at least 1 question answered)
