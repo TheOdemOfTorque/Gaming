@@ -925,7 +925,7 @@ function defaultState() {
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.2'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 const STATE_VERSION = 3;
 
 const STATE_MIGRATIONS = [
@@ -1284,7 +1284,7 @@ function saveSettingsName() {
 
 function resetHighscores() {
   if (!confirm('Highscores wirklich zurücksetzen?')) return;
-  state.highScores = { blitz: 0, turnier: 0 };
+  state.highScores = { blitz: 0, turnier: 0, blitzListe: [] };
   saveState();
 }
 
