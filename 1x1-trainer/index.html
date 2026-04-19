@@ -745,6 +745,12 @@
 <div class="modal-overlay" id="training-modal">
   <div class="modal-sheet">
     <div class="modal-title">📚 Welche Reihe möchtest du üben?</div>
+    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+    <div class="rechenart-toggle" id="training-rechenart-toggle">
+      <button class="rechenart-btn" data-r="mult"     onclick="selectTrainingRechenart('mult')">×</button>
+      <button class="rechenart-btn" data-r="div"      onclick="selectTrainingRechenart('div')">÷</button>
+      <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
+    </div>
     <div class="reihe-grid" id="reihe-grid"></div>
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTrainingModal()">Abbrechen</button>
@@ -1467,13 +1473,36 @@ function getReiheColorClass(i) {
 
 function showTrainingPicker() {
   selectedReihe = null;
+  // Rechenart-Toggle
+  const rcfg = state.trainingConfig || { rechenart: 'mult' };
+  document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-training', b.dataset.r === (rcfg.rechenart || 'mult'));
+  });
+  // Reihen-Grid mit Dual-Progress
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
+  grid.style.gridTemplateColumns = '1fr 1fr';
+  grid.style.gap = '8px';
   for (let i = 1; i <= getMaxReihe(); i++) {
+    const rs = state.reiheStats[i] || {};
+    const multMastered = areAllQuestionsMastered(i);
+    const multPlayed   = (rs.totalQuestions || 0) > 0;
+    const divMastered  = (rs.divConsecutivePerfect || 0) >= 6;
+    const divPlayed    = (rs.divCorrect || 0) + (rs.divWrong || 0) > 0;
+    const multText = multMastered ? '× gemeistert ✅'
+                   : multPlayed   ? `× ${Math.min(rs.consecutivePerfect||0,5)} von 6 ⭐`
+                   : '× noch nicht geübt';
+    const divText  = divMastered  ? '÷ gemeistert ✅'
+                   : divPlayed    ? `÷ ${Math.min(rs.divConsecutivePerfect||0,5)} von 6 ⭐`
+                   : '÷ noch nicht geübt';
+    const borderColor = multMastered && divMastered ? 'rgba(16,185,129,0.6)'
+                      : multPlayed || divPlayed      ? 'rgba(245,158,11,0.4)'
+                      : 'rgba(255,255,255,0.1)';
     const btn = document.createElement('button');
-    const colorClass = getReiheColorClass(i);
-    btn.className = 'reihe-btn' + (colorClass ? ' ' + colorClass : '');
-    btn.textContent = i + 'er';
+    btn.style.cssText = `background:rgba(255,255,255,0.06);border:1px solid ${borderColor};border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;color:#fff;display:flex;flex-direction:column;gap:3px;-webkit-appearance:none;`;
+    btn.innerHTML = `<div style="font-weight:800;font-size:0.95rem">${i}er-Reihe</div>
+      <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${multText}</div>
+      <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${divText}</div>`;
     btn.onclick = () => selectReihe(i, btn);
     grid.appendChild(btn);
   }
@@ -1484,8 +1513,8 @@ function showTrainingPicker() {
 
 function selectReihe(n, el) {
   selectedReihe = n;
-  document.querySelectorAll('.reihe-btn').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
+  document.querySelectorAll('#reihe-grid button').forEach(b => b.style.outline = '');
+  el.style.outline = '2px solid #6C63FF';
   const sb = document.getElementById('start-training-btn');
   sb.disabled = false; sb.style.opacity = '1';
   sb.textContent = `▶ ${n}er-Reihe üben!`;
@@ -1494,6 +1523,14 @@ function selectReihe(n, el) {
 function closeTrainingModal() {
   document.getElementById('training-modal').classList.remove('active');
   selectedReihe = null;
+}
+
+function selectTrainingRechenart(r) {
+  state.trainingConfig.rechenart = r;
+  saveState();
+  document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
+    b.classList.toggle('active-training', b.dataset.r === r);
+  });
 }
 
 function startTraining() {
