@@ -1008,6 +1008,83 @@ async function sha256hex(text) {
 }
 // ───────────────────────────────────────────────────────────────────────────
 
+// ── Multiplayer helpers ───────────────────────────────────────────────────
+
+async function mpFetchChallenge() {
+  if (!state.mp.enabled || !state.mp.groupCode) return;
+  try {
+    const res = await fetch(`${MP_API}/api/challenge/today?group=${state.mp.groupCode}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    state.mp.lastSeed = data.seed;
+    state.mp.lastSeedDate = data.date;
+    state.mp.lastChallengeId = data.challengeId;
+    saveState();
+  } catch (e) { /* offline — use lastSeed */ }
+}
+
+async function mpUploadScore(payload) {
+  if (!navigator.onLine || !state.mp.token) {
+    state.mp.pendingUploads.push({ type: 'scores', payload, createdAt: Date.now() });
+    saveState();
+    return;
+  }
+  try {
+    const res = await fetch(`${MP_API}/api/scores`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+      body: JSON.stringify(payload),
+    });
+    if (res.status === 409) return;
+    if (!res.ok) throw new Error(await res.text());
+  } catch (e) {
+    state.mp.pendingUploads.push({ type: 'scores', payload, createdAt: Date.now() });
+    saveState();
+  }
+}
+
+async function mpUploadSession(gameMode, durationS) {
+  if (!state.mp.enabled || !state.mp.token || !navigator.onLine) return;
+  try {
+    await fetch(`${MP_API}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+      body: JSON.stringify({ gameMode, durationS }),
+    });
+  } catch (e) {}
+}
+
+async function mpUploadProgress() {
+  if (!state.mp.enabled || !state.mp.token || !navigator.onLine) return;
+  try {
+    await fetch(`${MP_API}/api/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+      body: JSON.stringify({ reiheStats: state.reiheStats }),
+    });
+  } catch (e) {}
+}
+
+async function mpSyncPending() {
+  if (!navigator.onLine || !state.mp.token || !state.mp.pendingUploads.length) return;
+  const queue = [...state.mp.pendingUploads];
+  for (const upload of queue) {
+    try {
+      const res = await fetch(`${MP_API}/api/${upload.type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+        body: JSON.stringify(upload.payload),
+      });
+      if (res.ok || res.status === 409) {
+        state.mp.pendingUploads.splice(state.mp.pendingUploads.indexOf(upload), 1);
+        saveState();
+      }
+    } catch (e) { break; }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const STATE_VERSION = 5;
 
 const STATE_MIGRATIONS = [
@@ -1719,11 +1796,15 @@ function closeBlitzModal() {
   document.getElementById('blitz-modal').classList.remove('active');
 }
 
-function startBlitz() {
+async function startBlitz() {
   const cfg = state.blitzConfig;
   if (!cfg.alleReihen && cfg.reihen.length === 0) cfg.alleReihen = true;
   saveState();
   closeBlitzModal();
+  if (state.mp.enabled && state.mp.groupCode) {
+    await mpFetchChallenge();
+    if (state.mp.lastSeed) initSeededRNG(state.mp.lastSeed);
+  }
   startGame('blitz');
 }
 
@@ -2082,6 +2163,7 @@ function earnStars() {
 
 // ── END GAME ───────────────────────────────────────────
 function endGame(reason) {
+  resetRNG();
   if (!game.active) return;
   game.active = false;
   if (game.timer) { clearInterval(game.timer); game.timer = null; }
@@ -2147,6 +2229,25 @@ function endGame(reason) {
 
   const newAchs = checkAchievements();
   saveState();
+
+  // Multiplayer: upload score + session
+  if (state.mp.enabled && state.mp.token) {
+    const today = new Date().toISOString().split('T')[0];
+    if (game.mode === 'blitz') {
+      const isOffline = !state.mp.lastChallengeId || state.mp.lastSeedDate !== today;
+      const payload = {
+        challengeId: state.mp.lastChallengeId || '__offline__',
+        score: game.score,
+        correctCount: game.correct,
+        offlinePlayed: isOffline,
+        seedDate: state.mp.lastSeedDate,
+      };
+      mpUploadScore(payload);
+    }
+    const durationS = game.mode === 'blitz' ? 60 : Math.round((game.qCount || 0) * 4);
+    mpUploadSession(game.mode, durationS);
+    if (game.mode === 'training') mpUploadProgress();
+  }
 
   const leveledUp = newLevel > oldLevel;
   if (leveledUp) { playLevelUp(); confetti(60); }
@@ -3358,6 +3459,11 @@ window.addEventListener('load', () => {
     showScreen('name');
   } else {
     showScreen('home');
+  }
+
+  // Multiplayer startup
+  if (state.mp && state.mp.enabled) {
+    mpSyncPending();
   }
 });
 </script>
