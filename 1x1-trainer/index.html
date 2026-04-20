@@ -497,6 +497,15 @@
       </div>
     </div>
   </div>
+  <!-- MULTIPLAYER GRUPPE BUTTON -->
+  <div class="mode-card" id="mp-home-card" onclick="showScreen('mp-join')" style="grid-column:1/-1;border-color:rgba(139,92,246,0.35);flex-direction:row;justify-content:flex-start;gap:14px;padding:14px 20px;text-align:left;margin-top:8px">
+    <span style="font-size:2rem">👥</span>
+    <div style="flex:1">
+      <div class="mode-name">Gruppe</div>
+      <div class="mode-desc" id="mp-home-desc">Klasse beitreten &amp; Ergebnisse vergleichen</div>
+    </div>
+    <div id="mp-home-badge" style="display:none;background:rgba(139,92,246,0.25);border:1px solid rgba(139,92,246,0.5);border-radius:12px;padding:2px 10px;font-size:0.72rem;color:#c4b5fd;white-space:nowrap;align-self:center"></div>
+  </div>
   <!-- SPIELE-LEISTE -->
   <div id="games-bar" class="games-bar mt-12">
     <div id="games-bar-content"></div>
@@ -678,6 +687,70 @@
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
   <button id="dev-version-tap" style="background:none;border:none;width:100%;text-align:center;font-size:0.7rem;color:rgba(255,255,255,0.25);margin-top:12px;padding:16px 24px;cursor:default;display:block;-webkit-touch-callout:none">Version <span id="settings-version-number"></span></button>
+</div>
+
+<!-- MULTIPLAYER JOIN / LOGIN SCREEN -->
+<div id="screen-mp-join" class="screen">
+  <div class="settings-header">
+    <h1 style="font-size:1.8rem;font-weight:900">👥 Gruppe</h1>
+  </div>
+
+  <!-- Status: bereits eingeloggt -->
+  <div id="mp-status-panel" style="display:none">
+    <div class="card" style="text-align:center;padding:20px">
+      <div style="font-size:2.5rem">👤</div>
+      <div style="font-size:1.1rem;font-weight:700;margin-top:8px" id="mp-status-name"></div>
+      <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-top:4px" id="mp-status-group"></div>
+    </div>
+    <button class="btn btn-danger mt-16" onclick="mpLogout()">Gruppe verlassen</button>
+  </div>
+
+  <!-- Tab: beitreten / einloggen -->
+  <div id="mp-form-panel">
+    <div style="display:flex;gap:0;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.1);margin-bottom:20px">
+      <button id="mp-tab-join" onclick="mpShowTab('join')" style="flex:1;padding:10px;background:rgba(139,92,246,0.3);border:none;color:#fff;font-weight:700;cursor:pointer;font-size:0.9rem">Neu beitreten</button>
+      <button id="mp-tab-login" onclick="mpShowTab('login')" style="flex:1;padding:10px;background:rgba(255,255,255,0.05);border:none;color:rgba(255,255,255,0.5);font-weight:700;cursor:pointer;font-size:0.9rem">Einloggen</button>
+    </div>
+
+    <!-- Neu beitreten -->
+    <div id="mp-panel-join">
+      <div class="settings-section">
+        <div class="settings-section-title">Gruppen-Code</div>
+        <input type="text" id="mp-join-code" class="input-field" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Dein Spitzname</div>
+        <input type="text" id="mp-join-nick" class="input-field" placeholder="z.B. Henry" autocomplete="off">
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">PIN wählen (4 Ziffern)</div>
+        <input type="password" id="mp-join-pin" class="input-field" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+      </div>
+      <div id="mp-join-error" style="color:#f87171;font-size:0.85rem;text-align:center;display:none;margin-bottom:8px"></div>
+      <button class="btn btn-primary mt-8" onclick="mpJoin()">Gruppe beitreten ✓</button>
+    </div>
+
+    <!-- Einloggen -->
+    <div id="mp-panel-login" style="display:none">
+      <div class="settings-section">
+        <div class="settings-section-title">Gruppen-Code</div>
+        <input type="text" id="mp-login-code" class="input-field" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Spitzname</div>
+        <input type="text" id="mp-login-nick" class="input-field" placeholder="z.B. Henry" autocomplete="off">
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">PIN</div>
+        <input type="password" id="mp-login-pin" class="input-field" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+      </div>
+      <div id="mp-login-error" style="color:#f87171;font-size:0.85rem;text-align:center;display:none;margin-bottom:8px"></div>
+      <button class="btn btn-primary mt-8" onclick="mpLogin()">Einloggen →</button>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
 </div>
 
 <!-- DEV PANEL (nur localhost) -->
@@ -1083,6 +1156,127 @@ async function mpSyncPending() {
   }
 }
 
+// ── Multiplayer onboarding UI ─────────────────────────────────────────────────
+
+function mpShowTab(tab) {
+  const isJoin = tab === 'join';
+  document.getElementById('mp-panel-join').style.display  = isJoin ? '' : 'none';
+  document.getElementById('mp-panel-login').style.display = isJoin ? 'none' : '';
+  document.getElementById('mp-tab-join').style.background  = isJoin ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.05)';
+  document.getElementById('mp-tab-join').style.color       = isJoin ? '#fff' : 'rgba(255,255,255,0.5)';
+  document.getElementById('mp-tab-login').style.background = isJoin ? 'rgba(255,255,255,0.05)' : 'rgba(139,92,246,0.3)';
+  document.getElementById('mp-tab-login').style.color      = isJoin ? 'rgba(255,255,255,0.5)' : '#fff';
+}
+
+function mpUpdateHomeButton() {
+  const badge = document.getElementById('mp-home-badge');
+  const desc  = document.getElementById('mp-home-desc');
+  if (state.mp && state.mp.enabled && state.mp.nickname) {
+    badge.textContent = state.mp.nickname;
+    badge.style.display = 'flex';
+    desc.textContent = `Gruppe: ${state.mp.groupCode || ''}`;
+  } else {
+    badge.style.display = 'none';
+    desc.textContent = 'Klasse beitreten & Ergebnisse vergleichen';
+  }
+}
+
+async function mpJoin() {
+  const code = document.getElementById('mp-join-code').value.trim().toUpperCase();
+  const nick = document.getElementById('mp-join-nick').value.trim();
+  const pin  = document.getElementById('mp-join-pin').value.trim();
+  const err  = document.getElementById('mp-join-error');
+  err.style.display = 'none';
+  if (!code || !nick || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    err.textContent = 'Bitte alle Felder korrekt ausfüllen (PIN = 4 Ziffern).';
+    err.style.display = 'block';
+    return;
+  }
+  try {
+    const pinHash = await sha256hex(pin);
+    const res = await fetch(`${MP_API}/api/players/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupCode: code, nickname: nick, pinHash }),
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || 'Fehler beim Beitreten.'; err.style.display = 'block'; return; }
+    state.mp.enabled   = true;
+    state.mp.groupCode = code;
+    state.mp.nickname  = nick;
+    state.mp.pinHash   = pinHash;
+    state.mp.token     = data.token;
+    saveState();
+    mpUpdateHomeButton();
+    mpUpdateStatusPanel();
+    showScreen('home');
+  } catch (e) {
+    err.textContent = 'Netzwerkfehler — bitte prüfe deine Verbindung.';
+    err.style.display = 'block';
+  }
+}
+
+async function mpLogin() {
+  const code = document.getElementById('mp-login-code').value.trim().toUpperCase();
+  const nick = document.getElementById('mp-login-nick').value.trim();
+  const pin  = document.getElementById('mp-login-pin').value.trim();
+  const err  = document.getElementById('mp-login-error');
+  err.style.display = 'none';
+  if (!code || !nick || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    err.textContent = 'Bitte alle Felder korrekt ausfüllen (PIN = 4 Ziffern).';
+    err.style.display = 'block';
+    return;
+  }
+  try {
+    const pinHash = await sha256hex(pin);
+    const res = await fetch(`${MP_API}/api/players/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupCode: code, nickname: nick, pinHash }),
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || 'Login fehlgeschlagen.'; err.style.display = 'block'; return; }
+    state.mp.enabled   = true;
+    state.mp.groupCode = code;
+    state.mp.nickname  = nick;
+    state.mp.pinHash   = pinHash;
+    state.mp.token     = data.token;
+    saveState();
+    mpUpdateHomeButton();
+    mpUpdateStatusPanel();
+    showScreen('home');
+  } catch (e) {
+    err.textContent = 'Netzwerkfehler — bitte prüfe deine Verbindung.';
+    err.style.display = 'block';
+  }
+}
+
+function mpLogout() {
+  state.mp.enabled        = false;
+  state.mp.groupCode      = null;
+  state.mp.nickname       = null;
+  state.mp.pinHash        = null;
+  state.mp.token          = null;
+  state.mp.pendingUploads = [];
+  state.mp.lastSeed       = null;
+  state.mp.lastSeedDate   = null;
+  state.mp.lastChallengeId = null;
+  saveState();
+  mpUpdateHomeButton();
+  document.getElementById('mp-status-panel').style.display = 'none';
+  document.getElementById('mp-form-panel').style.display   = '';
+}
+
+function mpUpdateStatusPanel() {
+  const loggedIn = state.mp && state.mp.enabled && state.mp.nickname;
+  document.getElementById('mp-status-panel').style.display = loggedIn ? '' : 'none';
+  document.getElementById('mp-form-panel').style.display   = loggedIn ? 'none' : '';
+  if (loggedIn) {
+    document.getElementById('mp-status-name').textContent  = state.mp.nickname;
+    document.getElementById('mp-status-group').textContent = `Gruppe: ${state.mp.groupCode}`;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_VERSION = 5;
@@ -1374,6 +1568,7 @@ function showScreen(name) {
   if (name === 'settings')         populateSettings();
   if (name === 'stats')            renderStats();
   if (name === 'blitz-highscores') renderBlitzHighscores();
+  if (name === 'mp-join')          mpUpdateStatusPanel();
 }
 
 // ── NAME SCREEN ────────────────────────────────────────
@@ -1561,6 +1756,7 @@ function updateHomeUI() {
   }
   updateBlitzRekordLabel();
   updateBlitzHighscoresNavDesc();
+  mpUpdateHomeButton();
 }
 
 // ── TROPHIES SCREEN ────────────────────────────────────
