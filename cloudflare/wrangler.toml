@@ -1,0 +1,11 @@
+name = "1x1-api"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+[vars]
+# No vars — secrets are set via `wrangler secret put`
+
+[[d1_databases]]
+binding = "DB"
+database_name = "1x1-trainer-db"
+database_id = "PLACEHOLDER"
