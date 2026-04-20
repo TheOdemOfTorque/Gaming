@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1×1 Admin</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f0f1a; color: #e0e0e0; padding: 20px; max-width: 900px; margin: 0 auto; }
+h1 { color: #ffd700; margin-bottom: 20px; }
+h2 { color: #aaa; font-size: 0.85em; text-transform: uppercase; letter-spacing: 1px; margin: 24px 0 8px; }
+input, select { padding: 8px 12px; border-radius: 6px; border: 1px solid #333; background: #1a1a2e; color: #e0e0e0; font-size: 1em; }
+button { cursor: pointer; padding: 8px 16px; border-radius: 6px; border: 1px solid #4a90d9; background: #4a90d9; color: #fff; font-size: 1em; }
+button:hover { background: #357abd; }
+button.danger { background: #c0392b; border-color: #c0392b; }
+button.secondary { background: #2a2a3e; border-color: #444; }
+.card { background: #1a1a2e; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #222; font-size: 0.9em; }
+th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.05em; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; }
+.badge-green { background: #1a4a1a; color: #4caf50; }
+.badge-yellow { background: #3a3a00; color: #ffd700; }
+.badge-gray { background: #2a2a2a; color: #888; }
+#error { color: #e74c3c; margin: 8px 0; min-height: 1.2em; font-size: 0.9em; }
+#login-section { max-width: 340px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.tab { background: #2a2a3e; border-color: #2a2a3e; padding: 6px 16px; font-size: 0.9em; }
+.tab.active { background: #4a90d9; border-color: #4a90d9; }
+.privacy-note { font-size: 0.78em; color: #666; border-top: 1px solid #1e1e2e; margin-top: 40px; padding-top: 12px; }
+</style>
+</head>
+<body>
+<h1>1×1 Admin</h1>
+
+<!-- Login -->
+<div id="login-section">
+  <div class="card">
+    <h2>Anmelden</h2>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+      <input id="l-code" type="text" placeholder="Gruppen-Code (z.B. IGEL-3B)" style="text-transform:uppercase" autocomplete="off">
+      <input id="l-pin" type="password" inputmode="numeric" placeholder="Admin-PIN (4 Ziffern)" maxlength="4">
+      <button onclick="adminLogin()">Anmelden →</button>
+      <div id="error"></div>
+    </div>
+  </div>
+  <p style="font-size:0.8em;color:#555;margin-top:8px">
+    Noch keine Gruppe? Lege sie via <code>POST /api/groups</code> an (siehe Doku).
+  </p>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard" style="display:none">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+    <span id="group-title" style="font-size:1.2em;color:#ffd700;font-weight:700"></span>
+    <button class="secondary" onclick="adminLogout()">Abmelden</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('tab-players')">👥 Spieler</button>
+    <button class="tab" onclick="showTab('tab-leaderboard')">⚡ Rangliste</button>
+    <button class="tab" onclick="showTab('tab-lernpower')">📚 Lern-Power</button>
+    <button class="tab" onclick="showTab('tab-usage')">📊 Nutzung</button>
+  </div>
+
+  <!-- Spieler -->
+  <div id="tab-players">
+    <div class="card" style="margin-bottom:12px;font-size:0.85em;color:#aaa">
+      Einladungscode: <strong id="invite-code" style="color:#ffd700;letter-spacing:0.1em"></strong>
+      — Diesen Code an Kinder weitergeben.
+    </div>
+    <table>
+      <thead><tr><th>Name</th><th>Beigetreten</th><th>Aktion</th></tr></thead>
+      <tbody id="players-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Rangliste -->
+  <div id="tab-leaderboard" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <select id="lb-date-select" onchange="loadLeaderboard(this.value)"></select>
+      <button class="danger" onclick="resetScores()">Scores zurücksetzen</button>
+    </div>
+    <table>
+      <thead><tr><th>#</th><th>Name</th><th>Punkte</th><th>Richtig</th><th>Offline?</th></tr></thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Lern-Power -->
+  <div id="tab-lernpower" style="display:none">
+    <p style="color:#888;font-size:0.82em;margin-bottom:12px">
+      🟢 gemeistert (≥6 consecutive correct) &nbsp;·&nbsp; 🟡 in Übung &nbsp;·&nbsp; ⚪ nicht trainiert
+    </p>
+    <div id="lernpower-container" style="overflow-x:auto"></div>
+    <p style="color:#555;font-size:0.78em;margin-top:12px">
+      Daten aus dem letzten Fortschritts-Snapshot (wird nach Training-Sessions hochgeladen).
+    </p>
+  </div>
+
+  <!-- Nutzung -->
+  <div id="tab-usage" style="display:none">
+    <p style="color:#888;font-size:0.82em;margin-bottom:12px">Spielzeit in Minuten — letzte 7 Tage.</p>
+    <table>
+      <thead><tr><th>Name</th><th>Aktive Tage (30d)</th><th>Blitz (Min)</th><th>Turnier (Min)</th><th>Training (Min)</th></tr></thead>
+      <tbody id="usage-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<p class="privacy-note">
+  ⚠️ Hinweis: Nickname und Lernfortschritt eines Kindes sind in der EU personenbezogene Daten.
+  Für Schulklassen wird Eltern-Einverständnis empfohlen, bevor Daten gespeichert werden.
+</p>
+
+<script>
+const MP_API = 'https://1x1-api.YOUR_CF_SUBDOMAIN.workers.dev'; // Replace before deploy
+
+let adminState = { code: '', pinHash: '' };
+let _playerStats = [];
+
+async function sha256hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function adminLogin() {
+  const code = document.getElementById('l-code').value.trim().toUpperCase();
+  const pin  = document.getElementById('l-pin').value.trim();
+  const err  = document.getElementById('error');
+  err.textContent = '';
+  if (!code || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    err.textContent = 'Gruppen-Code und 4-stellige PIN erforderlich.';
+    return;
+  }
+  try {
+    const pinHash = await sha256hex(pin);
+    const res = await fetch(`${MP_API}/api/admin/group/${code}`, {
+      headers: { 'X-Admin-Pin': pinHash }
+    });
+    if (!res.ok) { err.textContent = 'Falscher Code oder PIN.'; return; }
+    const data = await res.json();
+    adminState = { code, pinHash };
+    document.getElementById('login-section').style.display = 'none';
+    document.getElementById('dashboard').style.display     = 'block';
+    document.getElementById('group-title').textContent     = `${data.name} (${code})`;
+    document.getElementById('invite-code').textContent     = code;
+    renderPlayers(data.players || []);
+    loadLeaderboard();
+    loadPlayerStats();
+  } catch (e) {
+    err.textContent = 'Netzwerkfehler — prüfe Verbindung und API-URL.';
+  }
+}
+
+function adminLogout() {
+  adminState = { code: '', pinHash: '' };
+  _playerStats = [];
+  document.getElementById('dashboard').style.display     = 'none';
+  document.getElementById('login-section').style.display = 'block';
+  document.getElementById('l-pin').value = '';
+  document.getElementById('error').textContent = '';
+}
+
+function showTab(tabId) {
+  ['tab-players', 'tab-leaderboard', 'tab-lernpower', 'tab-usage'].forEach(id => {
+    document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(tabId));
+  });
+}
+
+function renderPlayers(players) {
+  document.getElementById('players-body').innerHTML = players.map(p =>
+    `<tr>
+      <td>${p.nickname}</td>
+      <td>${new Date(p.created_at * 1000).toLocaleDateString('de-DE')}</td>
+      <td><button class="danger" onclick="removePlayer('${p.id}','${p.nickname}')">Entfernen</button></td>
+    </tr>`
+  ).join('') || '<tr><td colspan="3" style="color:#666">Keine Spieler</td></tr>';
+}
+
+async function removePlayer(playerId, nickname) {
+  if (!confirm(`${nickname} aus der Gruppe entfernen? (Alle Daten werden gelöscht.)`)) return;
+  try {
+    const res = await fetch(`${MP_API}/api/admin/players/${playerId}?group=${adminState.code}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Pin': adminState.pinHash }
+    });
+    if (res.ok) {
+      alert(`${nickname} wurde entfernt.`);
+      // Refresh player list
+      const groupRes = await fetch(`${MP_API}/api/admin/group/${adminState.code}`, {
+        headers: { 'X-Admin-Pin': adminState.pinHash }
+      });
+      const data = await groupRes.json();
+      renderPlayers(data.players || []);
+      loadPlayerStats();
+    } else {
+      alert('Fehler beim Entfernen.');
+    }
+  } catch (e) { alert('Netzwerkfehler.'); }
+}
+
+async function loadLeaderboard(date) {
+  const today = new Date().toISOString().split('T')[0];
+  if (!date) date = today;
+
+  const sel = document.getElementById('lb-date-select');
+  if (!sel.options.length) {
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(Date.now() - i * 86400000).toISOString().split('T')[0];
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = i === 0 ? `Heute (${d})` : d;
+      sel.appendChild(opt);
+    }
+  }
+  sel.value = date;
+
+  try {
+    const res = await fetch(`${MP_API}/api/leaderboard/${adminState.code}?date=${date}`);
+    const data = await res.json();
+    document.getElementById('leaderboard-body').innerHTML = (data.entries || []).map((e, i) =>
+      `<tr>
+        <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+        <td>${e.nickname}</td>
+        <td>${e.score}</td>
+        <td>${e.correct_count}</td>
+        <td>${e.offline_played ? '📴' : ''}</td>
+      </tr>`
+    ).join('') || '<tr><td colspan="5" style="color:#666">Keine Einträge</td></tr>';
+  } catch (e) {
+    document.getElementById('leaderboard-body').innerHTML =
+      '<tr><td colspan="5" style="color:#c0392b">Fehler beim Laden</td></tr>';
+  }
+}
+
+async function resetScores() {
+  const date = document.getElementById('lb-date-select').value;
+  if (!confirm(`Alle Scores vom ${date} für diese Gruppe löschen?`)) return;
+  try {
+    const res = await fetch(`${MP_API}/api/admin/scores/${adminState.code}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Pin': adminState.pinHash }
+    });
+    const data = await res.json();
+    alert(`${data.deleted ?? 0} Score(s) gelöscht.`);
+    loadLeaderboard(date);
+  } catch (e) { alert('Netzwerkfehler.'); }
+}
+
+async function loadPlayerStats() {
+  try {
+    const res = await fetch(`${MP_API}/api/admin/players/${adminState.code}`, {
+      headers: { 'X-Admin-Pin': adminState.pinHash }
+    });
+    const data = await res.json();
+    _playerStats = data.players || [];
+    renderLernPower();
+    renderUsage();
+  } catch (e) {
+    document.getElementById('lernpower-container').textContent = 'Fehler beim Laden.';
+  }
+}
+
+function renderLernPower() {
+  const reihen = Array.from({ length: 10 }, (_, i) => i + 1);
+  const header = `<tr><th>Spieler</th>${reihen.map(r => `<th style="text-align:center">${r}er</th>`).join('')}</tr>`;
+
+  const rows = _playerStats.map(p => {
+    const cells = reihen.map(r => {
+      const stats = p.reiheStats?.[r] || p.reiheStats?.[String(r)];
+      if (!stats || !stats.sessions) return '<td style="text-align:center">⚪</td>';
+      const consec = stats.consecutivePerfect ?? 0;
+      if (consec >= 6) return '<td style="text-align:center">🟢</td>';
+      if (stats.totalCorrect > 0) return '<td style="text-align:center">🟡</td>';
+      return '<td style="text-align:center">⚪</td>';
+    }).join('');
+    return `<tr><td style="font-weight:500">${p.nickname}</td>${cells}</tr>`;
+  }).join('') || '<tr><td colspan="11" style="color:#666">Keine Daten — erst nach Training-Sessions verfügbar</td></tr>';
+
+  document.getElementById('lernpower-container').innerHTML =
+    `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderUsage() {
+  document.getElementById('usage-body').innerHTML = _playerStats.map(p => {
+    const modes = { blitz: 0, turnier: 0, training: 0 };
+    (p.sessions7d || []).forEach(s => { if (modes[s.game_mode] !== undefined) modes[s.game_mode] = Math.round(s.total_s / 60); });
+    return `<tr>
+      <td style="font-weight:500">${p.nickname}</td>
+      <td>${p.activeDays30d}d</td>
+      <td>${modes.blitz   > 0 ? modes.blitz   + ' Min' : '—'}</td>
+      <td>${modes.turnier > 0 ? modes.turnier + ' Min' : '—'}</td>
+      <td>${modes.training > 0 ? modes.training + ' Min' : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:#666">Keine Daten</td></tr>';
+}
+</script>
+</body>
+</html>
