@@ -753,6 +753,31 @@
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
 </div>
 
+<!-- MULTIPLAYER LEADERBOARD SCREEN -->
+<div id="screen-mp-leaderboard" class="screen">
+  <div class="settings-header">
+    <h1 style="font-size:1.8rem;font-weight:900">⚡ Rangliste heute</h1>
+  </div>
+  <div id="mp-own-rank" style="font-size:1.2rem;font-weight:700;text-align:center;padding:12px;background:rgba(139,92,246,0.15);border-radius:12px;margin-bottom:16px"></div>
+  <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+      <thead>
+        <tr style="color:rgba(255,255,255,0.5);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.05em">
+          <th style="text-align:left;padding:6px 8px">#</th>
+          <th style="text-align:left;padding:6px 8px">Name</th>
+          <th style="text-align:right;padding:6px 8px">Punkte</th>
+          <th style="text-align:right;padding:6px 8px">Richtig</th>
+        </tr>
+      </thead>
+      <tbody id="mp-leaderboard-body"></tbody>
+    </table>
+  </div>
+  <div id="mp-leaderboard-offline" style="color:rgba(255,255,255,0.4);margin-top:12px;font-size:0.82rem;text-align:center"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-primary mt-8" onclick="startBlitz()">Nochmal ⚡</button>
+  <button class="btn btn-secondary mt-8" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
+</div>
+
 <!-- DEV PANEL (nur localhost) -->
 <div class="modal-overlay" id="dev-panel-modal">
   <div class="modal-sheet" style="max-width:320px">
@@ -1274,6 +1299,50 @@ function mpUpdateStatusPanel() {
   if (loggedIn) {
     document.getElementById('mp-status-name').textContent  = state.mp.nickname;
     document.getElementById('mp-status-group').textContent = `Gruppe: ${state.mp.groupCode}`;
+  }
+}
+
+async function mpShowLeaderboard(myScore) {
+  showScreen('mp-leaderboard');
+  const tbody     = document.getElementById('mp-leaderboard-body');
+  const offlineEl = document.getElementById('mp-leaderboard-offline');
+  const rankEl    = document.getElementById('mp-own-rank');
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:rgba(255,255,255,0.4)">Lade…</td></tr>';
+  offlineEl.textContent = '';
+  rankEl.textContent    = '';
+
+  if (!navigator.onLine) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">📴 Offline — keine Rangliste</td></tr>';
+    offlineEl.textContent = 'Dein Ergebnis wird beim nächsten Start synchronisiert.';
+    rankEl.textContent = `Dein Score: ${myScore} Punkte`;
+    return;
+  }
+
+  try {
+    const res = await fetch(`${MP_API}/api/leaderboard/${state.mp.groupCode}`);
+    const data = await res.json();
+    const entries = data.entries || [];
+
+    tbody.innerHTML = entries.map((e, i) => {
+      const isMe     = e.nickname === state.mp.nickname;
+      const offBadge = e.offline_played ? ' <span title="Offline gespielt" style="opacity:0.6">📴</span>' : '';
+      const rowStyle = isMe
+        ? 'font-weight:700;background:rgba(139,92,246,0.2);border-radius:8px'
+        : '';
+      return `<tr style="${rowStyle}">
+        <td style="padding:8px">${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1}</td>
+        <td style="padding:8px">${e.nickname}${offBadge}</td>
+        <td style="text-align:right;padding:8px">${e.score}</td>
+        <td style="text-align:right;padding:8px">${e.correct_count}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:rgba(255,255,255,0.4)">Noch keine Einträge heute</td></tr>';
+
+    const myRank = entries.findIndex(e => e.nickname === state.mp.nickname) + 1;
+    rankEl.textContent = myRank > 0
+      ? `Platz #${myRank} von ${entries.length} · ${myScore} Punkte 🎯`
+      : `Dein Score: ${myScore} Punkte`;
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Rangliste konnte nicht geladen werden.</td></tr>';
   }
 }
 
@@ -2439,6 +2508,7 @@ function endGame(reason) {
         seedDate: state.mp.lastSeedDate,
       };
       mpUploadScore(payload);
+      setTimeout(() => mpShowLeaderboard(game.score), 1500);
     }
     const durationS = game.mode === 'blitz' ? 60 : Math.round((game.qCount || 0) * 4);
     mpUploadSession(game.mode, durationS);
