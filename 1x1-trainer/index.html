@@ -1401,6 +1401,7 @@ let _pendingChallenges = [];
 let _lastChallengeScore = null;
 let _lastChallengeCorrect = null;
 let _outgoingChallengeTarget = null; // nickname der herausgeforderten Person
+let _challengeConfig = null;         // temporäre Config für laufende Challenge-Runde
 
 async function mpCheckPendingChallenges() {
   if (!state.mp.enabled || !state.mp.token || !navigator.onLine) return;
@@ -1525,12 +1526,12 @@ async function mpAcceptChallenge(challengeId, seed, seedDate, theirScore, reihen
   state.mp._activeChallengeTheirScore = theirScore;
   state.mp.lastSeed = seed;
   state.mp.lastSeedDate = seedDate;
-  // Challenger's config übernehmen — gleiche Aufgaben garantiert
-  if (reihenConfig) {
-    state.blitzConfig.alleReihen = reihenConfig.alleReihen ?? true;
-    state.blitzConfig.reihen     = reihenConfig.reihen    ?? [];
-    state.blitzConfig.rechenart  = reihenConfig.rechenart ?? 'mult';
-  }
+  // Challenger's config nur für diese Runde verwenden — state.blitzConfig bleibt unberührt
+  _challengeConfig = reihenConfig ? {
+    alleReihen: reihenConfig.alleReihen ?? true,
+    reihen:     reihenConfig.reihen    ?? [],
+    rechenart:  reihenConfig.rechenart ?? 'mult',
+  } : null;
   saveState();
   initSeededRNG(seed);
   showScreen('home');
@@ -2385,7 +2386,7 @@ function areAllQuestionsMastered(reihe) {
 }
 
 function pickBlitzReihe() {
-  const cfg = state.blitzConfig;
+  const cfg = _challengeConfig ?? state.blitzConfig;
   if (cfg.alleReihen || !cfg.reihen.length) return rnd(1, getMaxReihe());
   return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
 }
@@ -2397,7 +2398,7 @@ function resolveRechenart(cfg) {
 }
 
 function getActiveRechenartCfg() {
-  if (game.mode === 'blitz')    return state.blitzConfig;
+  if (game.mode === 'blitz')    return _challengeConfig ?? state.blitzConfig;
   if (game.mode === 'turnier')  return state.turnierConfig;
   return state.trainingConfig;
 }
@@ -2461,7 +2462,7 @@ function _doStartGame(mode, reihe, inputType) {
   game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
            answered:false, active:true, q:null,
-           rechenart: (mode === 'blitz' ? state.blitzConfig
+           rechenart: (mode === 'blitz' ? (_challengeConfig ?? state.blitzConfig)
                      : mode === 'turnier' ? state.turnierConfig
                      : state.trainingConfig).rechenart || 'mult' };
 
@@ -2653,6 +2654,7 @@ function earnStars() {
 // ── END GAME ───────────────────────────────────────────
 function endGame(reason) {
   resetRNG();
+  _challengeConfig = null;
   if (!game.active) return;
   game.active = false;
   if (game.timer) { clearInterval(game.timer); game.timer = null; }
