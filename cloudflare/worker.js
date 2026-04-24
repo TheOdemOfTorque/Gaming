@@ -339,6 +339,70 @@ async function handleAdmin(request, url, path, method, env) {
   return json({ error: 'Not Found' }, 404);
 }
 
+// ── Direct Challenges ─────────────────────────────────────────────────────
+
+async function handleCreateDirectChallenge(request, env) {
+  const player = await requirePlayer(request, env);
+  const { challengedNickname, seed, seedDate, score, correctCount } = await getBody(request);
+  if (!challengedNickname || !seed || !seedDate || score == null || correctCount == null) {
+    return json({ error: 'challengedNickname, seed, seedDate, score, correctCount required' }, 400);
+  }
+  const challenged = await env.DB.prepare(
+    'SELECT id FROM players WHERE group_id = ? AND nickname = ?'
+  ).bind(player.group_id, challengedNickname).first();
+  if (!challenged) return json({ error: 'Player not found in group' }, 404);
+  if (challenged.id === player.id) return json({ error: 'Cannot challenge yourself' }, 400);
+
+  const id = uuid();
+  await env.DB.prepare(
+    `INSERT INTO direct_challenges
+     (id, group_id, challenger_id, challenged_id, seed, seed_date, challenger_score, challenger_correct, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, player.group_id, player.id, challenged.id, seed, seedDate, score, correctCount, now()).run();
+  return json({ id, status: 'pending' });
+}
+
+async function handleGetPendingChallenges(request, env) {
+  const player = await requirePlayer(request, env);
+  const rows = await env.DB.prepare(
+    `SELECT dc.id, dc.seed, dc.seed_date, dc.challenger_score, dc.challenger_correct, dc.created_at,
+            p.nickname AS challenger_nickname
+     FROM direct_challenges dc
+     JOIN players p ON p.id = dc.challenger_id
+     WHERE dc.challenged_id = ? AND dc.status = 'pending'
+     ORDER BY dc.created_at DESC`
+  ).bind(player.id).all();
+  return json({ challenges: rows.results });
+}
+
+async function handleRespondToChallenge(request, path, env) {
+  const player = await requirePlayer(request, env);
+  const id = path.split('/api/challenges/')[1].replace('/respond', '');
+  const { score, correctCount } = await getBody(request);
+  if (score == null || correctCount == null) return json({ error: 'score, correctCount required' }, 400);
+
+  const challenge = await env.DB.prepare(
+    'SELECT * FROM direct_challenges WHERE id = ? AND challenged_id = ? AND status = ?'
+  ).bind(id, player.id, 'pending').first();
+  if (!challenge) return json({ error: 'Challenge not found or already completed' }, 404);
+
+  await env.DB.prepare(
+    `UPDATE direct_challenges
+     SET challenged_score = ?, challenged_correct = ?, status = 'completed', responded_at = ?
+     WHERE id = ?`
+  ).bind(score, correctCount, now(), id).run();
+
+  const won = score > challenge.challenger_score;
+  const tied = score === challenge.challenger_score;
+  return json({
+    result: won ? 'won' : tied ? 'tied' : 'lost',
+    myScore: score,
+    theirScore: challenge.challenger_score,
+    myCorrect: correctCount,
+    theirCorrect: challenge.challenger_correct,
+  });
+}
+
 async function route(request, url, method, path, env) {
   if (method === 'POST' && path === '/api/groups')               return handleCreateGroup(request, env);
   if (method === 'POST' && path === '/api/players/join')         return handlePlayerJoin(request, env);
@@ -346,9 +410,12 @@ async function route(request, url, method, path, env) {
   if (method === 'GET'  && path === '/api/challenge/today')      return handleGetChallenge(url, env);
   if (method === 'POST' && path === '/api/scores')               return handlePostScore(request, env);
   if (method === 'GET'  && path.startsWith('/api/leaderboard/')) return handleLeaderboard(url, path, env);
-  if (method === 'POST' && path === '/api/progress')             return handlePostProgress(request, env);
-  if (method === 'POST' && path === '/api/sessions')             return handlePostSession(request, env);
-  if (path.startsWith('/api/admin/'))                            return handleAdmin(request, url, path, method, env);
+  if (method === 'POST' && path === '/api/progress')                          return handlePostProgress(request, env);
+  if (method === 'POST' && path === '/api/sessions')                          return handlePostSession(request, env);
+  if (method === 'POST' && path === '/api/challenges')                        return handleCreateDirectChallenge(request, env);
+  if (method === 'GET'  && path === '/api/challenges/pending')                return handleGetPendingChallenges(request, env);
+  if (method === 'POST' && path.startsWith('/api/challenges/') && path.endsWith('/respond')) return handleRespondToChallenge(request, path, env);
+  if (path.startsWith('/api/admin/'))                                         return handleAdmin(request, url, path, method, env);
   return json({ error: 'Not Found' }, 404);
 }
 

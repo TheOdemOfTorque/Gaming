@@ -504,7 +504,10 @@
       <div class="mode-name">Gruppe</div>
       <div class="mode-desc" id="mp-home-desc">Klasse beitreten &amp; Ergebnisse vergleichen</div>
     </div>
-    <div id="mp-home-badge" style="display:none;background:rgba(139,92,246,0.25);border:1px solid rgba(139,92,246,0.5);border-radius:12px;padding:2px 10px;font-size:0.72rem;color:#c4b5fd;white-space:nowrap;align-self:center"></div>
+    <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+      <div id="mp-home-badge" style="display:none;background:rgba(139,92,246,0.25);border:1px solid rgba(139,92,246,0.5);border-radius:12px;padding:2px 10px;font-size:0.72rem;color:#c4b5fd;white-space:nowrap"></div>
+      <div id="mp-challenge-badge" style="display:none;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.5);border-radius:12px;padding:2px 10px;font-size:0.72rem;color:#fca5a5;white-space:nowrap;cursor:pointer" onclick="showScreen('mp-challenge-inbox')"></div>
+    </div>
   </div>
   <!-- SPIELE-LEISTE -->
   <div id="games-bar" class="games-bar mt-12">
@@ -775,7 +778,34 @@
   <div id="mp-leaderboard-offline" style="color:rgba(255,255,255,0.4);margin-top:12px;font-size:0.82rem;text-align:center"></div>
   <div class="spacer"></div>
   <button class="btn btn-primary mt-8" onclick="startBlitz()">Nochmal ⚡</button>
+  <button id="mp-challenge-btn" class="btn mt-8" onclick="showScreen('mp-challenge-send')" style="background:rgba(139,92,246,0.3);border:1px solid rgba(139,92,246,0.5);display:none">⚔️ Herausfordern</button>
   <button class="btn btn-secondary mt-8" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
+</div>
+
+<!-- CHALLENGE SENDEN -->
+<div id="screen-mp-challenge-send" class="screen">
+  <div class="settings-header">
+    <h1 style="font-size:1.8rem;font-weight:900">⚔️ Herausfordern</h1>
+  </div>
+  <div class="card" style="text-align:center;padding:16px;margin-bottom:16px">
+    <div style="font-size:0.82rem;color:rgba(255,255,255,0.5)">Dein Score</div>
+    <div id="challenge-my-score" style="font-size:2rem;font-weight:900;color:#fbbf24"></div>
+  </div>
+  <div class="settings-section-title" style="margin-bottom:8px">Wen willst du herausfordern?</div>
+  <div id="challenge-player-list" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div id="challenge-send-msg" style="text-align:center;font-size:0.85rem;margin-top:12px;min-height:1.2em"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-secondary mt-16" onclick="showScreen('mp-leaderboard')" style="max-width:180px">← Zurück</button>
+</div>
+
+<!-- CHALLENGE ANNEHMEN -->
+<div id="screen-mp-challenge-inbox" class="screen">
+  <div class="settings-header">
+    <h1 style="font-size:1.8rem;font-weight:900">📬 Challenges</h1>
+  </div>
+  <div id="challenge-inbox-list" style="display:flex;flex-direction:column;gap:10px"></div>
+  <div class="spacer"></div>
+  <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
 </div>
 
 <!-- DEV PANEL (nur localhost) -->
@@ -1346,6 +1376,156 @@ async function mpShowLeaderboard(myScore) {
   }
 }
 
+// ── Direct Challenges ─────────────────────────────────────────────────────────
+
+let _pendingChallenges = [];
+let _lastChallengeScore = null;
+let _lastChallengeCorrect = null;
+
+async function mpCheckPendingChallenges() {
+  if (!state.mp.enabled || !state.mp.token || !navigator.onLine) return;
+  try {
+    const res = await fetch(`${MP_API}/api/challenges/pending`, {
+      headers: { 'X-Player-Token': state.mp.token }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    _pendingChallenges = data.challenges || [];
+    mpUpdateChallengeBadge();
+  } catch (e) { /* offline */ }
+}
+
+function mpUpdateChallengeBadge() {
+  const badge = document.getElementById('mp-challenge-badge');
+  if (_pendingChallenges.length > 0) {
+    badge.textContent = `⚔️ ${_pendingChallenges.length} Challenge${_pendingChallenges.length > 1 ? 's' : ''} offen`;
+    badge.style.display = 'block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+async function mpShowChallengeSend(myScore) {
+  _lastChallengeScore = myScore;
+  document.getElementById('challenge-my-score').textContent = myScore + ' Punkte';
+  document.getElementById('challenge-send-msg').textContent = '';
+  const list = document.getElementById('challenge-player-list');
+  list.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center">Lade Spieler…</div>';
+
+  try {
+    const res = await fetch(`${MP_API}/api/admin/players/${state.mp.groupCode}`, {
+      headers: { 'X-Player-Token': state.mp.token }
+    });
+    // Fallback: leaderboard für Spielerliste nutzen
+    const lb = await fetch(`${MP_API}/api/leaderboard/${state.mp.groupCode}`);
+    const lbData = await lb.json();
+    const players = (lbData.entries || []).filter(e => e.nickname !== state.mp.nickname);
+
+    if (!players.length) {
+      list.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center">Noch keine anderen Spieler in der Gruppe</div>';
+      return;
+    }
+    list.innerHTML = players.map(p => `
+      <button class="btn" onclick="mpSendChallenge('${p.nickname}')"
+        style="background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.4);text-align:left;padding:14px 16px">
+        <span style="font-size:1.1rem">⚔️</span>
+        <span style="margin-left:10px;font-weight:600">${p.nickname}</span>
+        <span style="margin-left:auto;font-size:0.8rem;color:rgba(255,255,255,0.5)">${p.score} Punkte heute</span>
+      </button>`).join('');
+  } catch (e) {
+    list.innerHTML = '<div style="color:#f87171">Fehler beim Laden der Spieler</div>';
+  }
+}
+
+async function mpSendChallenge(nickname) {
+  const msg = document.getElementById('challenge-send-msg');
+  msg.style.color = 'rgba(255,255,255,0.5)';
+  msg.textContent = 'Sende…';
+  try {
+    const res = await fetch(`${MP_API}/api/challenges`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+      body: JSON.stringify({
+        challengedNickname: nickname,
+        seed: state.mp.lastSeed,
+        seedDate: state.mp.lastSeedDate,
+        score: _lastChallengeScore,
+        correctCount: _lastChallengeCorrect,
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      msg.style.color = '#4ade80';
+      msg.textContent = `✓ ${nickname} wurde herausgefordert!`;
+    } else {
+      msg.style.color = '#f87171';
+      msg.textContent = data.error || 'Fehler';
+    }
+  } catch (e) {
+    msg.style.color = '#f87171';
+    msg.textContent = 'Netzwerkfehler';
+  }
+}
+
+function mpShowChallengeInbox() {
+  const list = document.getElementById('challenge-inbox-list');
+  if (!_pendingChallenges.length) {
+    list.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.4);padding:24px">Keine offenen Challenges</div>';
+    return;
+  }
+  list.innerHTML = _pendingChallenges.map(c => `
+    <div class="card" style="padding:16px">
+      <div style="font-weight:700;font-size:1rem">⚔️ ${c.challenger_nickname} fordert dich heraus!</div>
+      <div style="font-size:0.82rem;color:rgba(255,255,255,0.5);margin-top:4px">
+        Score: ${c.challenger_score} Punkte · ${c.seed_date}
+      </div>
+      <button class="btn btn-primary mt-8" onclick="mpAcceptChallenge('${c.id}', ${c.seed}, '${c.seed_date}', ${c.challenger_score})">
+        Annehmen &amp; spielen ⚡
+      </button>
+    </div>`).join('');
+}
+
+async function mpAcceptChallenge(challengeId, seed, seedDate, theirScore) {
+  state.mp._activeChallengeId = challengeId;
+  state.mp._activeChallengeTheirScore = theirScore;
+  state.mp.lastSeed = seed;
+  state.mp.lastSeedDate = seedDate;
+  saveState();
+  initSeededRNG(seed);
+  showScreen('home');
+  setTimeout(() => startBlitz(challengeId), 100);
+}
+
+function mpShowChallengeResult(result) {
+  showScreen('mp-leaderboard');
+  const rankEl    = document.getElementById('mp-own-rank');
+  const tbody     = document.getElementById('mp-leaderboard-body');
+  const offlineEl = document.getElementById('mp-leaderboard-offline');
+  const icon = result.result === 'won' ? '🏆 Gewonnen!' : result.result === 'tied' ? '🤝 Unentschieden!' : '😅 Verloren!';
+  rankEl.textContent = icon;
+  tbody.innerHTML = `
+    <tr style="font-weight:700;background:rgba(139,92,246,0.2)">
+      <td style="padding:8px">Du</td><td style="text-align:right;padding:8px">${result.myScore}</td><td style="text-align:right;padding:8px">${result.myCorrect}</td>
+    </tr>
+    <tr>
+      <td style="padding:8px">Gegner</td><td style="text-align:right;padding:8px">${result.theirScore}</td><td style="text-align:right;padding:8px">${result.theirCorrect}</td>
+    </tr>`;
+  offlineEl.textContent = '';
+  document.getElementById('mp-challenge-btn').style.display = 'none';
+}
+
+async function mpRespondToChallenge(challengeId, score, correctCount) {
+  if (!challengeId || !state.mp.token) return null;
+  try {
+    const res = await fetch(`${MP_API}/api/challenges/${challengeId}/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
+      body: JSON.stringify({ score, correctCount }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch (e) { return null; }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STATE_VERSION = 5;
@@ -1637,7 +1817,9 @@ function showScreen(name) {
   if (name === 'settings')         populateSettings();
   if (name === 'stats')            renderStats();
   if (name === 'blitz-highscores') renderBlitzHighscores();
-  if (name === 'mp-join')          mpUpdateStatusPanel();
+  if (name === 'mp-join')             mpUpdateStatusPanel();
+  if (name === 'mp-challenge-send')   mpShowChallengeSend(_lastChallengeScore);
+  if (name === 'mp-challenge-inbox')  mpShowChallengeInbox();
 }
 
 // ── NAME SCREEN ────────────────────────────────────────
@@ -2061,15 +2243,16 @@ function closeBlitzModal() {
   document.getElementById('blitz-modal').classList.remove('active');
 }
 
-async function startBlitz() {
+async function startBlitz(challengeId = null) {
   const cfg = state.blitzConfig;
   if (!cfg.alleReihen && cfg.reihen.length === 0) cfg.alleReihen = true;
   saveState();
   closeBlitzModal();
   if (state.mp.enabled && state.mp.groupCode) {
-    await mpFetchChallenge();
+    if (!challengeId) await mpFetchChallenge(); // nur bei normaler Runde neuen Seed holen
     if (state.mp.lastSeed) initSeededRNG(state.mp.lastSeed);
   }
+  state.mp._activeChallengeId = challengeId || null;
   startGame('blitz');
 }
 
@@ -2508,7 +2691,22 @@ function endGame(reason) {
         seedDate: state.mp.lastSeedDate,
       };
       mpUploadScore(payload);
-      setTimeout(() => mpShowLeaderboard(game.score), 1500);
+      const activeChallengeId = state.mp._activeChallengeId || null;
+      if (activeChallengeId) {
+        // Challenge-Antwort — Ergebnis direkt anzeigen
+        mpRespondToChallenge(activeChallengeId, game.score, game.correct).then(result => {
+          state.mp._activeChallengeId = null;
+          _pendingChallenges = _pendingChallenges.filter(c => c.id !== activeChallengeId);
+          mpUpdateChallengeBadge();
+          saveState();
+          if (result) setTimeout(() => mpShowChallengeResult(result), 1500);
+          else setTimeout(() => mpShowLeaderboard(game.score), 1500);
+        });
+      } else {
+        const btn = document.getElementById('mp-challenge-btn');
+        if (btn) { _lastChallengeScore = game.score; _lastChallengeCorrect = game.correct; btn.style.display = ''; }
+        setTimeout(() => mpShowLeaderboard(game.score), 1500);
+      }
     }
     const durationS = game.mode === 'blitz' ? 60 : Math.round((game.qCount || 0) * 4);
     mpUploadSession(game.mode, durationS);
@@ -3730,6 +3928,7 @@ window.addEventListener('load', () => {
   // Multiplayer startup
   if (state.mp && state.mp.enabled) {
     mpSyncPending();
+    mpCheckPendingChallenges();
   }
 });
 </script>

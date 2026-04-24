@@ -49,3 +49,19 @@ CREATE TABLE IF NOT EXISTS session_events (
   duration_s   INTEGER NOT NULL,
   played_at    INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS direct_challenges (
+  id                  TEXT PRIMARY KEY,
+  group_id            TEXT NOT NULL REFERENCES groups(id),
+  challenger_id       TEXT NOT NULL REFERENCES players(id),
+  challenged_id       TEXT NOT NULL REFERENCES players(id),
+  seed                INTEGER NOT NULL,
+  seed_date           TEXT NOT NULL,
+  challenger_score    INTEGER NOT NULL,
+  challenger_correct  INTEGER NOT NULL,
+  challenged_score    INTEGER,
+  challenged_correct  INTEGER,
+  status              TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'completed'
+  created_at          INTEGER NOT NULL,
+  responded_at        INTEGER
+);
