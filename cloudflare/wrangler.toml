@@ -8,4 +8,4 @@ compatibility_date = "2024-09-23"
 [[d1_databases]]
 binding = "DB"
 database_name = "1x1-trainer-db"
-database_id = "PLACEHOLDER"
+database_id = "b3ffb45b-6670-4c81-8f0b-f3b24875a576"

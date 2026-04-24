@@ -2291,7 +2291,7 @@ async function startBlitz(challengeId = null) {
   saveState();
   closeBlitzModal();
   if (state.mp.enabled && state.mp.groupCode) {
-    if (!challengeId) await mpFetchChallenge(); // nur bei normaler Runde neuen Seed holen
+    if (!challengeId) await mpFetchChallenge();
     if (state.mp.lastSeed) initSeededRNG(state.mp.lastSeed);
   }
   state.mp._activeChallengeId = challengeId || null;
