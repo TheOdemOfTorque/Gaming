@@ -74,7 +74,9 @@ async function requirePlayer(request, env) {
   const token = request.headers.get('X-Player-Token');
   const playerId = await verifyToken(token, env.TOKEN_SECRET);
   if (!playerId) throw Object.assign(new Error('Unauthorized'), { status: 401 });
-  return playerId;
+  const player = await env.DB.prepare('SELECT id, group_id FROM players WHERE id = ?').bind(playerId).first();
+  if (!player) throw Object.assign(new Error('Player not found'), { status: 404 });
+  return player;
 }
 
 async function requireAdmin(request, env, groupCode) {
@@ -183,7 +185,7 @@ async function handleGetChallenge(url, env) {
 }
 
 async function handlePostScore(request, env) {
-  const playerId = await requirePlayer(request, env);
+  const { id: playerId } = await requirePlayer(request, env);
   const { challengeId, score, correctCount, offlinePlayed } = await getBody(request);
   if (!challengeId || score == null || correctCount == null) {
     return json({ error: 'challengeId, score, correctCount required' }, 400);
@@ -230,7 +232,7 @@ async function handleLeaderboard(url, path, env) {
 }
 
 async function handlePostProgress(request, env) {
-  const playerId = await requirePlayer(request, env);
+  const { id: playerId } = await requirePlayer(request, env);
   const { reiheStats } = await getBody(request);
   if (!reiheStats || typeof reiheStats !== 'object') {
     return json({ error: 'reiheStats object required' }, 400);
@@ -245,7 +247,7 @@ async function handlePostProgress(request, env) {
 }
 
 async function handlePostSession(request, env) {
-  const playerId = await requirePlayer(request, env);
+  const { id: playerId } = await requirePlayer(request, env);
   const { gameMode, durationS } = await getBody(request);
   if (!gameMode || durationS == null) {
     return json({ error: 'gameMode, durationS required' }, 400);
