@@ -341,10 +341,18 @@ async function handleAdmin(request, url, path, method, env) {
 
 // ── Direct Challenges ─────────────────────────────────────────────────────
 
+async function handleGetGroupPlayers(request, env) {
+  const player = await requirePlayer(request, env);
+  const rows = await env.DB.prepare(
+    'SELECT nickname FROM players WHERE group_id = ? AND id != ? ORDER BY nickname'
+  ).bind(player.group_id, player.id).all();
+  return json({ players: rows.results });
+}
+
 async function handleCreateDirectChallenge(request, env) {
   const player = await requirePlayer(request, env);
   const { challengedNickname, seed, seedDate, score, correctCount } = await getBody(request);
-  if (!challengedNickname || !seed || !seedDate || score == null || correctCount == null) {
+  if (!challengedNickname || seed == null || !seedDate || score == null || correctCount == null) {
     return json({ error: 'challengedNickname, seed, seedDate, score, correctCount required' }, 400);
   }
   const challenged = await env.DB.prepare(
@@ -412,6 +420,7 @@ async function route(request, url, method, path, env) {
   if (method === 'GET'  && path.startsWith('/api/leaderboard/')) return handleLeaderboard(url, path, env);
   if (method === 'POST' && path === '/api/progress')                          return handlePostProgress(request, env);
   if (method === 'POST' && path === '/api/sessions')                          return handlePostSession(request, env);
+  if (method === 'GET'  && path === '/api/players')                           return handleGetGroupPlayers(request, env);
   if (method === 'POST' && path === '/api/challenges')                        return handleCreateDirectChallenge(request, env);
   if (method === 'GET'  && path === '/api/challenges/pending')                return handleGetPendingChallenges(request, env);
   if (method === 'POST' && path.startsWith('/api/challenges/') && path.endsWith('/respond')) return handleRespondToChallenge(request, path, env);

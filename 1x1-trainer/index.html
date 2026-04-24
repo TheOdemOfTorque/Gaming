@@ -752,6 +752,11 @@
     </div>
   </div>
 
+  <div id="mp-group-actions" style="display:none;margin-top:16px">
+    <button class="btn mt-8" onclick="mpShowLeaderboard(null);showScreen('mp-leaderboard')" style="background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);width:100%">⚡ Rangliste anzeigen</button>
+    <button class="btn mt-8" onclick="showScreen('mp-challenge-send')" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);width:100%">⚔️ Jemanden herausfordern</button>
+    <button class="btn mt-8" onclick="showScreen('mp-challenge-inbox')" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);width:100%" id="mp-inbox-btn">📬 Offene Challenges</button>
+  </div>
   <div class="spacer"></div>
   <button class="btn btn-secondary mt-16" onclick="showScreen('home')" style="max-width:180px">← Zurück</button>
 </div>
@@ -1324,11 +1329,20 @@ function mpLogout() {
 
 function mpUpdateStatusPanel() {
   const loggedIn = state.mp && state.mp.enabled && state.mp.nickname;
-  document.getElementById('mp-status-panel').style.display = loggedIn ? '' : 'none';
-  document.getElementById('mp-form-panel').style.display   = loggedIn ? 'none' : '';
+  document.getElementById('mp-status-panel').style.display  = loggedIn ? '' : 'none';
+  document.getElementById('mp-form-panel').style.display    = loggedIn ? 'none' : '';
+  document.getElementById('mp-group-actions').style.display = loggedIn ? '' : 'none';
   if (loggedIn) {
     document.getElementById('mp-status-name').textContent  = state.mp.nickname;
     document.getElementById('mp-status-group').textContent = `Gruppe: ${state.mp.groupCode}`;
+    const inboxBtn = document.getElementById('mp-inbox-btn');
+    if (_pendingChallenges.length > 0) {
+      inboxBtn.textContent = `📬 Offene Challenges (${_pendingChallenges.length})`;
+      inboxBtn.style.borderColor = 'rgba(239,68,68,0.6)';
+    } else {
+      inboxBtn.textContent = '📬 Offene Challenges';
+      inboxBtn.style.borderColor = 'rgba(239,68,68,0.3)';
+    }
   }
 }
 
@@ -1368,9 +1382,13 @@ async function mpShowLeaderboard(myScore) {
     }).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:rgba(255,255,255,0.4)">Noch keine Einträge heute</td></tr>';
 
     const myRank = entries.findIndex(e => e.nickname === state.mp.nickname) + 1;
-    rankEl.textContent = myRank > 0
-      ? `Platz #${myRank} von ${entries.length} · ${myScore} Punkte 🎯`
-      : `Dein Score: ${myScore} Punkte`;
+    if (myScore != null) {
+      rankEl.textContent = myRank > 0
+        ? `Platz #${myRank} von ${entries.length} · ${myScore} Punkte 🎯`
+        : `Dein Score: ${myScore} Punkte`;
+    } else {
+      rankEl.textContent = myRank > 0 ? `Du bist auf Platz #${myRank}` : 'Rangliste heute';
+    }
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px">Rangliste konnte nicht geladen werden.</td></tr>';
   }
@@ -1406,20 +1424,24 @@ function mpUpdateChallengeBadge() {
 }
 
 async function mpShowChallengeSend(myScore) {
-  _lastChallengeScore = myScore;
-  document.getElementById('challenge-my-score').textContent = myScore + ' Punkte';
+  if (myScore != null) _lastChallengeScore = myScore;
+  const scoreEl = document.getElementById('challenge-my-score');
+  scoreEl.textContent = _lastChallengeScore != null ? _lastChallengeScore + ' Punkte' : 'Kein Score — spiele erst eine Blitz-Runde';
   document.getElementById('challenge-send-msg').textContent = '';
   const list = document.getElementById('challenge-player-list');
   list.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center">Lade Spieler…</div>';
 
+  if (!_lastChallengeScore || !state.mp.lastSeed) {
+    list.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center;padding:16px">Spiele erst eine Blitz-Runde, dann kannst du jemanden herausfordern.</div>';
+    return;
+  }
+
   try {
-    const res = await fetch(`${MP_API}/api/admin/players/${state.mp.groupCode}`, {
+    const res = await fetch(`${MP_API}/api/players`, {
       headers: { 'X-Player-Token': state.mp.token }
     });
-    // Fallback: leaderboard für Spielerliste nutzen
-    const lb = await fetch(`${MP_API}/api/leaderboard/${state.mp.groupCode}`);
-    const lbData = await lb.json();
-    const players = (lbData.entries || []).filter(e => e.nickname !== state.mp.nickname);
+    const data = await res.json();
+    const players = data.players || [];
 
     if (!players.length) {
       list.innerHTML = '<div style="color:rgba(255,255,255,0.4);text-align:center">Noch keine anderen Spieler in der Gruppe</div>';
@@ -1427,10 +1449,9 @@ async function mpShowChallengeSend(myScore) {
     }
     list.innerHTML = players.map(p => `
       <button class="btn" onclick="mpSendChallenge('${p.nickname}')"
-        style="background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.4);text-align:left;padding:14px 16px">
+        style="background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.4);text-align:left;padding:14px 16px;display:flex;align-items:center;gap:10px">
         <span style="font-size:1.1rem">⚔️</span>
-        <span style="margin-left:10px;font-weight:600">${p.nickname}</span>
-        <span style="margin-left:auto;font-size:0.8rem;color:rgba(255,255,255,0.5)">${p.score} Punkte heute</span>
+        <span style="font-weight:600">${p.nickname}</span>
       </button>`).join('');
   } catch (e) {
     list.innerHTML = '<div style="color:#f87171">Fehler beim Laden der Spieler</div>';
