@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS direct_challenges (
   challenged_id       TEXT NOT NULL REFERENCES players(id),
   seed                INTEGER NOT NULL,
   seed_date           TEXT NOT NULL,
+  reihen_config       TEXT NOT NULL DEFAULT '{"alleReihen":true,"rechenart":"mult"}',
   challenger_score    INTEGER NOT NULL,
   challenger_correct  INTEGER NOT NULL,
   challenged_score    INTEGER,

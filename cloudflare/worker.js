@@ -353,7 +353,7 @@ async function handleGetGroupPlayers(request, env) {
 
 async function handleCreateDirectChallenge(request, env) {
   const player = await requirePlayer(request, env);
-  const { challengedNickname, seed, seedDate, score, correctCount } = await getBody(request);
+  const { challengedNickname, seed, seedDate, score, correctCount, reihenConfig } = await getBody(request);
   if (!challengedNickname || seed == null || !seedDate || score == null || correctCount == null) {
     return json({ error: 'challengedNickname, seed, seedDate, score, correctCount required' }, 400);
   }
@@ -364,25 +364,31 @@ async function handleCreateDirectChallenge(request, env) {
   if (challenged.id === player.id) return json({ error: 'Cannot challenge yourself' }, 400);
 
   const id = uuid();
+  const configJson = JSON.stringify(reihenConfig || { alleReihen: true, rechenart: 'mult' });
   await env.DB.prepare(
     `INSERT INTO direct_challenges
-     (id, group_id, challenger_id, challenged_id, seed, seed_date, challenger_score, challenger_correct, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(id, player.group_id, player.id, challenged.id, seed, seedDate, score, correctCount, now()).run();
+     (id, group_id, challenger_id, challenged_id, seed, seed_date, reihen_config, challenger_score, challenger_correct, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, player.group_id, player.id, challenged.id, seed, seedDate, configJson, score, correctCount, now()).run();
   return json({ id, status: 'pending' });
 }
 
 async function handleGetPendingChallenges(request, env) {
   const player = await requirePlayer(request, env);
   const rows = await env.DB.prepare(
-    `SELECT dc.id, dc.seed, dc.seed_date, dc.challenger_score, dc.challenger_correct, dc.created_at,
+    `SELECT dc.id, dc.seed, dc.seed_date, dc.reihen_config, dc.challenger_score, dc.challenger_correct, dc.created_at,
             p.nickname AS challenger_nickname
      FROM direct_challenges dc
      JOIN players p ON p.id = dc.challenger_id
      WHERE dc.challenged_id = ? AND dc.status = 'pending'
      ORDER BY dc.created_at DESC`
   ).bind(player.id).all();
-  return json({ challenges: rows.results });
+  // reihen_config ist JSON-String — parsen für den Client
+  const challenges = (rows.results || []).map(c => ({
+    ...c,
+    reihen_config: JSON.parse(c.reihen_config || '{"alleReihen":true,"rechenart":"mult"}'),
+  }));
+  return json({ challenges });
 }
 
 async function handleRespondToChallenge(request, path, env) {
