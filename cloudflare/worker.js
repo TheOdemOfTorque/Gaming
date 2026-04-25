@@ -190,7 +190,7 @@ async function handlePostScore(request, env) {
   if (!challengeId || score == null || correctCount == null) {
     return json({ error: 'challengeId, score, correctCount required' }, 400);
   }
-  if (correctCount > 60 || score > 60 * 22) {
+  if (correctCount > 120 || score > 30000) {
     return json({ error: 'Score implausible' }, 400);
   }
 
