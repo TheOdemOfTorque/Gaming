@@ -1539,6 +1539,9 @@ function mpShowChallengeInbox() {
 async function mpAcceptChallenge(challengeId, seed, seedDate, theirScore, reihenConfig) {
   state.mp._activeChallengeId = challengeId;
   state.mp._activeChallengeTheirScore = theirScore;
+  // Tages-Challenge holen, damit lastChallengeId für Ranglisten-Upload korrekt gesetzt ist.
+  // Danach seed/seedDate des Duells wiederherstellen — das Spiel läuft mit dem Challenge-Seed.
+  await mpFetchChallenge();
   state.mp.lastSeed = seed;
   state.mp.lastSeedDate = seedDate;
   // Challenger's config nur für diese Runde verwenden — state.blitzConfig bleibt unberührt
