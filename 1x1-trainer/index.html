@@ -823,7 +823,7 @@
   <button class="btn btn-secondary mt-16" onclick="showScreen('mp-join')" style="max-width:180px">← Gruppe</button>
 </div>
 
-<!-- DEV PANEL (nur localhost) -->
+<!-- DEV PANEL (nur mit #dev in der URL) -->
 <div class="modal-overlay" id="dev-panel-modal">
   <div class="modal-sheet" style="max-width:320px">
     <div class="modal-title" style="color:#f59e0b">🛠 Dev-Modus</div>
@@ -2445,9 +2445,11 @@ function resolveRechenart(cfg) {
 }
 
 function getActiveRechenartCfg() {
+  // _challengeConfig geht vor globaler Einstellung — Fairness im Duell
+  if (game.mode === 'blitz' && _challengeConfig) return _challengeConfig;
   const global = state.settings.rechenart || 'both';
   if (global !== 'both') return { rechenart: global };
-  if (game.mode === 'blitz')   return _challengeConfig ?? state.blitzConfig;
+  if (game.mode === 'blitz')   return state.blitzConfig;
   if (game.mode === 'turnier') return state.turnierConfig;
   return state.trainingConfig;
 }
@@ -2512,9 +2514,11 @@ function _doStartGame(mode, reihe, inputType) {
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
            answered:false, active:true, q:null,
            rechenart: (() => {
+             // _challengeConfig geht vor globaler Einstellung — Fairness im Duell
+             if (mode === 'blitz' && _challengeConfig) return _challengeConfig.rechenart || 'mult';
              const global = state.settings.rechenart || 'both';
              if (global !== 'both') return global;
-             return (mode === 'blitz' ? (_challengeConfig ?? state.blitzConfig)
+             return (mode === 'blitz' ? state.blitzConfig
                    : mode === 'turnier' ? state.turnierConfig
                    : state.trainingConfig).rechenart || 'mult';
            })() };

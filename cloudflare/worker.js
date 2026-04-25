@@ -357,6 +357,9 @@ async function handleCreateDirectChallenge(request, env) {
   if (!challengedNickname || seed == null || !seedDate || score == null || correctCount == null) {
     return json({ error: 'challengedNickname, seed, seedDate, score, correctCount required' }, 400);
   }
+  if (correctCount > 120 || score > 30000) {
+    return json({ error: 'Score implausible' }, 400);
+  }
   const challenged = await env.DB.prepare(
     'SELECT id FROM players WHERE group_id = ? AND nickname = ?'
   ).bind(player.group_id, challengedNickname).first();
@@ -396,6 +399,7 @@ async function handleRespondToChallenge(request, path, env) {
   const id = path.split('/api/challenges/')[1].replace('/respond', '');
   const { score, correctCount } = await getBody(request);
   if (score == null || correctCount == null) return json({ error: 'score, correctCount required' }, 400);
+  if (correctCount > 120 || score > 30000) return json({ error: 'Score implausible' }, 400);
 
   const challenge = await env.DB.prepare(
     'SELECT * FROM direct_challenges WHERE id = ? AND challenged_id = ? AND status = ?'
