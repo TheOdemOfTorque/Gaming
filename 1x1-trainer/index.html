@@ -673,6 +673,15 @@
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Rechenart</div>
+    <div class="seg-control" id="rechenart-mode-seg">
+      <button class="seg-btn" onclick="setRechenartMode('mult')">× Mult</button>
+      <button class="seg-btn" onclick="setRechenartMode('div')">÷ Div</button>
+      <button class="seg-btn" onclick="setRechenartMode('both')">× ÷ Beides</button>
+    </div>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Eingabemodus</div>
     <div class="seg-control" id="input-mode-seg">
       <button class="seg-btn" onclick="setInputMode('tap')">👆 Antippen</button>
@@ -879,11 +888,13 @@
 <div class="modal-overlay" id="training-modal">
   <div class="modal-sheet">
     <div class="modal-title">📚 Welche Reihe möchtest du üben?</div>
-    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
-    <div class="rechenart-toggle" id="training-rechenart-toggle">
-      <button class="rechenart-btn" data-r="mult"     onclick="selectTrainingRechenart('mult')">×</button>
-      <button class="rechenart-btn" data-r="div"      onclick="selectTrainingRechenart('div')">÷</button>
-      <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
+    <div id="training-rechenart-wrap">
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+      <div class="rechenart-toggle" id="training-rechenart-toggle">
+        <button class="rechenart-btn" data-r="mult"     onclick="selectTrainingRechenart('mult')">×</button>
+        <button class="rechenart-btn" data-r="div"      onclick="selectTrainingRechenart('div')">÷</button>
+        <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
+      </div>
     </div>
     <div class="reihe-grid" id="reihe-grid"></div>
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
@@ -895,11 +906,13 @@
 <div class="modal-overlay" id="blitz-modal">
   <div class="modal-sheet">
     <div class="modal-title">⚡ Blitz-Modus</div>
-    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
-    <div class="rechenart-toggle" id="blitz-rechenart-toggle">
-      <button class="rechenart-btn" data-r="mult" onclick="selectBlitzRechenart('mult')">×</button>
-      <button class="rechenart-btn" data-r="div"  onclick="selectBlitzRechenart('div')">÷</button>
-      <button class="rechenart-btn" data-r="gemischt" onclick="selectBlitzRechenart('gemischt')">× ÷</button>
+    <div id="blitz-rechenart-wrap">
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+      <div class="rechenart-toggle" id="blitz-rechenart-toggle">
+        <button class="rechenart-btn" data-r="mult" onclick="selectBlitzRechenart('mult')">×</button>
+        <button class="rechenart-btn" data-r="div"  onclick="selectBlitzRechenart('div')">÷</button>
+        <button class="rechenart-btn" data-r="gemischt" onclick="selectBlitzRechenart('gemischt')">× ÷</button>
+      </div>
     </div>
     <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:12px">Welche Reihen sollen abgefragt werden?</div>
     <button class="blitz-alle-btn" id="blitz-alle-btn" onclick="toggleBlitzAlle()">
@@ -921,11 +934,13 @@
   <div class="modal-sheet">
     <div class="modal-title">🏆 Turnier</div>
     <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">10 Fragen · steigende Schwierigkeit</div>
-    <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
-    <div class="rechenart-toggle" id="turnier-rechenart-toggle">
-      <button class="rechenart-btn" data-r="mult"     onclick="selectTurnierRechenart('mult')">×</button>
-      <button class="rechenart-btn" data-r="div"      onclick="selectTurnierRechenart('div')">÷</button>
-      <button class="rechenart-btn" data-r="gemischt" onclick="selectTurnierRechenart('gemischt')">× ÷</button>
+    <div id="turnier-rechenart-wrap">
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
+      <div class="rechenart-toggle" id="turnier-rechenart-toggle">
+        <button class="rechenart-btn" data-r="mult"     onclick="selectTurnierRechenart('mult')">×</button>
+        <button class="rechenart-btn" data-r="div"      onclick="selectTurnierRechenart('div')">÷</button>
+        <button class="rechenart-btn" data-r="gemischt" onclick="selectTurnierRechenart('gemischt')">× ÷</button>
+      </div>
     </div>
     <button class="btn btn-primary" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8);box-shadow:0 4px 20px rgba(59,130,246,0.4)" onclick="startTurnier()">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTurnierModal()">Abbrechen</button>
@@ -1074,7 +1089,7 @@ const ACHIEVEMENTS = [
 function defaultSettings() {
   const reiheMax = {};
   for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
-  return { grosses1x1: false, reiheMax, inputMode: 'both' };
+  return { grosses1x1: false, reiheMax, inputMode: 'both', rechenart: 'both' };
 }
 
 function defaultReiheStats() {
@@ -1570,7 +1585,7 @@ async function mpRespondToChallenge(challengeId, score, correctCount) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STATE_VERSION = 5;
+const STATE_VERSION = 6;
 
 const STATE_MIGRATIONS = [
   // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
@@ -1626,6 +1641,12 @@ const STATE_MIGRATIONS = [
   // v4 → v5: Multiplayer-State
   (s) => {
     if (!s.mp) s.mp = defaultState().mp;
+    return s;
+  },
+  // v5 → v6: globale Rechenart-Einstellung
+  (s) => {
+    if (!s.settings) s.settings = defaultSettings();
+    if (!s.settings.rechenart) s.settings.rechenart = 'both';
     return s;
   },
 ];
@@ -1881,10 +1902,13 @@ function populateSettings() {
   cb.checked = state.settings.grosses1x1;
   document.getElementById('reihe-max-section').style.display = state.settings.grosses1x1 ? 'block' : 'none';
   renderStepperGrid();
-  // Segmented control for input mode
   const modeMap = { tap: 0, type: 1, both: 2 };
   document.querySelectorAll('#input-mode-seg .seg-btn').forEach((btn, i) => {
     btn.classList.toggle('active', i === modeMap[state.settings.inputMode]);
+  });
+  const rechenartMap = { mult: 0, div: 1, both: 2 };
+  document.querySelectorAll('#rechenart-mode-seg .seg-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === rechenartMap[state.settings.rechenart || 'both']);
   });
 }
 
@@ -1910,6 +1934,15 @@ function setInputMode(mode) {
   const modeMap = { tap: 0, type: 1, both: 2 };
   document.querySelectorAll('#input-mode-seg .seg-btn').forEach((btn, i) => {
     btn.classList.toggle('active', i === modeMap[mode]);
+  });
+}
+
+function setRechenartMode(r) {
+  state.settings.rechenart = r;
+  saveState();
+  const rechenartMap = { mult: 0, div: 1, both: 2 };
+  document.querySelectorAll('#rechenart-mode-seg .seg-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === rechenartMap[r]);
   });
 }
 
@@ -2079,11 +2112,14 @@ function getReiheColorClass(i) {
 
 function showTrainingPicker() {
   selectedReihe = null;
-  // Rechenart-Toggle
-  const rcfg = state.trainingConfig || { rechenart: 'mult' };
-  document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
-    b.classList.toggle('active-training', b.dataset.r === (rcfg.rechenart || 'mult'));
-  });
+  const globalR = state.settings.rechenart || 'both';
+  document.getElementById('training-rechenart-wrap').style.display = globalR === 'both' ? '' : 'none';
+  if (globalR === 'both') {
+    const rcfg = state.trainingConfig || { rechenart: 'mult' };
+    document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
+      b.classList.toggle('active-training', b.dataset.r === (rcfg.rechenart || 'mult'));
+    });
+  }
   // Reihen-Grid mit Dual-Progress
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
@@ -2154,9 +2190,13 @@ document.getElementById('training-modal').addEventListener('click', function(e) 
 // ── BLITZ-MODUS PICKER ─────────────────────────────────
 function showBlitzPicker() {
   const cfg = state.blitzConfig;
-  document.querySelectorAll('#blitz-rechenart-toggle .rechenart-btn').forEach(b => {
-    b.classList.toggle('active-blitz', b.dataset.r === (cfg.rechenart || 'mult'));
-  });
+  const globalR = state.settings.rechenart || 'both';
+  document.getElementById('blitz-rechenart-wrap').style.display = globalR === 'both' ? '' : 'none';
+  if (globalR === 'both') {
+    document.querySelectorAll('#blitz-rechenart-toggle .rechenart-btn').forEach(b => {
+      b.classList.toggle('active-blitz', b.dataset.r === (cfg.rechenart || 'mult'));
+    });
+  }
   const maxR = getMaxReihe();
   const alleBtn = document.getElementById('blitz-alle-btn');
   document.getElementById('blitz-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
@@ -2305,9 +2345,13 @@ document.getElementById('blitz-modal').addEventListener('click', function(e) {
 // ── TURNIER-PICKER ─────────────────────────────────────────
 function showTurnierPicker() {
   const cfg = state.turnierConfig;
-  document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
-    b.classList.toggle('active-turnier', b.dataset.r === (cfg.rechenart || 'mult'));
-  });
+  const globalR = state.settings.rechenart || 'both';
+  document.getElementById('turnier-rechenart-wrap').style.display = globalR === 'both' ? '' : 'none';
+  if (globalR === 'both') {
+    document.querySelectorAll('#turnier-rechenart-toggle .rechenart-btn').forEach(b => {
+      b.classList.toggle('active-turnier', b.dataset.r === (cfg.rechenart || 'mult'));
+    });
+  }
   document.getElementById('turnier-modal').classList.add('active');
 }
 
@@ -2398,8 +2442,10 @@ function resolveRechenart(cfg) {
 }
 
 function getActiveRechenartCfg() {
-  if (game.mode === 'blitz')    return _challengeConfig ?? state.blitzConfig;
-  if (game.mode === 'turnier')  return state.turnierConfig;
+  const global = state.settings.rechenart || 'both';
+  if (global !== 'both') return { rechenart: global };
+  if (game.mode === 'blitz')   return _challengeConfig ?? state.blitzConfig;
+  if (game.mode === 'turnier') return state.turnierConfig;
   return state.trainingConfig;
 }
 
@@ -2462,9 +2508,13 @@ function _doStartGame(mode, reihe, inputType) {
   game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
            answered:false, active:true, q:null,
-           rechenart: (mode === 'blitz' ? (_challengeConfig ?? state.blitzConfig)
-                     : mode === 'turnier' ? state.turnierConfig
-                     : state.trainingConfig).rechenart || 'mult' };
+           rechenart: (() => {
+             const global = state.settings.rechenart || 'both';
+             if (global !== 'both') return global;
+             return (mode === 'blitz' ? (_challengeConfig ?? state.blitzConfig)
+                   : mode === 'turnier' ? state.turnierConfig
+                   : state.trainingConfig).rechenart || 'mult';
+           })() };
 
   const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
   const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
