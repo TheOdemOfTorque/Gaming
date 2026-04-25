@@ -3955,7 +3955,7 @@ function devResetStreak() {
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
-  _devEnabled = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hash === '#dev';
+  _devEnabled = location.hash === '#dev';
   const devBtn = document.getElementById('dev-version-tap');
   let _devTapCount = 0, _devTapTimer = null;
   devBtn.addEventListener('click', () => {
