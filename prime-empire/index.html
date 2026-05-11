@@ -799,9 +799,9 @@ class GameScene extends Phaser.Scene {
       // vs Player
       if(!this.gameOver&&!e.invincible&&!this.player.invincible&&!e.frozen&&!this.player.frozen&&!this.player.done){
         if(Math.hypot(e.x-this.player.x,e.y-this.player.y)<thr){
-          e.freeze(3000);
+          e.freeze(5000);           // Gegner: 5 Sekunden
           this.player.lives=Math.max(0,this.player.lives-1);
-          this.player.freeze(3000);
+          this.player.freeze(2500); // Spieler: 2,5 Sekunden
           this._spawnHitEffect(this.player.x,this.player.y);
           this.cameras.main.shake(250,0.008);
           this._updateLivesHUD();
