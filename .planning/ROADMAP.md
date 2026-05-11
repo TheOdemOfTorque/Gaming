@@ -14,6 +14,12 @@
 
 **Requirements:** FREEZE-01, FREEZE-02, FREEZE-03, FREEZE-04
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-PLAN-A.md — Entity-Freeze-Core: C1+C2-Bugs beheben + tickFreeze durch delayedCall ersetzen (FREEZE-01, FREEZE-02)
+- [ ] 01-PLAN-B.md — Asymmetrische Zeiten + Countdown-Ring (FREEZE-03, FREEZE-04)
+
 **Deliverables:**
 - `freeze()` snappt Sprite sofort auf Ziel-Tile (behebt C2 mid-transit desync)
 - `_unfreeze()` ruft `_separateTo(safeNeighbor)` auf + reset `thinkDelay=0` (behebt C1 re-collision loop)
@@ -182,4 +188,4 @@ Phase 6 kann parallel zu Phase 5 begonnen werden (tone() zuerst aufsetzen)
 ---
 
 *Roadmap created: 2026-05-10*
-*Last updated: 2026-05-10 nach Initialisierung*
+*Last updated: 2026-05-11 Phase 1 geplant (2 Plans, 2 Waves)*
