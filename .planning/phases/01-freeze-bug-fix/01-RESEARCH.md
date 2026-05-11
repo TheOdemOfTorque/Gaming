@@ -443,6 +443,24 @@ Ring läuft beim Einfrieren von voll (1.0) zu leer (0.0) → progress 1→0 korr
 `tickFreeze` (wenn versehentlich nicht gelöscht) decrementiert `undefined`.
 **Lösung:** Beide Variablen aus Constructor löschen; `invincible`-Reset via `_invincibleTimer`.
 
+### Pitfall 6: Countdown-Ring dreht sich mit Entity-Rotation
+**Was schiefgeht:** `this.sprite.setRotation(ROT_MAP[d])` rotiert den gesamten Container —
+inklusive `_freezeRing` als Child. Der "12-Uhr"-Start des Bogens verschiebt sich je nach
+Blickrichtung der Entity beim Einfrieren.
+**Warum es passiert:** Ring-Graphics ist Child von `this.sprite`, wie `_frozenOverlay`.
+**Einschätzung:** Auf diesem Karten-Maßstab und für eine Kinder-App kaum wahrnehmbar.
+Kein Fix erforderlich. Wer es beheben will: Ring stattdessen als Scene-Level-Graphics
+anlegen und Position in `_moveTo()` synchronisieren — aber das ist Over-Engineering für diesen Scope.
+
+### Pitfall 7: Vollständig-umschlossene Road-Tile (Grenzfall `_findSafeNeighbor`)
+**Was schiefgeht:** Wenn `_findSafeNeighbor()` null zurückgibt und keine Separation stattfindet,
+läuft Invincibility 3 Sekunden — danach könnte C1 erneut triggern.
+**Einschätzung:** Durch Inspektion von `generateMap()` bestätigt: Kein Road-Tile hat alle
+4 orthogonalen Nachbarn als Wände (die Karte besteht aus Straßenzügen, keine isolierten Tiles).
+Der Fallback "bleibt in Place" ist theoretisch nur und wird im echten Spiel nie ausgelöst.
+**Warnsignal:** Nur reproduzierbar, wenn die Karte manuell verändert wird.
+
+
 ---
 
 ## Code-Beispiele
