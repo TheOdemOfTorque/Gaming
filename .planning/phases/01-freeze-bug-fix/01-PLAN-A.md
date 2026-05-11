@@ -10,6 +10,7 @@ autonomous: true
 requirements:
   - FREEZE-01
   - FREEZE-02
+  - FREEZE-04
 
 must_haves:
   truths:
@@ -260,7 +261,8 @@ implementieren, da `freeze()` und `_unfreeze()` sie bereits referenzieren.
     - grep "tickFreeze" liefert 0 Treffer — Methode und alle Aufrufe sind entfernt
     - grep "freezeMs" liefert 0 Treffer — Feld ist aus Constructor und _unfreeze entfernt
     - grep "invincibleMs" liefert 0 Treffer — Feld ist aus Constructor und tickFreeze entfernt
-    - grep "_startFreezeRing" liefert mindestens 3 Treffer (Definition + Aufruf in freeze + _stopFreezeRing-Definition)
+    - grep "_startFreezeRing" liefert mindestens 2 Treffer (Definition + Aufruf in freeze())
+    - grep "_stopFreezeRing" liefert mindestens 2 Treffer (Definition + Aufruf in _unfreeze())
   </acceptance_criteria>
 
   <done>

@@ -7,14 +7,14 @@
 
 ## Current Phase
 
-**Phase:** 0 (Initialized — not started)
-**Status:** Ready for Phase 1
+**Phase:** 1 (Freeze-Bug Fix)
+**Status:** Planned — Ready to Execute
 
 ## Phase Progress
 
 | Phase | Title | Status | Started | Completed |
 |-------|-------|--------|---------|-----------|
-| 1 | Freeze-Bug Fix | ⬜ Pending | — | — |
+| 1 | Freeze-Bug Fix | 📋 Planned (2 plans) | 2026-05-11 | — |
 | 2 | Touch-Controls + Cleanup | ⬜ Pending | — | — |
 | 3 | Co-op KI | ⬜ Pending | — | — |
 | 4 | Bank-Zone | ⬜ Pending | — | — |

@@ -541,14 +541,14 @@ gfx.strokePath();
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Teammate-Freeze-Zeit (FREEZE-03)**
    - Was wir wissen: FREEZE-03 spezifiziert Spieler=2500ms und Gegner=5000ms. Zeile 724
      `tm.freeze(5000)` setzt Teammates aktuell auf 5000ms.
    - Was unklar ist: Sollen Teammates auch 5000ms eingefroren bleiben, oder eine andere Zeit bekommen?
    - Empfehlung: 5000ms beibehalten (symmetrisch zu Gegnern). Macht Co-op-Timing vorhersagbar.
-     Der Planner soll dies als Entscheidung markieren oder beim User bestätigen lassen.
+   - RESOLVED: 5000ms beibehalten — Co-op-Timing vorhersagbar; FREEZE-03 spezifiziert nur Spieler+Gegner (Entscheid Planner 2026-05-11)
 
 ---
 

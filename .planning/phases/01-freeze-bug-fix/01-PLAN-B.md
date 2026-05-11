@@ -149,8 +149,7 @@ grep -n "_startFreezeRing\|_stopFreezeRing\|tweens.addCounter\|Graphics.arc" /Us
 ```
 Erwartete Treffer: mindestens 6 (je 2 pro Methode + arc + addCounter).
 
-Falls _startFreezeRing fehlt (weil Plan A nicht korrekt ausgeführt wurde):
-Implementiere es jetzt gemäß dem Code aus Plan A Task 1 (Änderung 5).
+Falls _startFreezeRing fehlt: Plan A wurde nicht korrekt ausgeführt. Melde Failure und führe Plan A erneut aus — dieses Checkpoint implementiert keine Fallback-Lösung.
   </what-built>
 
   <how-to-verify>
