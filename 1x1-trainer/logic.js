@@ -13,13 +13,6 @@ function addBlitzListeEntry(liste, entry) {
   return neu.slice(0, 5);
 }
 
-function migrateBlitzState(s) {
-  if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true };
-  if (!s.highScores) s.highScores = {};
-  if (!s.highScores.blitzListe) s.highScores.blitzListe = [];
-  return s;
-}
-
 // Löst 'gemischt' zufällig auf; gibt immer 'mult' oder 'div' zurück.
 function resolveRechenart(cfg) {
   const r = (cfg && cfg.rechenart) || 'mult';
@@ -28,7 +21,6 @@ function resolveRechenart(cfg) {
 }
 
 // Migration v3→v4: Division-Felder zu einem State-Objekt hinzufügen.
-// Voraussetzung: blitzConfig.reihen/alleReihen bereits vorhanden (migrateBlitzState zuerst ausführen).
 function migrateDivState(s) {
   if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
   if (!s.turnierConfig)  s.turnierConfig  = { rechenart: 'mult' };
@@ -50,6 +42,6 @@ function migrateDivState(s) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { pickBlitzReihe, addBlitzListeEntry, migrateBlitzState,
+  module.exports = { pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, migrateDivState };
 }
