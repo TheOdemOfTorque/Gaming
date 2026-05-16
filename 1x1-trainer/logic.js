@@ -125,6 +125,24 @@ function getMaxFactor(settings, reihe) {
   return settings.reiheMax[reihe] || 20;
 }
 
+function getQuestionWeight(questionStats, reihe, factor) {
+  const qs = questionStats[reihe]?.[factor];
+  if (!qs || (qs.correct === 0 && qs.wrong === 0)) return 5;
+  if (qs.consecutiveCorrect >= 6) return 1;
+  if (qs.consecutiveCorrect === 5) return 2;
+  if (qs.consecutiveCorrect >= 3) return 3;
+  if (qs.consecutiveCorrect >= 1) return 5;
+  return Math.min(4 + qs.wrong * 2, 12);
+}
+
+function pickWeightedFactor(questionStats, reihe, maxF) {
+  const weights = Array.from({length: maxF}, (_, i) => getQuestionWeight(questionStats, reihe, i + 1));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < maxF; i++) { r -= weights[i]; if (r <= 0) return i + 1; }
+  return maxF;
+}
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -156,7 +174,7 @@ function shuffle(a) {
 function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
 if (typeof module !== 'undefined') {
-  module.exports = { getMaxReihe, getMaxFactor,
+  module.exports = { getMaxReihe, getMaxFactor, getQuestionWeight, pickWeightedFactor,
                      pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
                      STATE_VERSION, STAR_COSTS, LEVELS,
