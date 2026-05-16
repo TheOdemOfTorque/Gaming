@@ -81,8 +81,9 @@ test.describe('with clean state', () => {
     expect(swReady).toBe(true);
   });
 
-  test('logic.js geladen — Funktions-Symbole verfügbar', async ({ page }) => {
+  test('logic.js geladen — pickBlitzReihe / resolveRechenart / addBlitzListeEntry global', async ({ page }) => {
     await page.goto('/1x1-trainer/');
+    await page.waitForLoadState('networkidle');
     const fns = await page.evaluate(() => ({
       pickBlitzReihe: typeof pickBlitzReihe,
       resolveRechenart: typeof resolveRechenart,
