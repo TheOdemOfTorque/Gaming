@@ -3163,7 +3163,9 @@ window.addEventListener('load', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';
       banner.innerHTML = '🆕 Neue Version verfügbar! &nbsp;<button onclick="location.reload()" style="background:#fff;color:#1a1a2e;border:none;border-radius:12px;padding:6px 14px;font-weight:800;font-size:0.85rem;cursor:pointer">Jetzt laden</button>';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;';
+      // Banner im normalen Layout-Flow (keine fixed-Position): schiebt aktive .screen
+      // nach unten, statt Top-UI (Score/Leben/Zahnrad) zu überdecken.
+      banner.style.cssText = 'background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;width:100%;box-sizing:border-box;';
       document.body.prepend(banner);
     });
   }
