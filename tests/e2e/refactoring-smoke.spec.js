@@ -39,15 +39,29 @@ test('Training-Flow: Reihe 3 öffnen, Frage erscheint', async ({ page }) => {
   expect(text).toMatch(/3\s*[×x]\s*\d+|\d+\s*[×x]\s*3|^\d+\s*[÷:]\s*3/);
 });
 
-test('Migration: leerer State erzeugt v4-Schema', async ({ page }) => {
-  await page.evaluate(() => localStorage.removeItem('henry_einmaleins'));
+test('Migration: v1-State wird beim Boot auf v4 migriert', async ({ page }) => {
+  // Inject v1-shaped state (matching real legacy save structure)
+  await page.evaluate(() => {
+    localStorage.setItem('henry_einmaleins', JSON.stringify({
+      _version: 1, name: 'TestKind', xp: 100,
+      settings: { grosses1x1: false, inputMode: 'tap', reiheMax: { 1: 20, 2: 20, 3: 20 } },
+    }));
+  });
   await page.reload();
-  const state = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_einmaleins') || 'null'));
-  if (state) {
-    expect(state._version).toBe(4);
-    expect(state.settings).toBeDefined();
-    expect(state.blitzConfig).toBeDefined();
-  }
+  await page.waitForLoadState('networkidle');
+  // Read the in-memory state object that the app's boot IIFE migrated
+  const migrated = await page.evaluate(() => ({
+    version: state._version,
+    inputMode: state.settings.inputMode,
+    hasBlitzConfig: !!state.blitzConfig,
+    hasTrainingConfig: !!state.trainingConfig,
+    blitzRechenart: state.blitzConfig?.rechenart,
+  }));
+  expect(migrated.version).toBe(4);
+  expect(migrated.inputMode).toBe('both'); // v1->v2 migrates inputMode 'tap' -> 'both'
+  expect(migrated.hasBlitzConfig).toBe(true);
+  expect(migrated.hasTrainingConfig).toBe(true);
+  expect(migrated.blitzRechenart).toBe('mult');
 });
 
 test('Service Worker registriert', async ({ page }) => {
