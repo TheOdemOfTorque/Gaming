@@ -80,4 +80,16 @@ test.describe('with clean state', () => {
     });
     expect(swReady).toBe(true);
   });
+
+  test('logic.js geladen — Funktions-Symbole verfügbar', async ({ page }) => {
+    await page.goto('/1x1-trainer/');
+    const fns = await page.evaluate(() => ({
+      pickBlitzReihe: typeof pickBlitzReihe,
+      resolveRechenart: typeof resolveRechenart,
+      addBlitzListeEntry: typeof addBlitzListeEntry,
+    }));
+    expect(fns.pickBlitzReihe).toBe('function');
+    expect(fns.resolveRechenart).toBe('function');
+    expect(fns.addBlitzListeEntry).toBe('function');
+  });
 });
