@@ -2059,9 +2059,7 @@ function endGame(reason) {
         rechenart: game.rechenart,
         datum: new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
       };
-      state.highScores.blitzListe.push(entry);
-      state.highScores.blitzListe.sort((a,b) => b.score - a.score);
-      state.highScores.blitzListe = state.highScores.blitzListe.slice(0, 5);
+      state.highScores.blitzListe = addBlitzListeEntry(state.highScores.blitzListe, entry);
     }
   }
   if (game.mode === 'turnier') {
