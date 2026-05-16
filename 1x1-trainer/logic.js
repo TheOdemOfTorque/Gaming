@@ -1,7 +1,8 @@
 // Pure functions — kein DOM, kein localStorage, keine Globals
 
 var STATE_VERSION = 4;
-var STAR_COSTS = [800, 1400, 2000, 2800];
+// Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
+var STAR_COSTS = [2400, 4200, 6000, 8400];
 var LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
   { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
@@ -173,11 +174,14 @@ function shuffle(a) {
 
 function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
-// XP pro richtige Antwort: combo-basierte Tiers + modus-Multiplikator.
+// XP pro richtige Antwort: combo-basierte Tiers (Basis-XP) × modus-Multiplikator.
+// Recalibrated 2026-05-16: training boostet Lernen, blitz dämpft Speed-Drill, turnier
+// unverändert. Unbekannte Modi fallen auf 1.0 zurück.
+var XP_MODE_MULTIPLIERS = { training: 1.5, blitz: 0.4, turnier: 1.3 };
 function computeAnswerXP(combo, mode) {
-  let xp = combo >= 10 ? 13 : combo >= 5 ? 9 : combo >= 3 ? 7 : 5;
-  if (mode === 'turnier') xp = Math.round(xp * 1.3);
-  return xp;
+  const baseXP = combo >= 10 ? 13 : combo >= 5 ? 9 : combo >= 3 ? 7 : 5;
+  const m = XP_MODE_MULTIPLIERS[mode] != null ? XP_MODE_MULTIPLIERS[mode] : 1.0;
+  return Math.round(baseXP * m);
 }
 
 // XP-Kosten für nächsten Stern; STAR_COSTS-Array wird am letzten Eintrag gecappt.
@@ -192,5 +196,5 @@ if (typeof module !== 'undefined') {
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,
-                     computeAnswerXP, nextStarCost };
+                     computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS };
 }
