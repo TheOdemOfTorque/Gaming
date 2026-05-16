@@ -119,6 +119,12 @@ function getLevelInfo(xp) {
            xpIn, xpNeed, progress: nxt ? Math.min(xpIn / xpNeed, 1) : 1 };
 }
 
+function getMaxReihe(settings) { return settings.grosses1x1 ? 20 : 10; }
+function getMaxFactor(settings, reihe) {
+  if (!settings.grosses1x1) return 10;
+  return settings.reiheMax[reihe] || 20;
+}
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -150,7 +156,8 @@ function shuffle(a) {
 function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
 if (typeof module !== 'undefined') {
-  module.exports = { pickBlitzReihe, addBlitzListeEntry,
+  module.exports = { getMaxReihe, getMaxFactor,
+                     pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,

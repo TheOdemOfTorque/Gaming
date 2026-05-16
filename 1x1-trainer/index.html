@@ -1258,9 +1258,9 @@ function updateHomeUI() {
   document.getElementById('level-xp-home').textContent   = `${info.xpIn} / ${info.xpNeed} XP`;
   document.getElementById('xp-fill-home').style.width    = (info.progress * 100) + '%';
   document.getElementById('trophy-progress').textContent = `${state.achievements.length} / ${ACHIEVEMENTS.length}`;
-  const maxReihe = getMaxReihe();
+  const maxReihe = getMaxReihe(state.settings);
   const masteredCount = Object.entries(state.reiheStats).filter(([k, r]) => parseInt(k) <= maxReihe && r.consecutivePerfect >= 6).length;
-  document.getElementById('stats-home-desc').textContent = `${masteredCount} von ${getMaxReihe()} Reihen gemeistert`;
+  document.getElementById('stats-home-desc').textContent = `${masteredCount} von ${getMaxReihe(state.settings)} Reihen gemeistert`;
   document.getElementById('footer-note').textContent = state.settings.grosses1x1
     ? 'Einmaleins-Trainer · Großes 1×1 aktiv' : 'Einmaleins-Trainer · Kleines 1×1';
 
@@ -1365,7 +1365,7 @@ function showTrainingPicker() {
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = '1fr 1fr';
   grid.style.gap = '8px';
-  for (let i = 1; i <= getMaxReihe(); i++) {
+  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
     const rs = state.reiheStats[i] || {};
     const multMastered = areAllQuestionsMastered(i);
     const multPlayed   = (rs.totalQuestions || 0) > 0;
@@ -1433,7 +1433,7 @@ function showBlitzPicker() {
   document.querySelectorAll('#blitz-rechenart-toggle .rechenart-btn').forEach(b => {
     b.classList.toggle('active-blitz', b.dataset.r === (cfg.rechenart || 'mult'));
   });
-  const maxR = getMaxReihe();
+  const maxR = getMaxReihe(state.settings);
   const alleBtn = document.getElementById('blitz-alle-btn');
   document.getElementById('blitz-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
   alleBtn.classList.toggle('selected', cfg.alleReihen);
@@ -1608,8 +1608,6 @@ document.getElementById('turnier-modal').addEventListener('click', function(e) {
 let game = {};
 
 
-function getMaxReihe()       { return state.settings.grosses1x1 ? 20 : 10; }
-function getMaxFactor(reihe) { if (!state.settings.grosses1x1) return 10; return state.settings.reiheMax[reihe] || 20; }
 
 function getQS(reihe, factor) {
   if (!state.questionStats[reihe]) state.questionStats[reihe] = {};
@@ -1636,7 +1634,7 @@ function pickWeightedFactor(reihe, maxF) {
 }
 
 function generateTrainingSequence(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   const totalQ = maxF >= 20 ? 30 : 20;
   const required = shuffle(Array.from({length: maxF}, (_, i) => i + 1));
   const extras = Array.from({length: totalQ - maxF}, () => pickWeightedFactor(reihe, maxF));
@@ -1644,7 +1642,7 @@ function generateTrainingSequence(reihe) {
 }
 
 function areAllQuestionsMastered(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   for (let f = 1; f <= maxF; f++) {
     if ((state.questionStats[reihe]?.[f]?.consecutiveCorrect ?? 0) < 6) return false;
   }
@@ -1662,10 +1660,10 @@ function makeQuestion() {
   if (game.mode === 'training') {
     a = game.reihe; b = game.sequence[game.qCount];
   } else if (game.mode === 'blitz') {
-    a = pickBlitzReihe(state.blitzConfig, getMaxReihe()) ?? rnd(1, getMaxReihe()); b = rnd(1, getMaxFactor(a));
+    a = pickBlitzReihe(state.blitzConfig, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
   } else { // turnier: difficulty grows each round
-    const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
-    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
+    const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe(state.settings));
+    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(state.settings, a), max));
   }
 
   const rechenart = resolveRechenart(getActiveRechenartCfg());
@@ -2006,7 +2004,7 @@ function checkAchievements() {
   give('freezeused', (state.streakFreezeTotal || 0) >= 1);
   give('level5',     getLevelInfo(state.xp).level >= 5);
   give('level10',    getLevelInfo(state.xp).level >= 10);
-  give('allreihen',  trainedSet.size >= getMaxReihe());
+  give('allreihen',  trainedSet.size >= getMaxReihe(state.settings));
   give('kleines1x1', [1,2,3,4,5,6,7,8,9,10].every(i => areAllQuestionsMastered(i)));
   give('grosses1x1', Array.from({length:20},(_,i)=>i+1).every(i => areAllQuestionsMastered(i)));
   for (let i = 1; i <= 20; i++) {
@@ -2075,7 +2073,7 @@ function playAgain() {
 
 // ── STATS SCREEN ───────────────────────────────────────
 function showReiheDetail(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   const MASTERY = 6;
   document.getElementById('reihe-detail-title').textContent = `${reihe}er-Reihe — Aufgaben`;
   const grid = document.getElementById('reihe-detail-grid');
@@ -2113,7 +2111,7 @@ function renderStats() {
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = '';
 
-  for (let i = 1; i <= getMaxReihe(); i++) {
+  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
     const rs = state.reiheStats[i];
     const untrained = rs.sessions === 0;
     const rate = rs.totalQuestions > 0 ? Math.round(rs.totalCorrect / rs.totalQuestions * 100) : null;
@@ -2137,8 +2135,8 @@ function renderStats() {
     grid.appendChild(card);
   }
 
-  const fill = Math.round(mastered / getMaxReihe() * 100);
-  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe()}`;
+  const fill = Math.round(mastered / getMaxReihe(state.settings) * 100);
+  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe(state.settings)}`;
   document.getElementById('stats-progress-fill').style.width = fill + '%';
 }
 
