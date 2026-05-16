@@ -1726,11 +1726,6 @@ document.getElementById('turnier-modal').addEventListener('click', function(e) {
 // ── GAME STATE ─────────────────────────────────────────
 let game = {};
 
-function shuffle(a) {
-  for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
-  return a;
-}
-function rnd(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 
 function getMaxReihe()       { return state.settings.grosses1x1 ? 20 : 10; }
 function getMaxFactor(reihe) { if (!state.settings.grosses1x1) return 10; return state.settings.reiheMax[reihe] || 20; }
