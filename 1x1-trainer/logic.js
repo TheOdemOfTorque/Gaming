@@ -109,6 +109,16 @@ function migrateState(s) {
   return s;
 }
 
+function getLevelInfo(xp) {
+  let lvl = 0;
+  for (let i = LEVELS.length - 1; i >= 0; i--) { if (xp >= LEVELS[i].xp) { lvl = i; break; } }
+  const cur = LEVELS[lvl], nxt = LEVELS[lvl + 1] || null;
+  const xpIn = xp - cur.xp;
+  const xpNeed = nxt ? nxt.xp - cur.xp : 1;
+  return { level: lvl + 1, title: cur.title, avatar: cur.avatar,
+           xpIn, xpNeed, progress: nxt ? Math.min(xpIn / xpNeed, 1) : 1 };
+}
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -144,5 +154,5 @@ if (typeof module !== 'undefined') {
                      resolveRechenart, shuffle, rnd,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
-                     STATE_MIGRATIONS, migrateState };
+                     STATE_MIGRATIONS, migrateState, getLevelInfo };
 }

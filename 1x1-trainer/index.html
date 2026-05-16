@@ -948,17 +948,6 @@ function saveState() {
   try { localStorage.setItem('henry_einmaleins', JSON.stringify(toSave)); } catch {}
 }
 
-// ── LEVEL HELPER ───────────────────────────────────────
-function getLevelInfo(xp) {
-  let lvl = 0;
-  for (let i = LEVELS.length - 1; i >= 0; i--) { if (xp >= LEVELS[i].xp) { lvl = i; break; } }
-  const cur = LEVELS[lvl], nxt = LEVELS[lvl + 1] || null;
-  const xpIn = xp - cur.xp;
-  const xpNeed = nxt ? nxt.xp - cur.xp : 1;
-  return { level: lvl + 1, title: cur.title, avatar: cur.avatar,
-           xpIn, xpNeed, progress: nxt ? Math.min(xpIn / xpNeed, 1) : 1 };
-}
-
 // ── AUDIO ──────────────────────────────────────────────
 let audioCtx = null;
 function getCtx() {
