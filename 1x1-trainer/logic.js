@@ -173,11 +173,24 @@ function shuffle(a) {
 
 function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
 
+// XP pro richtige Antwort: combo-basierte Tiers + modus-Multiplikator.
+function computeAnswerXP(combo, mode) {
+  let xp = combo >= 10 ? 13 : combo >= 5 ? 9 : combo >= 3 ? 7 : 5;
+  if (mode === 'turnier') xp = Math.round(xp * 1.3);
+  return xp;
+}
+
+// XP-Kosten für nächsten Stern; STAR_COSTS-Array wird am letzten Eintrag gecappt.
+function nextStarCost(stars) {
+  return STAR_COSTS[Math.min(stars, STAR_COSTS.length - 1)];
+}
+
 if (typeof module !== 'undefined') {
   module.exports = { getMaxReihe, getMaxFactor, getQuestionWeight, pickWeightedFactor,
                      pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
-                     STATE_MIGRATIONS, migrateState, getLevelInfo };
+                     STATE_MIGRATIONS, migrateState, getLevelInfo,
+                     computeAnswerXP, nextStarCost };
 }
