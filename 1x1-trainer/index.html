@@ -1781,12 +1781,6 @@ function pickBlitzReihe() {
   return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
 }
 
-function resolveRechenart(cfg) {
-  const r = (cfg && cfg.rechenart) || 'mult';
-  if (r === 'gemischt') return Math.random() < 0.5 ? 'mult' : 'div';
-  return r;
-}
-
 function getActiveRechenartCfg() {
   if (game.mode === 'blitz')    return state.blitzConfig;
   if (game.mode === 'turnier')  return state.turnierConfig;
