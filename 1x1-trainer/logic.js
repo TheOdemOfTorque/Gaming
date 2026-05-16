@@ -15,6 +15,38 @@ var LEVELS = [
   { xp: 6500, title: '👑 Einmaleins-Legende', avatar: '👑' },
 ];
 
+function defaultSettings() {
+  const reiheMax = {};
+  for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
+  return { grosses1x1: false, reiheMax, inputMode: 'both' };
+}
+
+function defaultReiheStats() {
+  const s = {};
+  for (let i = 1; i <= 20; i++) s[i] = {
+    sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0,
+    divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0
+  };
+  return s;
+}
+
+function defaultQS() { return { correct: 0, wrong: 0, consecutiveCorrect: 0 }; }
+
+function defaultState() {
+  return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
+           streak: 0, lastPlayDate: null,
+           highScores: { blitz: 0, turnier: 0, blitzListe: [],
+                         blitzDiv: 0, blitzGemischt: 0,
+                         turnierDiv: 0, turnierGemischt: 0 },
+           blitzConfig: { reihen: [], alleReihen: true, rechenart: 'mult' },
+           trainingConfig: { rechenart: 'mult' },
+           turnierConfig: { rechenart: 'mult' },
+           trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
+           streakFreezeUsedDate: null, streakFreezeTotal: 0,
+           questionStats: {},
+           stars: 0, gameSecondsLeft: 0 };
+}
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -48,5 +80,6 @@ function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + mi
 if (typeof module !== 'undefined') {
   module.exports = { pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
-                     STATE_VERSION, STAR_COSTS, LEVELS };
+                     STATE_VERSION, STAR_COSTS, LEVELS,
+                     defaultSettings, defaultReiheStats, defaultState, defaultQS };
 }
