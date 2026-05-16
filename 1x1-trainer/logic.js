@@ -20,28 +20,7 @@ function resolveRechenart(cfg) {
   return r;
 }
 
-// Migration v3→v4: Division-Felder zu einem State-Objekt hinzufügen.
-function migrateDivState(s) {
-  if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
-  if (!s.turnierConfig)  s.turnierConfig  = { rechenart: 'mult' };
-  if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true, rechenart: 'mult' };
-  if (!s.blitzConfig.rechenart) s.blitzConfig.rechenart = 'mult';
-  if (!s.highScores) s.highScores = {};
-  ['blitzDiv','blitzGemischt','turnierDiv','turnierGemischt'].forEach(k => {
-    if (s.highScores[k] === undefined) s.highScores[k] = 0;
-  });
-  if (!s.reiheStats) s.reiheStats = {};
-  for (let i = 1; i <= 20; i++) { // 20 = MAX_REIHE (sync mit index.html)
-    if (!s.reiheStats[i]) s.reiheStats[i] = {};
-    const r = s.reiheStats[i];
-    if (r.divConsecutivePerfect === undefined) r.divConsecutivePerfect = 0;
-    if (r.divCorrect            === undefined) r.divCorrect            = 0;
-    if (r.divWrong              === undefined) r.divWrong              = 0;
-  }
-  return s;
-}
-
 if (typeof module !== 'undefined') {
   module.exports = { pickBlitzReihe, addBlitzListeEntry,
-                     resolveRechenart, migrateDivState };
+                     resolveRechenart };
 }
