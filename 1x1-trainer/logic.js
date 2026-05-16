@@ -1,6 +1,6 @@
 // Pure functions — kein DOM, kein localStorage, keine Globals
 
-var STATE_VERSION = 4;
+var STATE_VERSION = 5;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 var LEVELS = [
@@ -99,6 +99,16 @@ var STATE_MIGRATIONS = [
     }
     return s;
   },
+  // v4 → v5: Marathon-Modus löst Turnier ab. Alte Turnier-Highscores (Punkte) sind nicht
+  // mehr vergleichbar mit neuer Metrik (Anzahl Fragen). Reset auf 0, damit Henry sofort
+  // einen neuen Rekord erspielen kann.
+  (s) => {
+    if (!s.highScores) s.highScores = {};
+    s.highScores.turnier         = 0;
+    s.highScores.turnierDiv      = 0;
+    s.highScores.turnierGemischt = 0;
+    return s;
+  },
 ];
 
 function migrateState(s) {
@@ -189,6 +199,14 @@ function nextStarCost(stars) {
   return STAR_COSTS[Math.min(stars, STAR_COSTS.length - 1)];
 }
 
+// Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
+// qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
+// Wird gecappt bei maxReihe (Großes 1×1 = 20).
+function marathonDifficulty(qCount, maxReihe) {
+  const raw = 3 + Math.floor(Math.sqrt(qCount * 5));
+  return Math.min(raw, maxReihe);
+}
+
 if (typeof module !== 'undefined') {
   module.exports = { getMaxReihe, getMaxFactor, getQuestionWeight, pickWeightedFactor,
                      pickBlitzReihe, addBlitzListeEntry,
@@ -196,5 +214,6 @@ if (typeof module !== 'undefined') {
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,
-                     computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS };
+                     computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS,
+                     marathonDifficulty };
 }

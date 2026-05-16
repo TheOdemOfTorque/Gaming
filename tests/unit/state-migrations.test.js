@@ -1,9 +1,9 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
 
 describe('migrateState', () => {
-  test('leerer State {} bekommt komplettes v4-Schema', () => {
+  test('leerer State {} bekommt komplettes v5-Schema', () => {
     const result = migrateState({});
-    expect(result._version).toBe(4);
+    expect(result._version).toBe(5);
     expect(result.settings).toBeDefined();
     expect(result.settings.grosses1x1).toBe(false);
     expect(result.settings.inputMode).toBe('both');
@@ -11,16 +11,39 @@ describe('migrateState', () => {
     expect(result.trainingConfig.rechenart).toBe('mult');
     expect(result.highScores.blitzDiv).toBe(0);
     expect(result.highScores.blitzListe).toEqual([]);
+    // v5: turnier highscores resettet (Marathon-Modus, neue Semantik)
+    expect(result.highScores.turnier).toBe(0);
+    expect(result.highScores.turnierDiv).toBe(0);
+    expect(result.highScores.turnierGemischt).toBe(0);
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
     const v1 = { _version: 1, settings: { grosses1x1: false, inputMode: 'tap', reiheMax: { 1: 20 } } };
     const result = migrateState(v1);
-    expect(result._version).toBe(4);
+    expect(result._version).toBe(5);
     expect(result.settings.inputMode).toBe('both');
   });
 
-  test('idempotent: v4-State unverändert', () => {
+  test('v4-State mit altem turnier-Highscore wird auf 0 resettet (v4→v5)', () => {
+    const v4 = { _version: 4, name: 'Henry', xp: 1000,
+      settings: { grosses1x1: false, inputMode: 'both', reiheMax: {} },
+      highScores: { turnier: 247, turnierDiv: 180, turnierGemischt: 99, blitz: 50, blitzListe: [] },
+      blitzConfig: { reihen: [], alleReihen: true, rechenart: 'mult' },
+      trainingConfig: { rechenart: 'mult' }, turnierConfig: { rechenart: 'mult' },
+      reiheStats: {}, questionStats: {},
+    };
+    const result = migrateState(v4);
+    expect(result._version).toBe(5);
+    expect(result.highScores.turnier).toBe(0);
+    expect(result.highScores.turnierDiv).toBe(0);
+    expect(result.highScores.turnierGemischt).toBe(0);
+    // Andere highscores NICHT angetastet
+    expect(result.highScores.blitz).toBe(50);
+    expect(result.name).toBe('Henry');
+    expect(result.xp).toBe(1000);
+  });
+
+  test('idempotent: v5-State unverändert', () => {
     const baseline = migrateState({});
     const again = migrateState({ ...baseline });
     expect(again._version).toBe(baseline._version);
@@ -63,5 +86,16 @@ describe('STATE_MIGRATIONS', () => {
     expect(result.trainingConfig).toEqual({ rechenart: 'mult' });
     expect(result.turnierConfig).toEqual({ rechenart: 'mult' });
     expect(result.highScores.blitzDiv).toBe(0);
+  });
+
+  test('Migration 4 (v4->v5) resettet turnier-Highscores auf 0', () => {
+    const v4 = { _version: 4,
+      highScores: { turnier: 500, turnierDiv: 200, turnierGemischt: 100, blitz: 42 }
+    };
+    const result = STATE_MIGRATIONS[4](v4);
+    expect(result.highScores.turnier).toBe(0);
+    expect(result.highScores.turnierDiv).toBe(0);
+    expect(result.highScores.turnierGemischt).toBe(0);
+    expect(result.highScores.blitz).toBe(42); // unangetastet
   });
 });

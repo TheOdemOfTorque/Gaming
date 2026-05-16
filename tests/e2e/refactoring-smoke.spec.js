@@ -45,12 +45,13 @@ test.describe('with clean state', () => {
     expect(text).toMatch(/3\s*[×x]\s*\d+|\d+\s*[×x]\s*3|^\d+\s*[÷:]\s*3/);
   });
 
-  test('Migration: v1-State wird beim Boot auf v4 migriert', async ({ page }) => {
-    // Inject v1-shaped state (matching real legacy save structure)
+  test('Migration: v1-State wird beim Boot auf aktuelle STATE_VERSION migriert', async ({ page }) => {
+    // Inject v1-shaped state mit altem turnier-Highscore (sollte resettet werden bei v4→v5)
     await page.evaluate(() => {
       localStorage.setItem('henry_einmaleins', JSON.stringify({
         _version: 1, name: 'TestKind', xp: 100,
         settings: { grosses1x1: false, inputMode: 'tap', reiheMax: { 1: 20, 2: 20, 3: 20 } },
+        highScores: { turnier: 247, blitz: 30 }, // alter turnier-Wert wird resettet
       }));
     });
     await page.reload();
@@ -59,16 +60,23 @@ test.describe('with clean state', () => {
     // inline <script> of index.html. The refactoring should preserve this global.
     const migrated = await page.evaluate(() => ({
       version: state._version,
+      stateVersion: STATE_VERSION,
       inputMode: state.settings.inputMode,
       hasBlitzConfig: !!state.blitzConfig,
       hasTrainingConfig: !!state.trainingConfig,
       blitzRechenart: state.blitzConfig?.rechenart,
+      turnierHighscore: state.highScores.turnier,
+      blitzHighscore: state.highScores.blitz,
     }));
-    expect(migrated.version).toBe(4);
+    expect(migrated.version).toBe(migrated.stateVersion);
     expect(migrated.inputMode).toBe('both'); // v1->v2 migrates inputMode 'tap' -> 'both'
     expect(migrated.hasBlitzConfig).toBe(true);
     expect(migrated.hasTrainingConfig).toBe(true);
     expect(migrated.blitzRechenart).toBe('mult');
+    // v4→v5: turnier-Highscore wurde auf 0 resettet
+    expect(migrated.turnierHighscore).toBe(0);
+    // blitz-Highscore unangetastet
+    expect(migrated.blitzHighscore).toBe(30);
   });
 
   test('Service Worker registriert', async ({ page }) => {

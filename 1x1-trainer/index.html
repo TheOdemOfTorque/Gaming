@@ -468,9 +468,9 @@
       <div id="blitz-rekord-label" style="font-size:0.7rem;color:#fbbf24;margin-top:4px;display:none">🏆 Rekord: <strong id="blitz-rekord-val">0</strong></div>
     </div>
     <div class="mode-card turnier" onclick="showTurnierPicker()">
-      <span class="mode-icon">🏆</span>
-      <div class="mode-name">Turnier</div>
-      <div class="mode-desc">10 Fragen, 3 Leben</div>
+      <span class="mode-icon">🏃</span>
+      <div class="mode-name">Marathon</div>
+      <div class="mode-desc">Wie weit kommst du?</div>
     </div>
     <div class="mode-card training" onclick="showTrainingPicker()">
       <span class="mode-icon">📚</span>
@@ -785,8 +785,8 @@
 <!-- TURNIER-PICKER -->
 <div class="modal-overlay" id="turnier-modal">
   <div class="modal-sheet">
-    <div class="modal-title">🏆 Turnier</div>
-    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">10 Fragen · steigende Schwierigkeit</div>
+    <div class="modal-title">🏃 Marathon</div>
+    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">Wie weit kommst du mit 3 Leben?</div>
     <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
     <div class="rechenart-toggle" id="turnier-rechenart-toggle">
       <button class="rechenart-btn" data-r="mult"     onclick="selectTurnierRechenart('mult')">×</button>
@@ -929,7 +929,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.5'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.6'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 let state = (() => {
   try {
     const raw = localStorage.getItem('henry_einmaleins');
@@ -1644,8 +1644,8 @@ function makeQuestion() {
     a = game.reihe; b = game.sequence[game.qCount];
   } else if (game.mode === 'blitz') {
     a = pickBlitzReihe(state.blitzConfig, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
-  } else { // turnier: difficulty grows each round
-    const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe(state.settings));
+  } else { // turnier (Marathon-Modus): unbegrenzte Fragen, sublineare Schwierigkeitskurve
+    const max = marathonDifficulty(game.qCount, getMaxReihe(state.settings));
     a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(state.settings, a), max));
   }
 
@@ -1703,7 +1703,7 @@ function _doStartGame(mode, reihe, inputType) {
 
   const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
   const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
-  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
+  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏃 Marathon', training:'📚 Training' };
   document.getElementById('game-mode-label').textContent =
     modeLabels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '') + rechenartSuffix;
 
@@ -1739,7 +1739,6 @@ function startTimer() {
 // ── NEXT QUESTION ──────────────────────────────────────
 function nextQuestion() {
   if (!game.active) return;
-  if (game.mode === 'turnier' && game.qCount >= 10) { endGame('complete'); return; }
   if (game.mode === 'training' && game.qCount >= game.sequence.length) { endGame('complete'); return; }
 
   game.answered = false;
@@ -1751,9 +1750,10 @@ function nextQuestion() {
 
   if (game.mode === 'blitz') {
     document.getElementById('question-progress').textContent = `${game.correct} richtig`;
+  } else if (game.mode === 'turnier') {
+    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1}`;
   } else {
-    const total = game.mode === 'turnier' ? 10 : game.sequence.length;
-    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1} von ${total}`;
+    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1} von ${game.sequence.length}`;
   }
 
   const useType = game.inputType === 'type';
@@ -1919,10 +1919,11 @@ function endGame(reason) {
     }
   }
   if (game.mode === 'turnier') {
+    // Marathon-Modus: Highscore = Anzahl geschaffte Fragen (game.correct), nicht game.score
     const tsKey = game.rechenart === 'div' ? 'turnierDiv'
                 : game.rechenart === 'gemischt' ? 'turnierGemischt'
                 : 'turnier';
-    if (game.score > state.highScores[tsKey]) state.highScores[tsKey] = game.score;
+    if (game.correct > state.highScores[tsKey]) state.highScores[tsKey] = game.correct;
   }
 
   // Per-row stats (training mode only, only if at least 1 question answered)
@@ -2010,12 +2011,25 @@ function showResults(reason, leveledUp, newAchs) {
     title = game.correct>=40?(n?`Unglaublich, ${n}!`:'Unglaublich!'):game.correct>=20?'Klasse gemacht!':(n?`Gut geübt, ${n}!`:'Gut geübt!');
     sub   = `Blitz-Modus · ${game.correct} richtig · Rekord: ${state.highScores.blitz}`;
   } else if (reason === 'no-lives') {
-    emoji='😤'; title='Nächstes Mal klappt\'s!';
-    sub = `Turnier · ${game.correct} von 10 richtig`;
+    if (game.mode === 'turnier') {
+      // Marathon: jeder Run endet mit no-lives. Message basiert auf Anzahl geschaffter Fragen.
+      const tsKey = game.rechenart === 'div' ? 'turnierDiv'
+                  : game.rechenart === 'gemischt' ? 'turnierGemischt'
+                  : 'turnier';
+      const rekord = state.highScores[tsKey];
+      const newRecord = game.correct >= rekord && game.correct > 0;
+      emoji = newRecord ? '🏆' : game.correct>=20 ? '🏃' : '😤';
+      title = newRecord ? (n?`Neuer Rekord, ${n}! 🏆`:'Neuer Rekord! 🏆')
+            : game.correct>=20 ? 'Stark durchgehalten!' : 'Nächstes Mal klappt\'s!';
+      sub = `Marathon · ${game.correct} Fragen geschafft · Rekord: ${Math.max(rekord, game.correct)}`;
+    } else {
+      emoji='😤'; title='Nächstes Mal klappt\'s!';
+      sub = `Training · ${game.correct} richtig von ${game.qCount}`;
+    }
   } else {
     if (game.wrong===0) { emoji='👑'; title=n?`PERFEKT, ${n}! 🤩`:'PERFEKT! 🤩'; }
     else if (acc>=80)   { emoji='🌟'; title='Super Ergebnis!'; }
-    const label = game.mode==='turnier'?'Turnier':`${game.reihe}er-Reihe`;
+    const label = `${game.reihe}er-Reihe`;
     sub = `${label} · ${acc}% richtig`;
   }
 
