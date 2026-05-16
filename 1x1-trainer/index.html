@@ -880,21 +880,6 @@
 
 <script src="logic.js"></script>
 <script>
-// ── CONSTANTS ──────────────────────────────────────────
-const STAR_COSTS = [800, 1400, 2000, 2800]; // XP cost for next star (caps at index 3)
-
-const LEVELS = [
-  { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
-  { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
-  { xp:  500, title: '📚 Schüler',            avatar: '📖' },
-  { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
-  { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
-  { xp: 2000, title: '🦸 Zahlen-Held',        avatar: '🦸' },
-  { xp: 2800, title: '⚔️ Rechen-Ritter',      avatar: '⚔️' },
-  { xp: 3800, title: '🗡️ Mathe-Krieger',      avatar: '🗡️' },
-  { xp: 5000, title: '🏆 Zahlen-Meister',     avatar: '🏆' },
-  { xp: 6500, title: '👑 Einmaleins-Legende', avatar: '👑' },
-];
 
 const ACHIEVEMENTS = [
   // ── Erste Schritte ──
@@ -974,8 +959,6 @@ function defaultState() {
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
 const APP_VERSION = '2.3'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
-const STATE_VERSION = 4;
-
 const STATE_MIGRATIONS = [
   // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
   (s) => {

@@ -1,5 +1,20 @@
 // Pure functions — kein DOM, kein localStorage, keine Globals
 
+var STATE_VERSION = 4;
+var STAR_COSTS = [800, 1400, 2000, 2800];
+var LEVELS = [
+  { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
+  { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
+  { xp:  500, title: '📚 Schüler',            avatar: '📖' },
+  { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
+  { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
+  { xp: 2000, title: '🦸 Zahlen-Held',        avatar: '🦸' },
+  { xp: 2800, title: '⚔️ Rechen-Ritter',      avatar: '⚔️' },
+  { xp: 3800, title: '🗡️ Mathe-Krieger',      avatar: '🗡️' },
+  { xp: 5000, title: '🏆 Zahlen-Meister',     avatar: '🏆' },
+  { xp: 6500, title: '👑 Einmaleins-Legende', avatar: '👑' },
+];
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -32,5 +47,6 @@ function rnd(min, max) { return Math.floor(Math.random() * (max - min + 1)) + mi
 
 if (typeof module !== 'undefined') {
   module.exports = { pickBlitzReihe, addBlitzListeEntry,
-                     resolveRechenart, shuffle, rnd };
+                     resolveRechenart, shuffle, rnd,
+                     STATE_VERSION, STAR_COSTS, LEVELS };
 }
