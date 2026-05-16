@@ -929,7 +929,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.6'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.7'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 let state = (() => {
   try {
     const raw = localStorage.getItem('henry_einmaleins');
@@ -1714,10 +1714,14 @@ function _doStartGame(mode, reihe, inputType) {
     livesWrap.style.display = 'none';
     document.getElementById('game-timer').textContent = '60';
     document.getElementById('game-timer').classList.remove('warning');
-  } else {
+  } else if (mode === 'turnier') {
     timerWrap.style.display = 'none';
     livesWrap.style.display = 'block';
     renderLives();
+  } else {
+    // training: keine Leben, kein Timer — entspannt durchspielen
+    timerWrap.style.display = 'none';
+    livesWrap.style.display = 'none';
   }
   document.getElementById('game-score').textContent = '0';
   showScreen('game');
@@ -1826,7 +1830,8 @@ function processAnswer(ok, xpX, xpY) {
   } else {
     playWrong();
     game.combo = 0; game.wrong++;
-    if (game.mode !== 'blitz') { game.lives--; renderLives(); }
+    // Nur Marathon hat Leben — Training motiviert nicht durch Game-Over, Blitz ist timer-bound.
+    if (game.mode === 'turnier') { game.lives--; renderLives(); }
     const msgs = ['Fast! Nicht ganz…','Nochmal versuchen!','Das war knapp!', getName() ? `Nicht aufgeben, ${getName()}!` : 'Nicht aufgeben!'];
     showFeedback(msgs[Math.floor(Math.random()*msgs.length)], '#EF4444');
   }
@@ -1841,7 +1846,7 @@ function processAnswer(ok, xpX, xpY) {
   game.qCount++;
   renderCombo();
 
-  if (game.mode !== 'blitz' && game.lives <= 0) {
+  if (game.mode === 'turnier' && game.lives <= 0) {
     setTimeout(()=>endGame('no-lives'), 900); return;
   }
   setTimeout(nextQuestion, ok ? 600 : 1100);
