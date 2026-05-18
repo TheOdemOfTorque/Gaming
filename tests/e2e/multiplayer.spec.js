@@ -7,6 +7,16 @@
  * Die Tests injizieren MP-State direkt in localStorage, um das Onboarding-
  * Formular zu überspringen — der Fokus liegt auf dem Spiel-Flow, nicht auf
  * der Dateneingabe (die wird durch separate Unit-Tests abgedeckt).
+ *
+ * ⚠️  HITTET LIVE-CLOUDFLARE-WORKER (Production!) — jeder Test-Run erzeugt
+ *     echte Scores, Sessions und Challenges in der Production-D1 der
+ *     TEST-E2E-Gruppe. Manuelle Runs only, NICHT in CI.
+ *
+ *     TODO: Migration auf lokalen wrangler-dev mit gesetztem D1 — siehe
+ *     Issue #28 Strategie C. Bis dahin: vorsicht beim Frequent-Run.
+ *
+ *     Schnelle, deterministische, Production-frei: siehe `multiplayer.
+ *     mocked.spec.js` (Playwright Route-Mocks, Issue #28 Strategie B).
  */
 
 const { test, expect } = require('@playwright/test');
@@ -217,6 +227,7 @@ test.describe('Blitz mit Multiplayer', () => {
   });
 
   test('nach Blitz-Runde erscheint Rangliste automatisch', async ({ page }) => {
+    test.setTimeout(80000); // Blitz dauert 60s + Transition + Upload — Default 30s ist zu kurz
     const { p1Token } = await getTokens();
     await loginAs(page, 'E2E-Anna', p1Token);
 
@@ -232,7 +243,7 @@ test.describe('Blitz mit Multiplayer', () => {
     // Nach 1.5s sollte automatisch die Rangliste erscheinen
     await page.locator('#screen-mp-leaderboard.active').waitFor({ timeout: 5000 });
     await expect(page.locator('#screen-mp-leaderboard')).toBeVisible();
-  }, 80000);
+  });
 });
 
 test.describe('Direkte Challenges', () => {
