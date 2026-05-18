@@ -1379,7 +1379,11 @@ async function mpCheckPendingChallenges() {
     if (!res.ok) return;
     const data = await res.json();
     _pendingChallenges = data.challenges || [];
+    // Beide UI-Surfaces aktualisieren: Home-Card-Badge UND Gruppe-Screen-Inbox-Button.
+    // mpUpdateStatusPanel ist DOM-safe auch wenn der mp-join-Screen aktuell nicht
+    // sichtbar ist (Parent ist hidden → keine visuelle Auswirkung).
     mpUpdateChallengeBadge();
+    if (state.mp && state.mp.enabled) mpUpdateStatusPanel();
   } catch (e) { /* offline */ }
 }
 
@@ -1465,8 +1469,12 @@ async function mpSubmitChallenge(score, correctCount) {
   } catch (e) { /* netzwerkfehler — silent */ }
 }
 
-function mpShowChallengeInbox() {
+async function mpShowChallengeInbox() {
   const list = document.getElementById('challenge-inbox-list');
+  // Refetch beim Öffnen — `_pendingChallenges` ist sonst nur so frisch wie der
+  // letzte App-Start oder visibilitychange-Event (siehe Issue #21).
+  list.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.4);padding:24px">Lade…</div>';
+  await mpCheckPendingChallenges();
   if (!_pendingChallenges.length) {
     list.innerHTML = '<div style="text-align:center;color:rgba(255,255,255,0.4);padding:24px">Keine offenen Challenges</div>';
     return;
@@ -3894,6 +3902,16 @@ window.addEventListener('load', () => {
     mpSyncPending();
     mpCheckPendingChallenges();
   }
+
+  // Tab-Focus-Refresh: wenn die App vom Hintergrund zurück sichtbar wird, frisch
+  // pendings + queued uploads abholen — sonst sieht der User Challenges erst nach
+  // manuellem Reload (siehe Issue #21).
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && state.mp && state.mp.enabled) {
+      mpSyncPending();
+      mpCheckPendingChallenges();
+    }
+  });
 });
 </script>
 </body>
