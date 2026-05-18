@@ -113,7 +113,7 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
   <div id="tab-usage" style="display:none">
     <p style="color:#888;font-size:0.82em;margin-bottom:12px">Spielzeit in Minuten — letzte 7 Tage.</p>
     <table>
-      <thead><tr><th>Name</th><th>Aktive Tage (30d)</th><th>Blitz (Min)</th><th>Turnier (Min)</th><th>Training (Min)</th></tr></thead>
+      <thead><tr><th>Name</th><th>Aktive Tage (30d)</th><th>Blitz · 7d</th><th>Turnier · 7d</th><th>Training · 7d</th></tr></thead>
       <tbody id="usage-body"></tbody>
     </table>
   </div>
@@ -144,6 +144,7 @@ const MP_API = 'https://1x1-api.marco-moebus.workers.dev';
 
 let adminState = { code: '', pinHash: '' };
 let _playerStats = [];
+let _players     = []; // Cache der Player-Liste — damit renderPlayers nach loadPlayerStats nochmal aufrufbar ist (für Risiko-Badge mit activeDays30d aus _playerStats)
 
 async function sha256hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -172,7 +173,8 @@ async function adminLogin() {
     document.getElementById('group-title').textContent     = `${data.name} (${code})`;
     document.getElementById('invite-code').textContent     = code;
     document.getElementById('del-group-name').textContent  = `${data.name} (${code})`;
-    renderPlayers(data.players || []);
+    _players = data.players || [];
+    renderPlayers(_players);
     loadLeaderboard();
     loadPlayerStats();
   } catch (e) {
@@ -199,13 +201,24 @@ function showTab(tabId) {
 }
 
 function renderPlayers(players) {
-  document.getElementById('players-body').innerHTML = players.map(p =>
-    `<tr>
-      <td>${p.nickname}</td>
+  document.getElementById('players-body').innerHTML = players.map(p => {
+    // Risiko-Badge basiert auf activeDays30d (aus _playerStats, evtl. noch leer beim
+    // ersten Aufruf). 0 → 🔴 wahrscheinlich abgesprungen, 1-5 → 🟡 sporadisch,
+    // 6+ → 🟢 regelmäßig.
+    const stats = _playerStats.find(s => s.id === p.id);
+    const days  = stats?.activeDays30d;
+    let badge   = '';
+    if (days !== undefined) {
+      if      (days === 0) badge = '<span title="Keine Aktivität in 30 Tagen">🔴</span> ';
+      else if (days <= 5)  badge = `<span title="${days} aktive Tage in 30">🟡</span> `;
+      else                 badge = `<span title="${days} aktive Tage in 30">🟢</span> `;
+    }
+    return `<tr>
+      <td>${badge}${p.nickname}</td>
       <td>${new Date(p.created_at * 1000).toLocaleDateString('de-DE')}</td>
       <td><button class="danger" onclick="removePlayer('${p.id}','${p.nickname}')">Entfernen</button></td>
-    </tr>`
-  ).join('') || '<tr><td colspan="3" style="color:#666">Keine Spieler</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="3" style="color:#666">Keine Spieler</td></tr>';
 }
 
 async function removePlayer(playerId, nickname) {
@@ -222,7 +235,8 @@ async function removePlayer(playerId, nickname) {
         headers: { 'X-Admin-Pin': adminState.pinHash }
       });
       const data = await groupRes.json();
-      renderPlayers(data.players || []);
+      _players = data.players || [];
+      renderPlayers(_players);
       loadPlayerStats();
     } else {
       alert('Fehler beim Entfernen.');
@@ -338,6 +352,7 @@ async function loadPlayerStats() {
     });
     const data = await res.json();
     _playerStats = data.players || [];
+    renderPlayers(_players);  // re-render mit Risiko-Badges nachdem activeDays30d da ist
     renderLernPower();
     renderUsage();
   } catch (e) {
@@ -347,34 +362,58 @@ async function loadPlayerStats() {
 
 function renderLernPower() {
   const reihen = Array.from({ length: 10 }, (_, i) => i + 1);
-  const header = `<tr><th>Spieler</th>${reihen.map(r => `<th style="text-align:center">${r}er</th>`).join('')}</tr>`;
+  const header = `<tr><th>Spieler</th>${reihen.map(r => `<th style="text-align:center">${r}er</th>`).join('')}<th style="text-align:center">Gemeistert</th></tr>`;
 
+  const masteredCounts = [];
   const rows = _playerStats.map(p => {
+    let mastered = 0;
     const cells = reihen.map(r => {
       const stats = p.reiheStats?.[r] || p.reiheStats?.[String(r)];
       if (!stats || !stats.sessions) return '<td style="text-align:center">⚪</td>';
       const consec = stats.consecutivePerfect ?? 0;
-      if (consec >= 6) return '<td style="text-align:center">🟢</td>';
+      if (consec >= 6) { mastered++; return '<td style="text-align:center">🟢</td>'; }
       if (stats.totalCorrect > 0) return '<td style="text-align:center">🟡</td>';
       return '<td style="text-align:center">⚪</td>';
     }).join('');
-    return `<tr><td style="font-weight:500">${p.nickname}</td>${cells}</tr>`;
-  }).join('') || '<tr><td colspan="11" style="color:#666">Keine Daten — erst nach Training-Sessions verfügbar</td></tr>';
+    masteredCounts.push(mastered);
+    const summary = `<td style="text-align:center;font-weight:600;color:${mastered === 10 ? '#4caf50' : mastered >= 5 ? '#ffd700' : '#888'}">${mastered}/10</td>`;
+    return `<tr><td style="font-weight:500">${p.nickname}</td>${cells}${summary}</tr>`;
+  }).join('') || `<tr><td colspan="12" style="color:#666">Keine Daten — erst nach Training-Sessions verfügbar</td></tr>`;
+
+  // Klassen-Durchschnitt als Footer-Zeile
+  const avg = masteredCounts.length > 0
+    ? (masteredCounts.reduce((a, b) => a + b, 0) / masteredCounts.length).toFixed(1)
+    : '0.0';
+  const footer = masteredCounts.length > 0
+    ? `<tr style="border-top:2px solid #444;color:#aaa;font-size:0.85em">
+         <td colspan="11" style="text-align:right;padding-top:8px">Klassen-Durchschnitt:</td>
+         <td style="text-align:center;padding-top:8px;font-weight:600">${avg}/10</td>
+       </tr>`
+    : '';
 
   document.getElementById('lernpower-container').innerHTML =
-    `<table><thead>${header}</thead><tbody>${rows}</tbody></table>`;
+    `<table><thead>${header}</thead><tbody>${rows}${footer}</tbody></table>`;
+}
+
+// Formatiert eine Modus-Zelle: "18 Min · 3× ⌀6m" — total + count + Ø pro Session.
+// Avg hilft "viele kurze Sessions" vs "wenige lange" zu unterscheiden.
+function fmtModeCell(modeData) {
+  if (!modeData || modeData.count === 0) return '—';
+  const totalMin = Math.round(modeData.total_s / 60);
+  const avgMin   = Math.round(modeData.total_s / modeData.count / 60);
+  return `${totalMin} Min · ${modeData.count}× <span style="color:#888;font-size:0.85em">⌀${avgMin}m</span>`;
 }
 
 function renderUsage() {
   document.getElementById('usage-body').innerHTML = _playerStats.map(p => {
-    const modes = { blitz: 0, turnier: 0, training: 0 };
-    (p.sessions7d || []).forEach(s => { if (modes[s.game_mode] !== undefined) modes[s.game_mode] = Math.round(s.total_s / 60); });
+    const modes = { blitz: null, turnier: null, training: null };
+    (p.sessions7d || []).forEach(s => { if (modes[s.game_mode] !== undefined) modes[s.game_mode] = s; });
     return `<tr>
       <td style="font-weight:500">${p.nickname}</td>
       <td>${p.activeDays30d}d</td>
-      <td>${modes.blitz   > 0 ? modes.blitz   + ' Min' : '—'}</td>
-      <td>${modes.turnier > 0 ? modes.turnier + ' Min' : '—'}</td>
-      <td>${modes.training > 0 ? modes.training + ' Min' : '—'}</td>
+      <td>${fmtModeCell(modes.blitz)}</td>
+      <td>${fmtModeCell(modes.turnier)}</td>
+      <td>${fmtModeCell(modes.training)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="5" style="color:#666">Keine Daten</td></tr>';
 }
