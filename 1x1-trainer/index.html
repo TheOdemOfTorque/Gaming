@@ -503,7 +503,7 @@
     <span style="font-size:2rem">👥</span>
     <div style="flex:1">
       <div class="mode-name">Gruppe</div>
-      <div class="mode-desc" id="mp-home-desc">Klasse beitreten &amp; Ergebnisse vergleichen</div>
+      <div class="mode-desc" id="mp-home-desc">Beitreten &amp; Ergebnisse vergleichen</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
       <div id="mp-home-badge" style="display:none;background:rgba(139,92,246,0.25);border:1px solid rgba(139,92,246,0.5);border-radius:12px;padding:2px 10px;font-size:0.72rem;color:#c4b5fd;white-space:nowrap"></div>
@@ -1204,7 +1204,7 @@ function mpUpdateHomeButton() {
     desc.textContent = `Gruppe: ${state.mp.groupCode || ''}`;
   } else {
     badge.style.display = 'none';
-    desc.textContent = 'Klasse beitreten & Ergebnisse vergleichen';
+    desc.textContent = 'Beitreten & Ergebnisse vergleichen';
   }
 }
 

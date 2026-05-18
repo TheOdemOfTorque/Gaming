@@ -70,7 +70,7 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
   <div class="tabs">
     <button class="tab active" onclick="showTab('tab-players')">👥 Spieler</button>
     <button class="tab" onclick="showTab('tab-leaderboard')">⚡ Rangliste</button>
-    <button class="tab" onclick="showTab('tab-lernpower')">📚 Lern-Power</button>
+    <button class="tab" onclick="showTab('tab-reihenpower')">📚 Reihen-Power</button>
     <button class="tab" onclick="showTab('tab-usage')">📊 Nutzung</button>
   </div>
 
@@ -98,12 +98,12 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
     </table>
   </div>
 
-  <!-- Lern-Power -->
-  <div id="tab-lernpower" style="display:none">
+  <!-- Reihen-Power -->
+  <div id="tab-reihenpower" style="display:none">
     <p style="color:#888;font-size:0.82em;margin-bottom:12px">
       🟢 gemeistert (≥6 consecutive correct) &nbsp;·&nbsp; 🟡 in Übung &nbsp;·&nbsp; ⚪ nicht trainiert
     </p>
-    <div id="lernpower-container" style="overflow-x:auto"></div>
+    <div id="reihenpower-container" style="overflow-x:auto"></div>
     <p style="color:#555;font-size:0.78em;margin-top:12px">
       Daten aus dem letzten Fortschritts-Snapshot (wird nach Training-Sessions hochgeladen).
     </p>
@@ -136,7 +136,7 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
 
 <p class="privacy-note">
   ⚠️ Hinweis: Nickname und Lernfortschritt eines Kindes sind in der EU personenbezogene Daten.
-  Für Schulklassen wird Eltern-Einverständnis empfohlen, bevor Daten gespeichert werden.
+  Für die Nutzung in Gruppen wird Eltern-Einverständnis empfohlen, bevor Daten gespeichert werden.
 </p>
 
 <script>
@@ -192,7 +192,7 @@ function adminLogout() {
 }
 
 function showTab(tabId) {
-  ['tab-players', 'tab-leaderboard', 'tab-lernpower', 'tab-usage'].forEach(id => {
+  ['tab-players', 'tab-leaderboard', 'tab-reihenpower', 'tab-usage'].forEach(id => {
     document.getElementById(id).style.display = id === tabId ? 'block' : 'none';
   });
   document.querySelectorAll('.tab').forEach(btn => {
@@ -353,14 +353,14 @@ async function loadPlayerStats() {
     const data = await res.json();
     _playerStats = data.players || [];
     renderPlayers(_players);  // re-render mit Risiko-Badges nachdem activeDays30d da ist
-    renderLernPower();
+    renderReihenPower();
     renderUsage();
   } catch (e) {
-    document.getElementById('lernpower-container').textContent = 'Fehler beim Laden.';
+    document.getElementById('reihenpower-container').textContent = 'Fehler beim Laden.';
   }
 }
 
-function renderLernPower() {
+function renderReihenPower() {
   const reihen = Array.from({ length: 10 }, (_, i) => i + 1);
   const header = `<tr><th>Spieler</th>${reihen.map(r => `<th style="text-align:center">${r}er</th>`).join('')}<th style="text-align:center">Gemeistert</th></tr>`;
 
@@ -380,18 +380,18 @@ function renderLernPower() {
     return `<tr><td style="font-weight:500">${p.nickname}</td>${cells}${summary}</tr>`;
   }).join('') || `<tr><td colspan="12" style="color:#666">Keine Daten — erst nach Training-Sessions verfügbar</td></tr>`;
 
-  // Klassen-Durchschnitt als Footer-Zeile
+  // Gruppen-Durchschnitt als Footer-Zeile
   const avg = masteredCounts.length > 0
     ? (masteredCounts.reduce((a, b) => a + b, 0) / masteredCounts.length).toFixed(1)
     : '0.0';
   const footer = masteredCounts.length > 0
     ? `<tr style="border-top:2px solid #444;color:#aaa;font-size:0.85em">
-         <td colspan="11" style="text-align:right;padding-top:8px">Klassen-Durchschnitt:</td>
+         <td colspan="11" style="text-align:right;padding-top:8px">Gruppen-Durchschnitt:</td>
          <td style="text-align:center;padding-top:8px;font-weight:600">${avg}/10</td>
        </tr>`
     : '';
 
-  document.getElementById('lernpower-container').innerHTML =
+  document.getElementById('reihenpower-container').innerHTML =
     `<table><thead>${header}</thead><tbody>${rows}${footer}</tbody></table>`;
 }
 
