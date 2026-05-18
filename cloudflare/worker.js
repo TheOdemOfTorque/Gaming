@@ -312,6 +312,12 @@ async function handleAdmin(request, url, path, method, env) {
     return json({ players: result });
   }
 
+  if (method === 'DELETE' && path.startsWith('/api/admin/group/')) {
+    const code = path.split('/api/admin/group/')[1];
+    if (!code) return json({ error: 'group code required' }, 400);
+    return handleDeleteGroup(request, env, code);
+  }
+
   if (method === 'DELETE' && path.startsWith('/api/admin/players/')) {
     const playerId = path.split('/api/admin/players/')[1];
     const code = url.searchParams.get('group');

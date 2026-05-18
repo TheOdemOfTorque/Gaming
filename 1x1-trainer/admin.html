@@ -44,9 +44,20 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
       <div id="error"></div>
     </div>
   </div>
-  <p style="font-size:0.8em;color:#555;margin-top:8px">
-    Noch keine Gruppe? Lege sie via <code>POST /api/groups</code> an (siehe Doku).
-  </p>
+
+  <!-- Neue Gruppe anlegen — durch Master-PIN gegated (siehe wrangler secret MASTER_ADMIN_PIN_HASH) -->
+  <div class="card" style="margin-top:16px">
+    <h2>Neue Gruppe anlegen</h2>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+      <input id="c-name" type="text" placeholder="Gruppen-Name (z.B. Klasse 3B)" autocomplete="off">
+      <input id="c-code" type="text" placeholder="Gruppen-Code (z.B. IGEL-3B)" style="text-transform:uppercase" autocomplete="off">
+      <input id="c-pin" type="password" inputmode="numeric" placeholder="Admin-PIN für die neue Gruppe (4 Ziffern)" maxlength="4">
+      <input id="c-master" type="password" placeholder="Master-PIN (nur Marco)" autocomplete="off">
+      <button onclick="adminCreateGroup()">Gruppe anlegen →</button>
+      <div id="create-error" style="color:#e74c3c;min-height:1.2em;font-size:0.9em"></div>
+      <div id="create-success" style="color:#4ade80;min-height:1.2em;font-size:0.9em"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Dashboard -->
@@ -106,6 +117,21 @@ th { color: #888; font-weight: normal; font-size: 0.78em; text-transform: upperc
       <tbody id="usage-body"></tbody>
     </table>
   </div>
+
+  <!-- Danger Zone: Gruppe löschen -->
+  <div class="card" style="margin-top:32px;border:1px solid #c0392b;background:rgba(192,57,43,0.06)">
+    <h2 style="color:#e74c3c">⚠️ Gruppe löschen</h2>
+    <p style="font-size:0.85em;color:#aaa;margin:8px 0 12px">
+      Löscht die Gruppe <strong id="del-group-name" style="color:#e74c3c"></strong> samt
+      <strong>allen Spieler:innen</strong>, Scores, Sessions, Challenges und Lern-Snapshots.
+      <strong>Nicht rückgängig zu machen.</strong>
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <input id="del-confirm-code" type="text" placeholder="Gruppen-Code zum Bestätigen tippen" style="text-transform:uppercase" autocomplete="off">
+      <button class="danger" onclick="adminDeleteGroup()">Gruppe endgültig löschen</button>
+      <div id="del-error" style="color:#e74c3c;min-height:1.2em;font-size:0.9em"></div>
+    </div>
+  </div>
 </div>
 
 <p class="privacy-note">
@@ -145,6 +171,7 @@ async function adminLogin() {
     document.getElementById('dashboard').style.display     = 'block';
     document.getElementById('group-title').textContent     = `${data.name} (${code})`;
     document.getElementById('invite-code').textContent     = code;
+    document.getElementById('del-group-name').textContent  = `${data.name} (${code})`;
     renderPlayers(data.players || []);
     loadLeaderboard();
     loadPlayerStats();
@@ -249,6 +276,59 @@ async function resetScores() {
     alert(`${data.deleted ?? 0} Score(s) gelöscht.`);
     loadLeaderboard(date);
   } catch (e) { alert('Netzwerkfehler.'); }
+}
+
+async function adminCreateGroup() {
+  const name   = document.getElementById('c-name').value.trim();
+  const code   = document.getElementById('c-code').value.trim().toUpperCase();
+  const pin    = document.getElementById('c-pin').value.trim();
+  const master = document.getElementById('c-master').value;
+  const err = document.getElementById('create-error');
+  const ok  = document.getElementById('create-success');
+  err.textContent = ''; ok.textContent = '';
+  if (!name || !code || !pin || !master) { err.textContent = 'Alle Felder ausfüllen.'; return; }
+  if (!/^\d{4}$/.test(pin)) { err.textContent = 'Admin-PIN muss 4 Ziffern sein.'; return; }
+  try {
+    const adminPinHash  = await sha256hex(pin);
+    const masterPinHash = await sha256hex(master);
+    const res = await fetch(`${MP_API}/api/groups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, groupCode: code, adminPinHash, masterPinHash }),
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || `Fehler ${res.status}`; return; }
+    ok.textContent = `✓ Gruppe "${data.code}" angelegt. Admin-PIN ${pin} notieren!`;
+    document.getElementById('c-name').value = '';
+    document.getElementById('c-code').value = '';
+    document.getElementById('c-pin').value  = '';
+    // c-master bleibt — Marco kann mehrere Gruppen am Stück anlegen ohne Re-Eingabe
+  } catch (e) {
+    err.textContent = 'Netzwerkfehler: ' + e.message;
+  }
+}
+
+async function adminDeleteGroup() {
+  const typed = document.getElementById('del-confirm-code').value.trim().toUpperCase();
+  const err = document.getElementById('del-error');
+  err.textContent = '';
+  if (typed !== adminState.code) {
+    err.textContent = `Bestätigung: bitte "${adminState.code}" exakt eingeben.`;
+    return;
+  }
+  if (!confirm(`Wirklich Gruppe ${adminState.code} samt allen Daten unwiderruflich löschen?`)) return;
+  try {
+    const res = await fetch(`${MP_API}/api/admin/group/${adminState.code}`, {
+      method: 'DELETE',
+      headers: { 'X-Admin-Pin': adminState.pinHash }
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || `Fehler ${res.status}`; return; }
+    alert(`Gruppe ${adminState.code} gelöscht.`);
+    adminLogout();
+  } catch (e) {
+    err.textContent = 'Netzwerkfehler: ' + e.message;
+  }
 }
 
 async function loadPlayerStats() {
