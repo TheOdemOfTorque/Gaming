@@ -1170,6 +1170,17 @@ async function mpSyncPending() {
 
 // ── Multiplayer onboarding UI ─────────────────────────────────────────────────
 
+// Spitzname-Felder mit state.name vorbelegen, falls leer — Kind muss seinen Namen
+// nicht zweimal eintippen. Override bleibt möglich: user-getippter Wert gewinnt.
+function mpPrefillNickname() {
+  const settingsName = (state.name || '').trim();
+  if (!settingsName) return;
+  const joinNick  = document.getElementById('mp-join-nick');
+  const loginNick = document.getElementById('mp-login-nick');
+  if (joinNick  && !joinNick.value)  joinNick.value  = settingsName;
+  if (loginNick && !loginNick.value) loginNick.value = settingsName;
+}
+
 function mpShowTab(tab) {
   const isJoin = tab === 'join';
   document.getElementById('mp-panel-join').style.display  = isJoin ? '' : 'none';
@@ -1738,7 +1749,7 @@ function showScreen(name) {
   if (name === 'settings')         populateSettings();
   if (name === 'stats')            renderStats();
   if (name === 'blitz-highscores') renderBlitzHighscores();
-  if (name === 'mp-join')             mpUpdateStatusPanel();
+  if (name === 'mp-join')           { mpUpdateStatusPanel(); mpPrefillNickname(); }
   if (name === 'mp-challenge-send')   mpShowChallengeSend();
   if (name === 'mp-challenge-inbox')  mpShowChallengeInbox();
 }
