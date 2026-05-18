@@ -2627,13 +2627,19 @@ function endGame(reason) {
         offlinePlayed: isOffline,
         seedDate: state.mp.lastSeedDate,
       };
-      mpUploadScore(payload);
+      // Wichtig: mpShowLeaderboard ERST nach erfolgreichem Score-Upload aufrufen,
+      // sonst zeigt die Rangliste den Pre-Upload-Stand (siehe Issue #20).
+      // `.finally` deckt auch Offline/Fehler-Fall ab — Upload landet dann in
+      // pendingUploads, und der Renderer öffnet trotzdem die Rangliste.
+      const uploadP = mpUploadScore(payload);
+      const showLeaderboardAfterUpload = () => uploadP.finally(() =>
+        setTimeout(() => mpShowLeaderboard(game.score), 1500));
       const activeChallengeId = state.mp._activeChallengeId || null;
       if (activeChallengeId) {
         if (activeChallengeId === '__challenge__') {
           // Ausgehende Challenge — Score jetzt senden
           mpSubmitChallenge(game.score, game.correct);
-          setTimeout(() => mpShowLeaderboard(game.score), 1500);
+          showLeaderboardAfterUpload();
         } else {
           // Eingehende Challenge beantworten
           mpRespondToChallenge(activeChallengeId, game.score, game.correct).then(result => {
@@ -2641,12 +2647,14 @@ function endGame(reason) {
             _pendingChallenges = _pendingChallenges.filter(c => c.id !== activeChallengeId);
             mpUpdateChallengeBadge();
             saveState();
+            // Challenge-Result hat seinen Response im Hand — keine Race. Leaderboard
+            // hingegen schon (s. oben).
             if (result) setTimeout(() => mpShowChallengeResult(result), 1500);
-            else setTimeout(() => mpShowLeaderboard(game.score), 1500);
+            else showLeaderboardAfterUpload();
           });
         }
       } else {
-        setTimeout(() => mpShowLeaderboard(game.score), 1500);
+        showLeaderboardAfterUpload();
       }
     }
     const durationS = game.mode === 'blitz' ? 60 : Math.round((game.qCount || 0) * 4);
