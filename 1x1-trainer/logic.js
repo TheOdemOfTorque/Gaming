@@ -240,6 +240,46 @@ function marathonDifficulty(qCount, maxReihe) {
   return Math.min(raw, maxReihe);
 }
 
+// ── MULTIPLAYER PAYLOAD-LOGIK (testbar, kein DOM/fetch) ─────────────────────
+
+// Baut das Score-Upload-Payload für POST /api/scores. offlinePlayed=true wenn
+// kein gültiger Challenge-Bezug (kein lastChallengeId ODER seedDate ≠ heute).
+function buildScorePayload(state, game, todayStr) {
+  const isOffline = !state.mp.lastChallengeId || state.mp.lastSeedDate !== todayStr;
+  return {
+    challengeId: state.mp.lastChallengeId || '__offline__',
+    score: game.score,
+    correctCount: game.correct,
+    offlinePlayed: isOffline,
+    seedDate: state.mp.lastSeedDate,
+  };
+}
+
+// Baut das Direct-Challenge-Payload für POST /api/challenges. Friert die
+// aktuelle Blitz-Config (alleReihen, reihen, rechenart) ins Challenge-Record
+// ein — damit der Challengee mit identischer Konfiguration spielt.
+function buildChallengePayload(state, score, correctCount, targetNickname) {
+  return {
+    challengedNickname: targetNickname,
+    seed: state.mp.lastSeed,
+    seedDate: state.mp.lastSeedDate,
+    score,
+    correctCount,
+    reihenConfig: {
+      alleReihen: state.blitzConfig.alleReihen,
+      reihen: state.blitzConfig.reihen,
+      rechenart: state.blitzConfig.rechenart,
+    },
+  };
+}
+
+// Liefert neuen State mit zurückgesetztem mp-Feld — restlicher State (xp,
+// streak, stars, name etc.) bleibt unangetastet. Pure: gibt neues Objekt
+// zurück, mutiert nicht.
+function mpStateAfterLogout(state) {
+  return Object.assign({}, state, { mp: defaultState().mp });
+}
+
 if (typeof module !== 'undefined') {
   module.exports = { getMaxReihe, getMaxFactor, getQuestionWeight, pickWeightedFactor,
                      pickBlitzReihe, addBlitzListeEntry,
@@ -249,5 +289,6 @@ if (typeof module !== 'undefined') {
                      STATE_MIGRATIONS, migrateState, getLevelInfo,
                      computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS,
                      marathonDifficulty,
-                     mulberry32, initSeededRNG, resetRNG };
+                     mulberry32, initSeededRNG, resetRNG,
+                     buildScorePayload, buildChallengePayload, mpStateAfterLogout };
 }

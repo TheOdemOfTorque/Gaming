@@ -1279,15 +1279,10 @@ async function mpLogin() {
 }
 
 function mpLogout() {
-  state.mp.enabled        = false;
-  state.mp.groupCode      = null;
-  state.mp.nickname       = null;
-  state.mp.pinHash        = null;
-  state.mp.token          = null;
-  state.mp.pendingUploads = [];
-  state.mp.lastSeed       = null;
-  state.mp.lastSeedDate   = null;
-  state.mp.lastChallengeId = null;
+  // Pure-Funktion aus logic.js mutiert nicht — daher Object.assign auf das
+  // module-globale state-Objekt, damit existierende Referenzen weiter gültig
+  // sind.
+  Object.assign(state, mpStateAfterLogout(state));
   saveState();
   mpUpdateHomeButton();
   document.getElementById('mp-status-panel').style.display = 'none';
@@ -1449,18 +1444,7 @@ async function mpSubmitChallenge(score, correctCount) {
     const res = await fetch(`${MP_API}/api/challenges`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Player-Token': state.mp.token },
-      body: JSON.stringify({
-        challengedNickname: nickname,
-        seed: state.mp.lastSeed,
-        seedDate: state.mp.lastSeedDate,
-        score,
-        correctCount,
-        reihenConfig: {
-          alleReihen: state.blitzConfig.alleReihen,
-          reihen: state.blitzConfig.reihen,
-          rechenart: state.blitzConfig.rechenart,
-        },
-      })
+      body: JSON.stringify(buildChallengePayload(state, score, correctCount, nickname)),
     });
     const data = await res.json();
     if (res.ok) {
@@ -2627,14 +2611,7 @@ function endGame(reason) {
   if (state.mp.enabled && state.mp.token) {
     const today = new Date().toISOString().split('T')[0];
     if (game.mode === 'blitz') {
-      const isOffline = !state.mp.lastChallengeId || state.mp.lastSeedDate !== today;
-      const payload = {
-        challengeId: state.mp.lastChallengeId || '__offline__',
-        score: game.score,
-        correctCount: game.correct,
-        offlinePlayed: isOffline,
-        seedDate: state.mp.lastSeedDate,
-      };
+      const payload = buildScorePayload(state, game, today);
       // Wichtig: mpShowLeaderboard ERST nach erfolgreichem Score-Upload aufrufen,
       // sonst zeigt die Rangliste den Pre-Upload-Stand (siehe Issue #20).
       // `.finally` deckt auch Offline/Fehler-Fall ab — Upload landet dann in
