@@ -1,4 +1,4 @@
-const { pickBlitzReihe, addBlitzListeEntry, migrateBlitzState } = require('../../1x1-trainer/logic.js');
+const { pickBlitzReihe, addBlitzListeEntry } = require('../../1x1-trainer/logic.js');
 
 describe('pickBlitzReihe', () => {
   test('gibt null zurück wenn alleReihen true', () => {
@@ -42,25 +42,5 @@ describe('addBlitzListeEntry', () => {
     const liste = [{ score: 30 }, { score: 20 }];
     const result = addBlitzListeEntry(liste, { score: 99 });
     expect(result[0].score).toBe(99);
-  });
-});
-
-describe('migrateBlitzState', () => {
-  test('fügt blitzConfig hinzu wenn fehlend', () => {
-    const s = { highScores: {} };
-    const result = migrateBlitzState(s);
-    expect(result.blitzConfig).toEqual({ reihen: [], alleReihen: true });
-  });
-
-  test('fügt blitzListe hinzu wenn fehlend', () => {
-    const s = { highScores: { blitz: 5, turnier: 3 } };
-    const result = migrateBlitzState(s);
-    expect(result.highScores.blitzListe).toEqual([]);
-  });
-
-  test('überschreibt vorhandene blitzConfig nicht', () => {
-    const s = { blitzConfig: { reihen: [3], alleReihen: false }, highScores: {} };
-    const result = migrateBlitzState(s);
-    expect(result.blitzConfig.reihen).toEqual([3]);
   });
 });

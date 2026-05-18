@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Prime Empire – Abschnitt 1</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background:#0A0015; display:flex; justify-content:center; align-items:center;
+           width:100vw; height:100vh; overflow:hidden; touch-action:none; }
+    canvas { display:block; }
+  </style>
+</head>
+<body>
+<div id="game"></div>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════════
+const TILE = 48;
+const COLS = 17;
+const ROWS = 58;
+const T_WALL = 0, T_ROAD = 1, T_GOAL = 2;
+const DIRS = { UP:[0,-1], DOWN:[0,1], LEFT:[-1,0], RIGHT:[1,0] };
+const ROT_MAP = { UP:0, DOWN:Math.PI, LEFT:-Math.PI/2, RIGHT:Math.PI/2 };
+
+// Module-level roadblock set, cleared on game restart
+let ROADBLOCKS = new Set();
+
+// ═══════════════════════════════════════════════════════
+//  EUROPEAN CITY MAP
+//  Inspired by organic old-city layouts: irregular block
+//  sizes, dead-ends, short alleys, staircase diagonals.
+// ═══════════════════════════════════════════════════════
+function generateMap() {
+  const map = Array.from({length:ROWS}, () => Array(COLS).fill(T_WALL));
+
+  const H = (r, c1, c2) => {
+    if (r < 0 || r >= ROWS) return;
+    for (let c = c1; c <= Math.min(c2, COLS-1); c++) map[r][c] = T_ROAD;
+  };
+  const V = (c, r1, r2) => {
+    if (c < 0 || c >= COLS) return;
+    for (let r = r1; r <= Math.min(r2, ROWS-1); r++) map[r][c] = T_ROAD;
+  };
+  const pt = (c, r) => { if (c>=0&&c<COLS&&r>=0&&r<ROWS) map[r][c]=T_ROAD; };
+
+  // ── N-S streets ──────────────────────────────────────
+  V(0,  0, 57);          // western edge lane
+  V(2,  0, 57);          // main western artery
+  V(5,  0, 22);          // western secondary – ends at row 22
+  V(5,  31, 57);         // western secondary – resumes at row 31 (gap forces detour)
+  V(8,  0, 57);          // CENTRAL artery (most direct route)
+  V(11, 10, 57);         // eastern secondary – starts row 10
+  V(14, 0, 38);          // eastern artery – dead end at row 38
+  V(16, 0, 57);          // eastern edge lane
+
+  // ── E-W cross streets ────────────────────────────────
+  H(0,  0, 16);          // start boulevard
+  H(4,  0, 8);
+  H(4,  11, 16);
+  H(8,  2, 16);
+  H(12, 0, 11);
+  H(15, 5, 14);
+  H(18, 0, 16);          // ─── BOULEVARD 1 ───
+  H(22, 0, 8);
+  H(22, 14, 16);
+  H(27, 2, 16);          // ─── BOULEVARD 2 ───
+  H(31, 0, 11);
+  H(35, 5, 16);
+  H(38, 0, 14);          // dead-end link for col-14
+  H(42, 0, 16);          // ─── BOULEVARD 3 ───
+  H(46, 2, 14);
+  H(50, 0, 11);
+  H(50, 14, 16);
+  H(54, 5, 16);
+  H(57, 6, 10);          // goal approach road
+
+  // ── Short alleys & connectors ────────────────────────
+  H(10, 5, 8);           // top-area alley
+  H(23, 11, 14);         // east connector near gap
+  H(29, 11, 14);         // another east connector
+  H(44, 8, 11);          // mid-map alley
+  H(48, 11, 14);         // late-game connector
+
+  // ── Staircase bypass around col-5 gap (rows 23-30) ──
+  // Goes: (col6,r23)→(col6,r24)→(col7,r24)→(col7,r25)→(col8,r25)
+  pt(6,23); pt(6,24); pt(7,24); pt(7,25); // join col8 at r25 (already road)
+
+  // ── Goal zone ────────────────────────────────────────
+  map[57][7] = T_GOAL;
+  map[57][8] = T_GOAL;
+  map[57][9] = T_GOAL;
+
+  return map;
+}
+
+const MAP = generateMap();
+
+function isWalkable(c, r) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+  if (ROADBLOCKS.has(`${c},${r}`)) return false;
+  return MAP[r][c] === T_ROAD || MAP[r][c] === T_GOAL;
+}
+
+function bfsStep(fc, fr, tc, tr) {
+  if (fc===tc && fr===tr) return null;
+  const q = [{c:fc,r:fr,parent:null}];
+  const vis = new Set([`${fc},${fr}`]);
+  while (q.length) {
+    const n = q.shift();
+    for (const [dc,dr] of Object.values(DIRS)) {
+      const nc=n.c+dc, nr=n.r+dr, key=`${nc},${nr}`;
+      if (!vis.has(key) && isWalkable(nc,nr)) {
+        const child={c:nc,r:nr,parent:n};
+        if (nc===tc && nr===tr) {
+          let s=child; while(s.parent&&s.parent.parent) s=s.parent;
+          return {c:s.c,r:s.r};
+        }
+        vis.add(key); q.push(child);
+      }
+    }
+  }
+  return null;
+}
+
+const md = (c1,r1,c2,r2) => Math.abs(c1-c2)+Math.abs(r1-r2);
+const tc = (c,r)          => ({x:c*TILE+TILE/2, y:r*TILE+TILE/2});
+const tileRand = (c,r,s=0) => (((c*1619+r*3463+s*991)*2654435761)>>>0)/4294967296;
+
+function snapToRoad(c, r) {
+  if (isWalkable(c,r)) return {c,r};
+  const sc=Math.max(0,Math.min(COLS-1,Math.round(c/4)*4));
+  const sr=Math.max(0,Math.min(ROWS-1,Math.round(r/4)*4));
+  if (isWalkable(sc,sr)) return {c:sc,r:sr};
+  for (const [dc,dr] of Object.values(DIRS))
+    if (isWalkable(c+dc,r+dr)) return {c:c+dc,r:r+dr};
+  return {c,r};
+}
+
+// ═══════════════════════════════════════════════════════
+//  NINJA DRAWING  (faces UP by default; rotate container for dir)
+// ═══════════════════════════════════════════════════════
+function drawNinja(g, size, bodyColor, accentColor, type) {
+  const h = size/2;
+  g.fillStyle(0x000000,0.25);
+  g.fillEllipse(1,h*0.82,size*0.68,size*0.18);
+  // cape
+  g.fillStyle(accentColor,0.90);
+  g.fillTriangle(-h*0.40,h*0.08, h*0.40,h*0.08, 0,h*1.00);
+  g.lineStyle(1,0x00000040,0.28);
+  g.lineBetween(-h*0.40,h*0.08, 0,h*1.00);
+  g.lineBetween( h*0.40,h*0.08, 0,h*1.00);
+  // body
+  g.fillStyle(bodyColor,1.0);
+  g.fillEllipse(0,h*0.08,size*0.60,size*0.74);
+  if (type==='enemy') {
+    g.fillStyle(accentColor,1.0);
+    g.fillTriangle(-h*0.50,-h*0.14, -h*0.26,-h*0.14, -h*0.38,-h*0.54);
+    g.fillTriangle( h*0.26,-h*0.14,  h*0.50,-h*0.14,  h*0.38,-h*0.54);
+    g.fillStyle(accentColor,0.95);
+    g.fillTriangle(h*0.48,h*0.06, h*0.64,h*0.24, h*0.40,h*0.28);
+  } else {
+    g.fillStyle(accentColor,0.88);
+    g.fillRect(-h*0.50,-h*0.05,h*1.00,h*0.20);
+    g.fillStyle(0xFFFFFF,0.42);
+    g.fillRect(-h*0.07,-h*0.05,h*0.14,h*0.20);
+    g.fillStyle(0xAA8855,1.0);
+    g.fillRect(-h*0.60,-h*0.10,h*0.12,h*0.38);
+    g.fillStyle(0xFFDD00,1.0);
+    g.fillRect(-h*0.66,-h*0.13,h*0.24,h*0.08);
+  }
+  // head
+  g.fillStyle(bodyColor,1.0);
+  g.fillCircle(0,-h*0.56,h*0.36);
+  g.fillStyle(accentColor,0.94);
+  g.fillRect(-h*0.36,-h*0.67,h*0.72,h*0.17);
+  const eyeC = type==='enemy'?0xFF1100:0xFFFFFF;
+  g.fillStyle(eyeC,1.0);
+  g.fillCircle(-h*0.13,-h*0.59,h*0.078);
+  g.fillCircle( h*0.13,-h*0.59,h*0.078);
+  g.fillStyle(type==='enemy'?0xFF7700:bodyColor,0.80);
+  g.fillCircle(-h*0.13,-h*0.59,h*0.046);
+  g.fillCircle( h*0.13,-h*0.59,h*0.046);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ENTITY BASE
+// ═══════════════════════════════════════════════════════
+class Entity {
+  constructor(scene, col, row, bodyColor, accentColor, ninjaType, size) {
+    this.scene=scene; this.col=col; this.row=row;
+    this.tCol=col; this.tRow=row; this.moving=false;
+    this.frozen=false;
+    this.invincible=false;
+    this._freezeTimer=null;
+    this._invincibleTimer=null;
+    this._freezeRingTween=null;
+    this._freezeRing=null;
+    this.lives=3; this.bodyColor=bodyColor; this.accentColor=accentColor;
+    this.size=size; this.lastDir='DOWN'; this._blinkTween=null;
+
+    const pos=tc(col,row);
+    this.glow2=scene.add.circle(pos.x,pos.y,size*0.72,bodyColor,0.07);
+    this.glow1=scene.add.circle(pos.x,pos.y,size*0.56,bodyColor,0.17);
+    this.sprite=scene.add.container(pos.x,pos.y);
+    const g=scene.make.graphics({x:0,y:0,add:false});
+    drawNinja(g,size,bodyColor,accentColor,ninjaType);
+    this._frozenOverlay=scene.make.graphics({x:0,y:0,add:false});
+    this._frozenOverlay.fillStyle(0x8899BB,0.62);
+    this._frozenOverlay.fillCircle(0,0,size*0.55);
+    this._frozenOverlay.setVisible(false);
+    this.sprite.add([g,this._frozenOverlay]);
+  }
+
+  get x(){return this.sprite.x;}
+  get y(){return this.sprite.y;}
+  _syncGlow(){this.glow1.x=this.glow2.x=this.sprite.x;this.glow1.y=this.glow2.y=this.sprite.y;}
+
+  freeze(ms){
+    if(this.frozen||this.invincible) return false;
+    // C2-Fix: snap to destination tile if mid-transit
+    if(this.moving){
+      this.col=this.tCol; this.row=this.tRow;
+      const pos=tc(this.tCol,this.tRow);
+      this.sprite.x=pos.x; this.sprite.y=pos.y;
+      this._syncGlow();
+    }
+    this.frozen=true; this.moving=false;
+    this._frozenOverlay.setVisible(true);
+    this.glow1.setFillStyle(0x6688AA,0.12);
+    this.glow2.setFillStyle(0x6688AA,0.05);
+    if(this._freezeTimer) this._freezeTimer.remove(false);
+    this._freezeTimer=this.scene.time.delayedCall(ms,()=>this._unfreeze(),[],this);
+    this._startFreezeRing(ms);
+    return true;
+  }
+  _unfreeze(){
+    this.frozen=false; this._freezeTimer=null;
+    this._frozenOverlay.setVisible(false);
+    this.glow1.setFillStyle(this.bodyColor,0.17);
+    this.glow2.setFillStyle(this.bodyColor,0.07);
+    this._stopFreezeRing();
+    // C1-Fix: snap to adjacent free tile before becoming vulnerable
+    const safe=this._findSafeNeighbor();
+    if(safe) this._separateTo(safe.c,safe.r);
+    this.invincible=true;
+    if(this._invincibleTimer) this._invincibleTimer.remove(false);
+    this._invincibleTimer=this.scene.time.delayedCall(3000,()=>{
+      this.invincible=false; this._invincibleTimer=null; this._stopBlink();
+    },[],this);
+    this._startBlink();
+  }
+  _separateTo(targetC,targetR){
+    this.col=targetC; this.row=targetR;
+    this.tCol=targetC; this.tRow=targetR;
+    const pos=tc(targetC,targetR);
+    this.sprite.x=pos.x; this.sprite.y=pos.y;
+    this._syncGlow();
+  }
+  _findSafeNeighbor(){
+    const scene=this.scene;
+    const occupied=new Set();
+    if(scene.player) occupied.add(`${scene.player.col},${scene.player.row}`);
+    if(scene.enemies) scene.enemies.forEach(e=>{if(e!==this)occupied.add(`${e.col},${e.row}`);});
+    if(scene.teammates) scene.teammates.forEach(t=>{if(t!==this)occupied.add(`${t.col},${t.row}`);});
+    for(const [dc,dr] of Object.values(DIRS)){
+      const nc=this.col+dc,nr=this.row+dr;
+      if(isWalkable(nc,nr)&&!occupied.has(`${nc},${nr}`)) return {c:nc,r:nr};
+    }
+    return null;
+  }
+  _startBlink(){
+    this._stopBlink();
+    this._blinkTween=this.scene.tweens.add({targets:this.sprite,alpha:{from:1,to:0.12},duration:160,yoyo:true,repeat:-1});
+  }
+  _stopBlink(){
+    if(this._blinkTween){this._blinkTween.stop();this._blinkTween=null;}
+    if(this.sprite) this.sprite.setAlpha(1.0);
+  }
+  _startFreezeRing(ms){
+    if(!this._freezeRing){
+      this._freezeRing=this.scene.make.graphics({x:0,y:0,add:false});
+      this.sprite.add(this._freezeRing);
+    }
+    this._freezeRing.setVisible(true);
+    const radius=this.size*0.60;
+    const startAngle=-Math.PI/2; // 12 Uhr
+    if(this._freezeRingTween) this._freezeRingTween.stop();
+    this._freezeRingTween=this.scene.tweens.addCounter({
+      from:1,to:0,duration:ms,ease:'Linear',
+      onUpdate:(tween)=>{
+        const progress=tween.getValue();
+        this._freezeRing.clear();
+        if(progress<=0) return;
+        this._freezeRing.lineStyle(3,0xAADDFF,0.90);
+        this._freezeRing.beginPath();
+        this._freezeRing.arc(0,0,radius,startAngle,startAngle+progress*Math.PI*2,false);
+        this._freezeRing.strokePath();
+      },
+      onComplete:()=>{this._freezeRing.setVisible(false);this._freezeRingTween=null;}
+    });
+  }
+  _stopFreezeRing(){
+    if(this._freezeRingTween){this._freezeRingTween.stop();this._freezeRingTween=null;}
+    if(this._freezeRing){this._freezeRing.clear();this._freezeRing.setVisible(false);}
+  }
+  setTarget(c,r){
+    if(!isWalkable(c,r)) return false;
+    const dc=c-this.col,dr=r-this.row;
+    if(dc>0)this._setDir('RIGHT'); else if(dc<0)this._setDir('LEFT');
+    else if(dr>0)this._setDir('DOWN'); else if(dr<0)this._setDir('UP');
+    this.tCol=c;this.tRow=r;this.moving=true; return true;
+  }
+  _setDir(d){if(d===this.lastDir)return;this.lastDir=d;this.sprite.setRotation(ROT_MAP[d]??0);}
+  _moveTo(speed,delta){
+    if(!this.moving) return;
+    const t=tc(this.tCol,this.tRow);
+    const dx=t.x-this.sprite.x,dy=t.y-this.sprite.y;
+    const d=Math.hypot(dx,dy),step=speed*(delta/1000);
+    if(d<=step){this.sprite.x=t.x;this.sprite.y=t.y;this.col=this.tCol;this.row=this.tRow;this.moving=false;}
+    else{this.sprite.x+=dx/d*step;this.sprite.y+=dy/d*step;}
+    this._syncGlow();
+  }
+  destroy(){
+    this._stopBlink();
+    this._stopFreezeRing();
+    if(this._freezeTimer){this._freezeTimer.remove(false);this._freezeTimer=null;}
+    if(this._invincibleTimer){this._invincibleTimer.remove(false);this._invincibleTimer=null;}
+    this.sprite.destroy(true);
+    this.glow1.destroy(); this.glow2.destroy();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PLAYER
+// ═══════════════════════════════════════════════════════
+class Player extends Entity {
+  constructor(scene,col,row){
+    super(scene,col,row,0x00C8E8,0xFF6600,'player',38);
+    this.speed=128; this.queuedDir=null; this.done=false;
+  }
+  tryDir(dir){
+    if(!dir) return false;
+    const [dc,dr]=DIRS[dir];
+    return this.setTarget(this.col+dc,this.row+dr);
+  }
+  update(delta,inputDir){
+    if(this.done) return;
+    if(this.frozen) return;
+    if(!this.moving){if(!this.tryDir(inputDir))this.tryDir(this.queuedDir);this.queuedDir=inputDir;}
+    else if(inputDir) this.queuedDir=inputDir;
+    this._moveTo(this.speed,delta);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  ENEMY
+// ═══════════════════════════════════════════════════════
+const ENEMY_COLORS=[[0xCC0066,0x220011],[0xFF2200,0x330800],[0xAA00CC,0x220033],[0xCC00AA,0x330022],[0xFF5500,0x331100]];
+
+class Enemy extends Entity {
+  constructor(scene,col,row,id){
+    const[body,accent]=ENEMY_COLORS[id%5];
+    super(scene,col,row,body,accent,'enemy',36);
+    this.id=id; this.speed=100;
+    this.patrol=this._buildPatrol(col,row);
+    this.pIdx=0; this.thinkDelay=id*300;
+    this.roadblockCooldown=id*1500;
+    this._pendingRoadblock=null;
+  }
+  _buildPatrol(sc,sr){
+    // Build patrol loop using available road tiles near start
+    const pts=[];
+    // Try a rectangular loop, skip non-walkable corners
+    for(const [dc,dr] of [[0,0],[4,0],[4,4],[0,4]]){
+      const c=sc+dc,r=sr+dr;
+      if(isWalkable(c,r)) pts.push([c,r]);
+    }
+    return pts.length>=2?pts:[[sc,sr]];
+  }
+  update(delta,pc,pr){
+    this.roadblockCooldown=Math.max(0,this.roadblockCooldown-delta);
+    if(this.frozen) return;
+    this._moveTo(this.speed,delta);
+    if(!this.moving){
+      this.thinkDelay-=delta;
+      if(this.thinkDelay<=0){this.thinkDelay=0;this._decide(pc,pr);}
+    }
+  }
+  _decide(pc,pr){
+    const d=md(this.col,this.row,pc,pr);
+    if(d<=10){
+      const s=bfsStep(this.col,this.row,pc,pr);
+      if(s){
+        // Maybe place a roadblock on the step tile (blocking player's path)
+        if(this.roadblockCooldown<=0 && d>=3 && d<=8 && Math.random()<0.25){
+          this._pendingRoadblock={c:s.c,r:s.r};
+          this.roadblockCooldown=9000;
+        }
+        this.setTarget(s.c,s.r); return;
+      }
+    }
+    if(this.patrol.length){
+      const[nc,nr]=this.patrol[this.pIdx%this.patrol.length];
+      this.pIdx++;
+      if(nc!==this.col||nr!==this.row){
+        const s=bfsStep(this.col,this.row,nc,nr);
+        if(s) this.setTarget(s.c,s.r);
+      }
+    }
+  }
+  _unfreeze(){
+    super._unfreeze();
+    this.thinkDelay=0; // sofortiges Re-Pathfinding nach Auftauen
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  TEAMMATE
+// ═══════════════════════════════════════════════════════
+const TM_COLORS=[[0x00DD44,0x003B15],[0x00FF88,0x005533],[0x44FF00,0x1A4400],[0xAAFF00,0x304400]];
+
+class Teammate extends Entity {
+  constructor(scene,col,row,id){
+    const[body,accent]=TM_COLORS[id%4];
+    super(scene,col,row,body,accent,'teammate',34);
+    this.id=id; this.speed=132;
+    this.escOff=[[-4,0],[4,0],[-4,-4],[4,-4]][id%4];
+  }
+  update(delta,pc,pr,enemies){
+    if(this.frozen) return;
+    this._moveTo(this.speed,delta);
+    if(!this.moving) this._decide(pc,pr,enemies);
+  }
+  _decide(pc,pr,enemies){
+    let bestE=null,bestDist=Infinity;
+    for(const e of enemies){
+      if(e.frozen||e.invincible) continue;
+      if(md(e.col,e.row,pc,pr)>14) continue;
+      const d=md(this.col,this.row,e.col,e.row);
+      if(d<bestDist){bestDist=d;bestE=e;}
+    }
+    if(bestE){const s=bfsStep(this.col,this.row,bestE.col,bestE.row);if(s){this.setTarget(s.c,s.r);return;}}
+    const raw=snapToRoad(pc+this.escOff[0],pr+this.escOff[1]);
+    if(raw.c!==this.col||raw.r!==this.row){const s=bfsStep(this.col,this.row,raw.c,raw.r);if(s)this.setTarget(s.c,s.r);}
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  ROADBLOCK
+// ═══════════════════════════════════════════════════════
+class Roadblock {
+  constructor(scene,col,row){
+    this.col=col; this.row=row; this.elapsed=0; this.maxMs=10000;
+    this.key=`${col},${row}`; ROADBLOCKS.add(this.key);
+    this._phase=0;
+    this.g=scene.add.graphics().setDepth(8);
+    this._draw();
+    this._timer=scene.time.addEvent({delay:280,repeat:-1,callback:()=>{this._phase^=1;this._draw();}});
+  }
+  _draw(){
+    const x=this.col*TILE,y=this.row*TILE;
+    this.g.clear();
+    // Background warning overlay
+    this.g.fillStyle(0xFF4400,0.10+0.06*this._phase);
+    this.g.fillRect(x+2,y+2,TILE-4,TILE-4);
+    // Barrier bar (orange/black stripes)
+    const barY=y+TILE/2-5;
+    for(let sx=0;sx<TILE;sx+=10){
+      this.g.fillStyle(0xFF8800,0.92);
+      this.g.fillRect(x+sx,barY,5,10);
+      this.g.fillStyle(0x1A1A1A,0.75);
+      this.g.fillRect(x+sx+5,barY,5,10);
+    }
+    // Border
+    this.g.lineStyle(2,0xFF4400,0.85);
+    this.g.strokeRect(x+2,y+2,TILE-4,TILE-4);
+    // Blinking lights
+    const lc=this._phase?0xFF0000:0x880000;
+    this.g.fillStyle(lc,1.0);
+    this.g.fillCircle(x+7,y+TILE/2,5);
+    this.g.fillCircle(x+TILE-7,y+TILE/2,5);
+  }
+  update(delta){this.elapsed+=delta;return this.elapsed<this.maxMs;}
+  destroy(){
+    ROADBLOCKS.delete(this.key);
+    if(this._timer) this._timer.remove();
+    this.g.destroy();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  BOOT SCENE
+// ═══════════════════════════════════════════════════════
+class BootScene extends Phaser.Scene {
+  constructor(){super('BootScene');}
+  create(){
+    const W=this.cameras.main.width,H=this.cameras.main.height;
+    const g=this.add.graphics();
+    g.lineStyle(1,0x1A0050,0.65);
+    for(let x=0;x<W;x+=48)g.lineBetween(x,0,x,H);
+    for(let y=0;y<H;y+=48)g.lineBetween(0,y,W,y);
+    g.fillStyle(0x3300AA,0.35);
+    for(let x=0;x<W;x+=48)for(let y=0;y<H;y+=48)g.fillCircle(x,y,2);
+
+    const title=this.add.text(W/2,H*0.26,'PRIME EMPIRE',{
+      fontFamily:'"Courier New",monospace',fontSize:'58px',color:'#00C8E8',
+      stroke:'#FF6600',strokeThickness:3,
+      shadow:{offsetX:0,offsetY:0,color:'#00C8E8',blur:40,fill:true}
+    }).setOrigin(0.5);
+    this.add.text(W/2,H*0.26+68,'ABSCHNITT 1 : S T A D T F L U C H T',{
+      fontFamily:'"Courier New",monospace',fontSize:'18px',color:'#FEFE12'
+    }).setOrigin(0.5);
+
+    const info=['► Navigiere durch die Stadt zur BANK','► Gegner bauen Straßensperren auf!',
+      '► 4 Teammitglieder schützen dich (je 3 Leben)','► Pfeiltasten / WASD  |  Mobile: D-Pad'];
+    info.forEach((t,i)=>this.add.text(W/2,H*0.50+i*27,t,{
+      fontFamily:'"Courier New",monospace',fontSize:'13px',color:'#667788'
+    }).setOrigin(0.5));
+
+    const s=this.add.text(W/2,H*0.80,'[ TASTE DRÜCKEN / TIPPEN ]',{
+      fontFamily:'"Courier New",monospace',fontSize:'20px',color:'#00FC4A'
+    }).setOrigin(0.5);
+    this.tweens.add({targets:title,alpha:{from:1,to:0.05},duration:100,yoyo:true,repeat:3,delay:400});
+    this.tweens.add({targets:s,alpha:{from:1,to:0.2},duration:650,yoyo:true,repeat:-1});
+    const go=()=>this.scene.start('GameScene');
+    this.input.keyboard.once('keydown',go);
+    this.input.once('pointerdown',go);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  GAME SCENE
+// ═══════════════════════════════════════════════════════
+class GameScene extends Phaser.Scene {
+  constructor(){super('GameScene');}
+
+  create(){
+    ROADBLOCKS=new Set();
+    this.gameOver=false; this.gameWon=false; this.elapsed=0;
+    this.inputDir=null; this.mobileDir=null;
+    this.roadblocks=[];
+
+    this._drawMap();
+    this._drawBank();
+    this._createGoalPulse();
+
+    this.player=new Player(this,8,2);
+
+    this.enemies=[
+      new Enemy(this,2,6,0),
+      new Enemy(this,14,8,1),
+      new Enemy(this,8,20,2),
+      new Enemy(this,2,38,3),
+      new Enemy(this,11,35,4),
+    ];
+    this.teammates=[
+      new Teammate(this,2,2,0),
+      new Teammate(this,16,2,1),
+      new Teammate(this,0,2,2),
+      new Teammate(this,5,4,3),
+    ];
+
+    this.cameras.main.setBounds(0,0,COLS*TILE,ROWS*TILE);
+    this.cameras.main.startFollow(this.player.sprite,true,0.1,0.1);
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.wasd=this.input.keyboard.addKeys({
+      UP:Phaser.Input.Keyboard.KeyCodes.W,DOWN:Phaser.Input.Keyboard.KeyCodes.S,
+      LEFT:Phaser.Input.Keyboard.KeyCodes.A,RIGHT:Phaser.Input.Keyboard.KeyCodes.D
+    });
+    this._buildHUD();
+    this._createDpad();
+  }
+
+  // ── Map rendering (European organic look) ───────────
+  _drawMap(){
+    const g=this.add.graphics();
+    const PALETTES=[
+      {fill:0x1B0B30,border:0x5514A0,winLit:0x7799FF,winDark:0x222244},
+      {fill:0x0B1B14,border:0x126650,winLit:0x44FFBB,winDark:0x112233},
+      {fill:0x1A0B0B,border:0x771515,winLit:0xFFAA44,winDark:0x332211},
+      {fill:0x0A0B1C,border:0x243380,winLit:0x88AAFF,winDark:0x222244},
+    ];
+
+    for(let r=0;r<ROWS;r++){
+      for(let c=0;c<COLS;c++){
+        const x=c*TILE,y=r*TILE,t=MAP[r][c];
+        if(t===T_WALL){
+          // Compute block index from surrounding roads for varied palette
+          const bi=((c>0&&MAP[r][c-1]===T_ROAD?1:0)+(r>0&&MAP[r-1][c]===T_ROAD?2:0)+c+r)%4;
+          const pal=PALETTES[bi];
+          g.fillStyle(pal.fill);
+          g.fillRect(x+1,y+1,TILE-2,TILE-2);
+          g.lineStyle(1,pal.border,0.85);
+          g.strokeRect(x+1,y+1,TILE-2,TILE-2);
+          // Windows 2×2
+          for(let wy=0;wy<2;wy++)for(let wx=0;wx<2;wx++){
+            const lit=tileRand(c*2+wx,r*2+wy,7)>0.32;
+            const wX=x+7+wx*20,wY=y+9+wy*22;
+            g.fillStyle(lit?pal.winLit:pal.winDark,lit?0.52:0.78);
+            g.fillRect(wX,wY,14,11);
+            if(lit){g.lineStyle(1,pal.winLit,0.65);g.strokeRect(wX,wY,14,11);g.fillStyle(0xFFFFFF,0.15);g.fillRect(wX+1,wY+1,4,3);}
+            else{g.lineStyle(1,pal.border,0.38);g.strokeRect(wX,wY,14,11);}
+          }
+          // Rooftop detail
+          if(tileRand(c,r)<0.11){g.fillStyle(PALETTES[bi].border,0.55);g.fillRect(x+3,y+3,10,7);g.lineStyle(1,pal.winLit,0.28);g.strokeRect(x+3,y+3,10,7);}
+          // Circuit trace
+          if(tileRand(c,r,1)>0.86){g.lineStyle(1,pal.winLit,0.20);const lx=x+10+Math.floor(tileRand(c,r,3)*(TILE-20));g.lineBetween(lx,y+4,lx,y+TILE-4);}
+
+        } else if(t===T_ROAD){
+          // Detect road direction for markings
+          const above=r>0&&MAP[r-1][c]===T_ROAD;
+          const below=r<ROWS-1&&MAP[r+1][c]===T_ROAD;
+          const left =c>0&&MAP[r][c-1]===T_ROAD;
+          const right=c<COLS-1&&MAP[r][c+1]===T_ROAD;
+          const isV=(above||below)&&!(left||right);
+          const isH=(left||right)&&!(above||below);
+          const isX=(above||below)&&(left||right);
+
+          // Asphalt
+          g.fillStyle(isX?0x131E2C:0x0E1724);
+          g.fillRect(x,y,TILE,TILE);
+
+          if(isV){
+            // Vertical road markings
+            g.fillStyle(0xFFFFFF,0.17);
+            g.fillRect(x+2,y,2,TILE);
+            g.fillRect(x+TILE-4,y,2,TILE);
+            g.fillStyle(0xFFDD00,0.72);
+            for(let dy=2;dy<TILE;dy+=12)g.fillRect(x+TILE/2-1.5,y+dy,3,7);
+          } else if(isH){
+            // Horizontal road markings
+            g.fillStyle(0xFFFFFF,0.17);
+            g.fillRect(x,y+2,TILE,2);
+            g.fillRect(x,y+TILE-4,TILE,2);
+            g.fillStyle(0xFFDD00,0.72);
+            for(let dx=2;dx<TILE;dx+=12)g.fillRect(x+dx,y+TILE/2-1.5,7,3);
+          } else if(isX){
+            // Intersection: corner stop-line marks
+            g.lineStyle(1,0xFFFFFF,0.09);
+            g.lineBetween(x+3,y+2,x+TILE-3,y+2);
+            g.lineBetween(x+3,y+TILE-2,x+TILE-3,y+TILE-2);
+            // Subtle zebra marks
+            g.fillStyle(0xFFFFFF,0.04);
+            for(let s=4;s<TILE;s+=8)g.fillRect(x+s,y+2,4,3);
+          } else {
+            // Dead-end or diagonal connector: plain road
+            g.fillStyle(0x0E1724);
+            g.fillRect(x,y,TILE,TILE);
+          }
+        } else if(t===T_GOAL){
+          g.fillStyle(0x2A1800);
+          g.fillRect(x,y,TILE,TILE);
+          g.lineStyle(2,0xFEFE12,1.0);
+          g.strokeRect(x+2,y+2,TILE-4,TILE-4);
+          g.fillStyle(0xFEFE12,0.45);
+          g.fillRect(x+TILE/2-2,y+6,4,TILE-12);
+        }
+      }
+    }
+  }
+
+  _drawBank(){
+    const by=(ROWS-8)*TILE,bh=4*TILE;
+    const wingW=4*TILE,leftX=4*TILE,rightX=9*TILE;
+    const g=this.add.graphics();
+    const drawWing=(wx)=>{
+      g.fillStyle(0x1D003A);
+      g.fillRect(wx+2,by+2,wingW-4,bh-4);
+      g.lineStyle(3,0xFEFE12,1.0);
+      g.strokeRect(wx+2,by+2,wingW-4,bh-4);
+      g.fillStyle(0xFEFE12,0.28);
+      g.fillRect(wx+2,by+2,wingW-4,6);
+      for(let row=0;row<3;row++)for(let col=0;col<3;col++){
+        const ww=Math.floor((wingW-28)/3);
+        const wx2=wx+8+col*(ww+3),wy2=by+16+row*28;
+        const lit=tileRand(col,row,wx)>0.28;
+        g.fillStyle(0x00C8E8,lit?0.52:0.10);
+        g.fillRect(wx2,wy2,ww,18);
+        if(lit){g.lineStyle(1,0x00C8E8,0.58);g.strokeRect(wx2,wy2,ww,18);g.fillStyle(0xFFFFFF,0.14);g.fillRect(wx2+1,wy2+1,5,3);}
+      }
+      g.fillStyle(0xFEFE12,0.11);
+      g.fillRect(wx+2,by+bh-14,wingW-4,12);
+    };
+    drawWing(leftX); drawWing(rightX);
+    // Entrance arch
+    g.lineStyle(3,0xFEFE12,0.72);
+    g.strokeRect(8*TILE-2,by+2,TILE+4,bh-4);
+    g.fillStyle(0x0A0015);
+    g.fillRect(8*TILE,by+4,TILE,bh-8);
+    for(let i=0;i<4;i++){g.fillStyle(0xFFDD00,0.28);g.fillCircle(8*TILE+TILE/2,by+16+i*24,4);}
+    this.add.text(leftX+wingW/2,by+bh/2,'B A N K',{
+      fontFamily:'"Courier New",monospace',fontSize:'20px',color:'#FEFE12',stroke:'#FF6600',strokeThickness:2,
+      shadow:{offsetX:0,offsetY:0,color:'#FEFE12',blur:16,fill:true}
+    }).setOrigin(0.5);
+    this.add.text(rightX+wingW/2,by+bh/2,'B A N K',{
+      fontFamily:'"Courier New",monospace',fontSize:'20px',color:'#FEFE12',stroke:'#FF6600',strokeThickness:2,
+      shadow:{offsetX:0,offsetY:0,color:'#FEFE12',blur:16,fill:true}
+    }).setOrigin(0.5);
+    const arr=this.add.text(8*TILE+TILE/2,(ROWS-8)*TILE+bh+6,'▼',{
+      fontFamily:'monospace',fontSize:'18px',color:'#FEFE12'
+    }).setOrigin(0.5);
+    this.tweens.add({targets:arr,y:{from:arr.y,to:arr.y+6},duration:600,yoyo:true,repeat:-1});
+  }
+
+  _createGoalPulse(){
+    const ps=[];
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)
+      if(MAP[r][c]===T_GOAL) ps.push(this.add.rectangle(c*TILE+TILE/2,r*TILE+TILE/2,TILE-6,TILE-6,0xFEFE12,0.25));
+    this.tweens.add({targets:ps,alpha:{from:0.10,to:0.52},duration:700,yoyo:true,repeat:-1});
+  }
+
+  // ── HUD ─────────────────────────────────────────────
+  _buildHUD(){
+    const VW=this.cameras.main.width;
+    this.timerTxt=this.add.text(10,10,'00:00',{
+      fontFamily:'"Courier New",monospace',fontSize:'18px',color:'#00C8E8'
+    }).setScrollFactor(0).setDepth(100);
+    this.add.text(VW/2,10,'Erreiche die  B A N K',{
+      fontFamily:'"Courier New",monospace',fontSize:'13px',color:'#FEFE12'
+    }).setOrigin(0.5,0).setScrollFactor(0).setDepth(100);
+    this.add.text(10,34,'ICH',{fontFamily:'"Courier New",monospace',fontSize:'11px',color:'#00C8E8'}).setScrollFactor(0).setDepth(100);
+    this._playerLifeIcons=Array.from({length:3},(_,i)=>
+      this.add.text(32+i*22,32,'◆',{fontFamily:'"Courier New",monospace',fontSize:'16px',color:'#00C8E8'}).setScrollFactor(0).setDepth(100)
+    );
+    this._tmLifeDots=Array.from({length:4},(_,i)=>{
+      const cx=VW-16-i*28;
+      this.add.rectangle(cx,14,14,14,TM_COLORS[i][0]).setScrollFactor(0).setDepth(100);
+      return Array.from({length:3},(_,j)=>this.add.rectangle(cx,28+j*9,6,6,TM_COLORS[i][0]).setScrollFactor(0).setDepth(100));
+    });
+    // Roadblock indicator text
+    this.rbTxt=this.add.text(VW/2,28,'',{
+      fontFamily:'"Courier New",monospace',fontSize:'12px',color:'#FF8800'
+    }).setOrigin(0.5,0).setScrollFactor(0).setDepth(100);
+    this._updateLivesHUD();
+  }
+
+  _updateLivesHUD(){
+    for(let i=0;i<3;i++) this._playerLifeIcons[i].setColor(i<this.player.lives?'#00C8E8':'#222233');
+    for(let i=0;i<4;i++){
+      const tm=this.teammates.find(t=>t.id===i);
+      for(let j=0;j<3;j++)
+        this._tmLifeDots[i][j].setFillStyle(tm&&j<tm.lives?TM_COLORS[i][0]:0x222222);
+    }
+  }
+
+  // ── D-Pad ────────────────────────────────────────────
+  _createDpad(){
+    const VH=this.cameras.main.height;
+    const px=80,py=VH-80,gap=56,btn=48;
+    [{dir:'UP',x:px,y:py-gap,lbl:'▲'},{dir:'DOWN',x:px,y:py+gap,lbl:'▼'},
+     {dir:'LEFT',x:px-gap,y:py,lbl:'◀'},{dir:'RIGHT',x:px+gap,y:py,lbl:'▶'}]
+    .forEach(d=>{
+      const bg=this.add.rectangle(d.x,d.y,btn,btn,0x00C8E8,0.18).setScrollFactor(0).setDepth(200).setInteractive();
+      this.add.text(d.x,d.y,d.lbl,{fontFamily:'"Courier New",monospace',fontSize:'22px',color:'#00C8E8'}).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+      bg.on('pointerdown',()=>{this.mobileDir=d.dir;});
+      bg.on('pointerup',  ()=>{if(this.mobileDir===d.dir)this.mobileDir=null;});
+      bg.on('pointerout', ()=>{if(this.mobileDir===d.dir)this.mobileDir=null;});
+    });
+  }
+
+  // ── Effects ─────────────────────────────────────────
+  _spawnFreezeEffect(x,y){
+    let rad=8,a=1.0;
+    const g=this.add.graphics().setDepth(60);
+    const ev=this.time.addEvent({delay:16,repeat:28,callback:()=>{
+      g.clear();g.lineStyle(2,0xAADDFF,a);g.strokeCircle(x,y,rad);
+      if(rad<40){g.lineStyle(1,0xCCEEFF,a*0.5);for(let i=0;i<6;i++){const ang=i/6*Math.PI*2;g.lineBetween(x,y,x+Math.cos(ang)*rad*0.7,y+Math.sin(ang)*rad*0.7);}}
+      rad+=3.5;a-=0.036;if(a<=0){g.destroy();ev.remove();}
+    }});
+  }
+  _spawnHitEffect(x,y){
+    let rad=5,a=1.0;
+    const g=this.add.graphics().setDepth(60);
+    const ev=this.time.addEvent({delay:16,repeat:20,callback:()=>{
+      g.clear();g.lineStyle(2,0xFF4400,a);g.strokeCircle(x,y,rad);rad+=2.5;a-=0.05;if(a<=0){g.destroy();ev.remove();}
+    }});
+  }
+
+  // ── Collisions ───────────────────────────────────────
+  _checkCollisions(){
+    const thr=TILE*0.65;
+    for(const e of this.enemies){
+      // vs Teammates
+      for(const tm of [...this.teammates]){
+        if(e.frozen||tm.frozen||e.invincible||tm.invincible) continue;
+        if(Math.hypot(e.x-tm.x,e.y-tm.y)<thr){
+          const ok=e.freeze(5000);
+          if(ok){
+            if(tm.freeze(5000)){tm.lives=Math.max(0,tm.lives-1);}
+            this._spawnFreezeEffect((e.x+tm.x)/2,(e.y+tm.y)/2);
+            this._updateLivesHUD();
+            if(tm.lives<=0){tm.destroy();this.teammates=this.teammates.filter(t=>t!==tm);this._updateLivesHUD();}
+          }
+        }
+      }
+      // vs Player
+      if(!this.gameOver&&!e.invincible&&!this.player.invincible&&!e.frozen&&!this.player.frozen&&!this.player.done){
+        if(Math.hypot(e.x-this.player.x,e.y-this.player.y)<thr){
+          e.freeze(5000);           // Gegner: 5 Sekunden
+          this.player.lives=Math.max(0,this.player.lives-1);
+          this.player.freeze(2500); // Spieler: 2,5 Sekunden
+          this._spawnHitEffect(this.player.x,this.player.y);
+          this.cameras.main.shake(250,0.008);
+          this._updateLivesHUD();
+          if(this.player.lives<=0){
+            this.gameOver=true;this.player.done=true;
+            this.cameras.main.flash(700,255,0,0);
+            this.cameras.main.shake(500,0.015);
+            this.time.delayedCall(1100,()=>this.scene.start('GameOverScene'));
+          }
+        }
+      }
+    }
+  }
+
+  _checkWin(){
+    if(this.gameWon||this.gameOver) return;
+    if(MAP[this.player.row]?.[this.player.col]===T_GOAL){
+      this.gameWon=true;this.player.done=true;
+      this.cameras.main.flash(700,0,200,230);
+      this.cameras.main.shake(400,0.012);
+      this.time.delayedCall(1000,()=>this.scene.start('WinScene',{time:this.elapsed}));
+    }
+  }
+
+  // ── Main update ──────────────────────────────────────
+  update(time,delta){
+    if(this.gameWon||this.gameOver) return;
+    this.elapsed+=delta;
+
+    // Input
+    const k=this.cursors,w=this.wasd;
+    this.inputDir=null;
+    if(k.up.isDown||w.UP.isDown)       this.inputDir='UP';
+    else if(k.down.isDown||w.DOWN.isDown)  this.inputDir='DOWN';
+    else if(k.left.isDown||w.LEFT.isDown)  this.inputDir='LEFT';
+    else if(k.right.isDown||w.RIGHT.isDown)this.inputDir='RIGHT';
+    if(this.mobileDir) this.inputDir=this.mobileDir;
+
+    // Update entities
+    this.player.update(delta,this.inputDir);
+    for(const e of this.enemies){
+      e.update(delta,this.player.col,this.player.row);
+      // Roadblock deployment
+      if(e._pendingRoadblock){
+        const rb=e._pendingRoadblock;e._pendingRoadblock=null;
+        if(!ROADBLOCKS.has(`${rb.c},${rb.r}`)&&this.roadblocks.length<5){
+          this.roadblocks.push(new Roadblock(this,rb.c,rb.r));
+        }
+      }
+    }
+    for(const tm of this.teammates) tm.update(delta,this.player.col,this.player.row,this.enemies);
+
+    // Update & clean roadblocks
+    this.roadblocks=this.roadblocks.filter(rb=>{const alive=rb.update(delta);if(!alive)rb.destroy();return alive;});
+
+    this._checkCollisions();
+    this._checkWin();
+
+    // Timer
+    const mm=String(Math.floor(this.elapsed/60000)).padStart(2,'0');
+    const ss=String(Math.floor((this.elapsed%60000)/1000)).padStart(2,'0');
+    this.timerTxt.setText(`${mm}:${ss}`);
+
+    // Roadblock HUD
+    if(this.roadblocks.length>0) this.rbTxt.setText(`⚠ SPERRE AKTIV (${this.roadblocks.length})`);
+    else this.rbTxt.setText('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  GAME OVER SCENE
+// ═══════════════════════════════════════════════════════
+class GameOverScene extends Phaser.Scene {
+  constructor(){super('GameOverScene');}
+  create(){
+    const W=this.cameras.main.width,H=this.cameras.main.height;
+    this.add.rectangle(W/2,H/2,W,H,0x000000,0.97);
+    const g=this.add.graphics();g.lineStyle(1,0x440000,0.5);
+    for(let x=0;x<W;x+=48)g.lineBetween(x,0,x,H);for(let y=0;y<H;y+=48)g.lineBetween(0,y,W,y);
+    const t=this.add.text(W/2,H*0.28,'GAME OVER',{fontFamily:'"Courier New",monospace',fontSize:'58px',color:'#FF2200',stroke:'#AA0000',strokeThickness:3,shadow:{offsetX:0,offsetY:0,color:'#FF2200',blur:35,fill:true}}).setOrigin(0.5);
+    this.tweens.add({targets:t,alpha:{from:1,to:0.05},duration:110,yoyo:true,repeat:4,delay:300});
+    this.add.text(W/2,H*0.50,'Du hast alle Leben verloren.',{fontFamily:'"Courier New",monospace',fontSize:'16px',color:'#666666'}).setOrigin(0.5);
+    const btn=this.add.text(W/2,H*0.68,'[ NOCHMAL VERSUCHEN ]',{fontFamily:'"Courier New",monospace',fontSize:'24px',color:'#FF2200'}).setOrigin(0.5).setInteractive({useHandCursor:true});
+    btn.on('pointerover',()=>btn.setColor('#FF7700'));btn.on('pointerout',()=>btn.setColor('#FF2200'));btn.on('pointerdown',()=>this.scene.start('GameScene'));
+    this.input.keyboard.once('keydown',()=>this.scene.start('GameScene'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  WIN SCENE
+// ═══════════════════════════════════════════════════════
+class WinScene extends Phaser.Scene {
+  constructor(){super('WinScene');}
+  create(data){
+    const W=this.cameras.main.width,H=this.cameras.main.height;
+    this.add.rectangle(W/2,H/2,W,H,0x000000,0.97);
+    const g=this.add.graphics();g.lineStyle(1,0x1A0050,0.5);
+    for(let x=0;x<W;x+=48)g.lineBetween(x,0,x,H);for(let y=0;y<H;y+=48)g.lineBetween(0,y,W,y);
+    const t=this.add.text(W/2,H*0.22,'ZIEL ERREICHT!',{fontFamily:'"Courier New",monospace',fontSize:'54px',color:'#FEFE12',stroke:'#FF6600',strokeThickness:4,shadow:{offsetX:0,offsetY:0,color:'#FEFE12',blur:28,fill:true}}).setOrigin(0.5);
+    this.tweens.add({targets:t,alpha:{from:1,to:0.05},duration:110,yoyo:true,repeat:4,delay:300});
+    this.add.text(W/2,H*0.40,'PRIME EMPIRE – ABSCHNITT 1',{fontFamily:'"Courier New",monospace',fontSize:'17px',color:'#00C8E8'}).setOrigin(0.5);
+    const ms=data?.time??0,mm=String(Math.floor(ms/60000)).padStart(2,'0'),ss=String(Math.floor((ms%60000)/1000)).padStart(2,'0');
+    this.add.text(W/2,H*0.52,`ZEIT:  ${mm}:${ss}`,{fontFamily:'"Courier New",monospace',fontSize:'32px',color:'#00FC4A'}).setOrigin(0.5);
+    this.add.text(W/2,H*0.65,'Abschnitt 2 kommt bald …',{fontFamily:'"Courier New",monospace',fontSize:'15px',color:'#445566'}).setOrigin(0.5);
+    const btn=this.add.text(W/2,H*0.78,'[ NOCHMAL SPIELEN ]',{fontFamily:'"Courier New",monospace',fontSize:'24px',color:'#FEFE12'}).setOrigin(0.5).setInteractive({useHandCursor:true});
+    btn.on('pointerover',()=>btn.setColor('#FF6600'));btn.on('pointerout',()=>btn.setColor('#FEFE12'));btn.on('pointerdown',()=>this.scene.start('GameScene'));
+    this.input.keyboard.once('keydown',()=>this.scene.start('GameScene'));
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  START
+// ═══════════════════════════════════════════════════════
+new Phaser.Game({
+  type:Phaser.AUTO, width:816, height:600, backgroundColor:'#0A0015', parent:'game',
+  scene:[BootScene,GameScene,GameOverScene,WinScene],
+  scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH}
+});
+</script>
+</body>
+</html>

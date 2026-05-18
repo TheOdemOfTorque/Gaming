@@ -54,6 +54,7 @@
       gap: 8px; padding: 16px 24px; border: none; border-radius: 16px;
       font-size: 1.1rem; font-weight: 700; cursor: pointer; width: 100%;
       transition: transform 0.1s; -webkit-appearance: none; text-align: center;
+      color: #fff;
     }
     .btn:active { transform: scale(0.95); }
     .btn-primary { background: linear-gradient(135deg, #6C63FF, #9B59B6); color: #fff; box-shadow: 0 4px 20px rgba(108,99,255,0.4); }
@@ -468,9 +469,9 @@
       <div id="blitz-rekord-label" style="font-size:0.7rem;color:#fbbf24;margin-top:4px;display:none">🏆 Rekord: <strong id="blitz-rekord-val">0</strong></div>
     </div>
     <div class="mode-card turnier" onclick="showTurnierPicker()">
-      <span class="mode-icon">🏆</span>
-      <div class="mode-name">Turnier</div>
-      <div class="mode-desc">10 Fragen, 3 Leben</div>
+      <span class="mode-icon">🏃</span>
+      <div class="mode-name">Marathon</div>
+      <div class="mode-desc">Wie weit kommst du?</div>
     </div>
     <div class="mode-card training" onclick="showTrainingPicker()">
       <span class="mode-icon">📚</span>
@@ -728,15 +729,15 @@
     <div id="mp-panel-join">
       <div class="settings-section">
         <div class="settings-section-title">Gruppen-Code</div>
-        <input type="text" id="mp-join-code" class="input-field" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
+        <input type="text" id="mp-join-code" class="text-input" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Dein Spitzname</div>
-        <input type="text" id="mp-join-nick" class="input-field" placeholder="z.B. Henry" autocomplete="off">
+        <input type="text" id="mp-join-nick" class="text-input" placeholder="z.B. Henry" autocomplete="off">
       </div>
       <div class="settings-section">
         <div class="settings-section-title">PIN wählen (4 Ziffern)</div>
-        <input type="password" id="mp-join-pin" class="input-field" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+        <input type="password" id="mp-join-pin" class="text-input" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
       </div>
       <div id="mp-join-error" style="color:#f87171;font-size:0.85rem;text-align:center;display:none;margin-bottom:8px"></div>
       <button class="btn btn-primary mt-8" onclick="mpJoin()">Gruppe beitreten ✓</button>
@@ -746,15 +747,15 @@
     <div id="mp-panel-login" style="display:none">
       <div class="settings-section">
         <div class="settings-section-title">Gruppen-Code</div>
-        <input type="text" id="mp-login-code" class="input-field" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
+        <input type="text" id="mp-login-code" class="text-input" placeholder="z.B. IGEL-3B" autocomplete="off" style="text-transform:uppercase">
       </div>
       <div class="settings-section">
         <div class="settings-section-title">Spitzname</div>
-        <input type="text" id="mp-login-nick" class="input-field" placeholder="z.B. Henry" autocomplete="off">
+        <input type="text" id="mp-login-nick" class="text-input" placeholder="z.B. Henry" autocomplete="off">
       </div>
       <div class="settings-section">
         <div class="settings-section-title">PIN</div>
-        <input type="password" id="mp-login-pin" class="input-field" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+        <input type="password" id="mp-login-pin" class="text-input" placeholder="••••" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
       </div>
       <div id="mp-login-error" style="color:#f87171;font-size:0.85rem;text-align:center;display:none;margin-bottom:8px"></div>
       <button class="btn btn-primary mt-8" onclick="mpLogin()">Einloggen →</button>
@@ -773,7 +774,7 @@
 <!-- MULTIPLAYER LEADERBOARD SCREEN -->
 <div id="screen-mp-leaderboard" class="screen">
   <div class="settings-header">
-    <h1 style="font-size:1.8rem;font-weight:900">⚡ Rangliste heute</h1>
+    <h1 id="mp-leaderboard-title" style="font-size:1.8rem;font-weight:900">⚡ Rangliste heute</h1>
   </div>
   <div id="mp-own-rank" style="font-size:1.2rem;font-weight:700;text-align:center;padding:12px;background:rgba(139,92,246,0.15);border-radius:12px;margin-bottom:16px"></div>
   <div style="overflow-x:auto">
@@ -932,8 +933,8 @@
 <!-- TURNIER-PICKER -->
 <div class="modal-overlay" id="turnier-modal">
   <div class="modal-sheet">
-    <div class="modal-title">🏆 Turnier</div>
-    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">10 Fragen · steigende Schwierigkeit</div>
+    <div class="modal-title">🏃 Marathon</div>
+    <div style="font-size:0.85rem;color:rgba(255,255,255,0.5);margin-bottom:16px;text-align:center">Wie weit kommst du mit 3 Leben?</div>
     <div id="turnier-rechenart-wrap">
       <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
       <div class="rechenart-toggle" id="turnier-rechenart-toggle">
@@ -1027,22 +1028,8 @@
 
 </div>
 
+<script src="logic.js"></script>
 <script>
-// ── CONSTANTS ──────────────────────────────────────────
-const STAR_COSTS = [800, 1400, 2000, 2800]; // XP cost for next star (caps at index 3)
-
-const LEVELS = [
-  { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
-  { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
-  { xp:  500, title: '📚 Schüler',            avatar: '📖' },
-  { xp:  900, title: '🔢 Fleißiger Rechner',  avatar: '🧮' },
-  { xp: 1400, title: '🎯 Mathe-Fan',          avatar: '🎯' },
-  { xp: 2000, title: '🦸 Zahlen-Held',        avatar: '🦸' },
-  { xp: 2800, title: '⚔️ Rechen-Ritter',      avatar: '⚔️' },
-  { xp: 3800, title: '🗡️ Mathe-Krieger',      avatar: '🗡️' },
-  { xp: 5000, title: '🏆 Zahlen-Meister',     avatar: '🏆' },
-  { xp: 6500, title: '👑 Einmaleins-Legende', avatar: '👑' },
-];
 
 const ACHIEVEMENTS = [
   // ── Erste Schritte ──
@@ -1086,70 +1073,19 @@ const ACHIEVEMENTS = [
 ];
 
 // ── STATE ──────────────────────────────────────────────
-function defaultSettings() {
-  const reiheMax = {};
-  for (let i = 1; i <= 20; i++) reiheMax[i] = 20;
-  return { grosses1x1: false, reiheMax, inputMode: 'both', rechenart: 'both' };
-}
-
-function defaultReiheStats() {
-  const s = {};
-  for (let i = 1; i <= 20; i++) s[i] = {
-    sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0,
-    divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0
-  };
-  return s;
-}
-
-function defaultState() {
-  return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
-           streak: 0, lastPlayDate: null,
-           highScores: { blitz: 0, turnier: 0, blitzListe: [],
-                         blitzDiv: 0, blitzGemischt: 0,
-                         turnierDiv: 0, turnierGemischt: 0 },
-           blitzConfig: { reihen: [], alleReihen: true, rechenart: 'mult' },
-           trainingConfig: { rechenart: 'mult' },
-           turnierConfig: { rechenart: 'mult' },
-           trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
-           streakFreezeUsedDate: null, streakFreezeTotal: 0,
-           questionStats: {},
-           stars: 0, gameSecondsLeft: 0,
-    mp: {
-      enabled: false,
-      groupCode: null,
-      nickname: null,
-      pinHash: null,
-      token: null,
-      pendingUploads: [],
-      lastSeedDate: null,
-      lastSeed: null,
-      lastChallengeId: null,
-    } };
-}
 
 // ── STATE VERSIONING ──────────────────────────────────────────
 // Wenn neue Felder hinzukommen: STATE_VERSION erhöhen und eine neue
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.4'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.8'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
 // ── MULTIPLAYER ────────────────────────────────────────────────────────────
+// _rng / mulberry32 / initSeededRNG / resetRNG leben in logic.js (zentrale RNG-
+// Infrastruktur, damit shuffle/rnd/pickBlitzReihe/pickWeightedFactor/resolve-
+// Rechenart bei Challenges automatisch deterministisch werden).
 const MP_API = 'https://1x1-api.marco-moebus.workers.dev';
-
-let _rng = () => Math.random();
-
-function mulberry32(seed) {
-  return function () {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-
-function initSeededRNG(seed) { _rng = mulberry32(seed); }
-function resetRNG()           { _rng = () => Math.random(); }
 
 async function sha256hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -1364,6 +1300,7 @@ function mpUpdateStatusPanel() {
 
 async function mpShowLeaderboard(myScore) {
   showScreen('mp-leaderboard');
+  document.getElementById('mp-leaderboard-title').textContent = '⚡ Rangliste heute';
   const tbody     = document.getElementById('mp-leaderboard-body');
   const offlineEl = document.getElementById('mp-leaderboard-offline');
   const rankEl    = document.getElementById('mp-own-rank');
@@ -1558,6 +1495,7 @@ async function mpAcceptChallenge(challengeId, seed, seedDate, theirScore, reihen
 
 function mpShowChallengeResult(result) {
   showScreen('mp-leaderboard');
+  document.getElementById('mp-leaderboard-title').textContent = '⚔️ Challenge-Ergebnis';
   const rankEl    = document.getElementById('mp-own-rank');
   const tbody     = document.getElementById('mp-leaderboard-body');
   const offlineEl = document.getElementById('mp-leaderboard-offline');
@@ -1571,7 +1509,9 @@ function mpShowChallengeResult(result) {
       <td style="padding:8px">Gegner</td><td style="text-align:right;padding:8px">${result.theirScore}</td><td style="text-align:right;padding:8px">${result.theirCorrect}</td>
     </tr>`;
   offlineEl.textContent = '';
-  document.getElementById('mp-challenge-btn').style.display = 'none';
+  // orphan element 'mp-challenge-btn' existiert nicht im HTML — null-safe, damit der
+  // restliche Code (Title-Set etc.) sauber durchläuft. Separates Issue für die fehlende ID.
+  document.getElementById('mp-challenge-btn')?.style && (document.getElementById('mp-challenge-btn').style.display = 'none');
 }
 
 async function mpRespondToChallenge(challengeId, score, correctCount) {
@@ -1587,82 +1527,8 @@ async function mpRespondToChallenge(challengeId, score, correctCount) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-
-const STATE_VERSION = 6;
-
-const STATE_MIGRATIONS = [
-  // v0 → v1: settings, reiheStats, streakFreeze, stars, gameSecondsLeft, questionStats
-  (s) => {
-    if (!s.settings)                          s.settings           = defaultSettings();
-    if (!s.settings.reiheMax)                 s.settings.reiheMax  = defaultSettings().reiheMax;
-    if (!s.settings.inputMode)                s.settings.inputMode = 'both';
-    if (s.streakFreezeUsedDate === undefined) s.streakFreezeUsedDate = null;
-    if (s.streakFreezeTotal    === undefined) s.streakFreezeTotal    = 0;
-    if (!s.questionStats)                     s.questionStats      = {};
-    if (s.stars           === undefined)      s.stars              = 0;
-    if (s.gameSecondsLeft === undefined)      s.gameSecondsLeft    = 0;
-    if (!s.reiheStats)                        s.reiheStats         = defaultReiheStats();
-    for (let i = 1; i <= 20; i++) {
-      if (!s.reiheStats[i]) s.reiheStats[i] = { sessions:0, totalCorrect:0, totalQuestions:0, consecutivePerfect:0 };
-    }
-    for (let i = 1; i <= 20; i++) {
-      if (!s.settings.reiheMax[i]) s.settings.reiheMax[i] = 20;
-    }
-    return s;
-  },
-  // v1 → v2: inputMode-Default von 'tap' auf 'both' migrieren
-  (s) => {
-    if (s.settings && s.settings.inputMode === 'tap') s.settings.inputMode = 'both';
-    return s;
-  },
-  // v2 → v3: blitzConfig + blitzListe
-  (s) => {
-    if (!s.blitzConfig) s.blitzConfig = { reihen: [], alleReihen: true };
-    if (!s.highScores) s.highScores = {};
-    if (!s.highScores.blitzListe) s.highScores.blitzListe = [];
-    return s;
-  },
-  // v3 → v4: Division-Rechenart + separate Highscores + reiheStats-Div-Felder
-  (s) => {
-    if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
-    if (!s.turnierConfig)  s.turnierConfig  = { rechenart: 'mult' };
-    if (!s.blitzConfig.rechenart) s.blitzConfig.rechenart = 'mult';
-    if (!s.highScores) s.highScores = {};
-    if (s.highScores.blitzDiv      === undefined) s.highScores.blitzDiv      = 0;
-    if (s.highScores.blitzGemischt === undefined) s.highScores.blitzGemischt = 0;
-    if (s.highScores.turnierDiv      === undefined) s.highScores.turnierDiv      = 0;
-    if (s.highScores.turnierGemischt === undefined) s.highScores.turnierGemischt = 0;
-    if (!s.reiheStats) s.reiheStats = defaultReiheStats();
-    for (let i = 1; i <= 20; i++) {
-      if (!s.reiheStats[i]) s.reiheStats[i] = defaultReiheStats()[i];
-      if (s.reiheStats[i].divConsecutivePerfect === undefined) s.reiheStats[i].divConsecutivePerfect = 0;
-      if (s.reiheStats[i].divCorrect            === undefined) s.reiheStats[i].divCorrect            = 0;
-      if (s.reiheStats[i].divWrong              === undefined) s.reiheStats[i].divWrong              = 0;
-    }
-    return s;
-  },
-  // v4 → v5: Multiplayer-State
-  (s) => {
-    if (!s.mp) s.mp = defaultState().mp;
-    return s;
-  },
-  // v5 → v6: globale Rechenart-Einstellung
-  (s) => {
-    if (!s.settings) s.settings = defaultSettings();
-    if (!s.settings.rechenart) s.settings.rechenart = 'both';
-    return s;
-  },
-];
-
-function migrateState(s) {
-  const fromVersion = s._version || 0;
-  for (let v = fromVersion; v < STATE_VERSION; v++) {
-    s = STATE_MIGRATIONS[v](s) || s;
-  }
-  s._version = STATE_VERSION;
-  return s;
-}
-
+// STATE_VERSION, STATE_MIGRATIONS und migrateState leben in logic.js — siehe
+// dortige Linearisierung (v4→v5 Marathon-Reset, v5→v6 mp-State, v6→v7 rechenart).
 let state = (() => {
   try {
     const raw = localStorage.getItem('henry_einmaleins');
@@ -1679,17 +1545,6 @@ function saveState() {
   // URL-Param Dev-Overrides nie in localStorage schreiben — Original-Werte aus Snapshot verwenden
   const toSave = (_devMode && _devSnapshot) ? Object.assign({}, state, _devSnapshot) : state;
   try { localStorage.setItem('henry_einmaleins', JSON.stringify(toSave)); } catch {}
-}
-
-// ── LEVEL HELPER ───────────────────────────────────────
-function getLevelInfo(xp) {
-  let lvl = 0;
-  for (let i = LEVELS.length - 1; i >= 0; i--) { if (xp >= LEVELS[i].xp) { lvl = i; break; } }
-  const cur = LEVELS[lvl], nxt = LEVELS[lvl + 1] || null;
-  const xpIn = xp - cur.xp;
-  const xpNeed = nxt ? nxt.xp - cur.xp : 1;
-  return { level: lvl + 1, title: cur.title, avatar: cur.avatar,
-           xpIn, xpNeed, progress: nxt ? Math.min(xpIn / xpNeed, 1) : 1 };
 }
 
 // ── AUDIO ──────────────────────────────────────────────
@@ -2017,9 +1872,9 @@ function updateHomeUI() {
   document.getElementById('level-xp-home').textContent   = `${info.xpIn} / ${info.xpNeed} XP`;
   document.getElementById('xp-fill-home').style.width    = (info.progress * 100) + '%';
   document.getElementById('trophy-progress').textContent = `${state.achievements.length} / ${ACHIEVEMENTS.length}`;
-  const maxReihe = getMaxReihe();
+  const maxReihe = getMaxReihe(state.settings);
   const masteredCount = Object.entries(state.reiheStats).filter(([k, r]) => parseInt(k) <= maxReihe && r.consecutivePerfect >= 6).length;
-  document.getElementById('stats-home-desc').textContent = `${masteredCount} von ${getMaxReihe()} Reihen gemeistert`;
+  document.getElementById('stats-home-desc').textContent = `${masteredCount} von ${getMaxReihe(state.settings)} Reihen gemeistert`;
   document.getElementById('footer-note').textContent = state.settings.grosses1x1
     ? 'Einmaleins-Trainer · Großes 1×1 aktiv' : 'Einmaleins-Trainer · Kleines 1×1';
 
@@ -2128,7 +1983,7 @@ function showTrainingPicker() {
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = '1fr 1fr';
   grid.style.gap = '8px';
-  for (let i = 1; i <= getMaxReihe(); i++) {
+  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
     const rs = state.reiheStats[i] || {};
     const multMastered = areAllQuestionsMastered(i);
     const multPlayed   = (rs.totalQuestions || 0) > 0;
@@ -2200,7 +2055,7 @@ function showBlitzPicker() {
       b.classList.toggle('active-blitz', b.dataset.r === (cfg.rechenart || 'mult'));
     });
   }
-  const maxR = getMaxReihe();
+  const maxR = getMaxReihe(state.settings);
   const alleBtn = document.getElementById('blitz-alle-btn');
   document.getElementById('blitz-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
   alleBtn.classList.toggle('selected', cfg.alleReihen);
@@ -2383,65 +2238,28 @@ document.getElementById('turnier-modal').addEventListener('click', function(e) {
 // ── GAME STATE ─────────────────────────────────────────
 let game = {};
 
-function shuffle(a) {
-  for (let i=a.length-1;i>0;i--){const j=Math.floor(_rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
-  return a;
-}
-function rnd(min,max){ return Math.floor(_rng()*(max-min+1))+min; }
-
-function getMaxReihe()       { return state.settings.grosses1x1 ? 20 : 10; }
-function getMaxFactor(reihe) { if (!state.settings.grosses1x1) return 10; return state.settings.reiheMax[reihe] || 20; }
 
 function getQS(reihe, factor) {
   if (!state.questionStats[reihe]) state.questionStats[reihe] = {};
-  if (!state.questionStats[reihe][factor]) state.questionStats[reihe][factor] = { correct:0, wrong:0, consecutiveCorrect:0 };
+  if (!state.questionStats[reihe][factor]) state.questionStats[reihe][factor] = defaultQS();
   return state.questionStats[reihe][factor];
 }
 
-function getQuestionWeight(reihe, factor) {
-  const qs = state.questionStats[reihe]?.[factor];
-  if (!qs || (qs.correct === 0 && qs.wrong === 0)) return 5;
-  if (qs.consecutiveCorrect >= 6) return 1;
-  if (qs.consecutiveCorrect === 5) return 2;
-  if (qs.consecutiveCorrect >= 3) return 3;
-  if (qs.consecutiveCorrect >= 1) return 5;
-  return Math.min(4 + qs.wrong * 2, 12); // never correct yet: boost by wrong count
-}
-
-function pickWeightedFactor(reihe, maxF) {
-  const weights = Array.from({length: maxF}, (_, i) => getQuestionWeight(reihe, i + 1));
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < maxF; i++) { r -= weights[i]; if (r <= 0) return i + 1; }
-  return maxF;
-}
 
 function generateTrainingSequence(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   const totalQ = maxF >= 20 ? 30 : 20;
   const required = shuffle(Array.from({length: maxF}, (_, i) => i + 1));
-  const extras = Array.from({length: totalQ - maxF}, () => pickWeightedFactor(reihe, maxF));
+  const extras = Array.from({length: totalQ - maxF}, () => pickWeightedFactor(state.questionStats, reihe, maxF));
   return shuffle([...required, ...extras]);
 }
 
 function areAllQuestionsMastered(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   for (let f = 1; f <= maxF; f++) {
     if ((state.questionStats[reihe]?.[f]?.consecutiveCorrect ?? 0) < 6) return false;
   }
   return true;
-}
-
-function pickBlitzReihe() {
-  const cfg = _challengeConfig ?? state.blitzConfig;
-  if (cfg.alleReihen || !cfg.reihen.length) return rnd(1, getMaxReihe());
-  return cfg.reihen[rnd(0, cfg.reihen.length - 1)];
-}
-
-function resolveRechenart(cfg) {
-  const r = (cfg && cfg.rechenart) || 'mult';
-  if (r === 'gemischt') return Math.random() < 0.5 ? 'mult' : 'div';
-  return r;
 }
 
 function getActiveRechenartCfg() {
@@ -2459,10 +2277,11 @@ function makeQuestion() {
   if (game.mode === 'training') {
     a = game.reihe; b = game.sequence[game.qCount];
   } else if (game.mode === 'blitz') {
-    a = pickBlitzReihe(); b = rnd(1, getMaxFactor(a));
-  } else { // turnier: difficulty grows each round
-    const max = Math.min(3 + Math.floor(game.qCount * 0.8), getMaxReihe());
-    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(a), max));
+    const blitzCfg = _challengeConfig ?? state.blitzConfig;
+    a = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
+  } else { // turnier (Marathon-Modus): unbegrenzte Fragen, sublineare Schwierigkeitskurve
+    const max = marathonDifficulty(game.qCount, getMaxReihe(state.settings));
+    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(state.settings, a), max));
   }
 
   const rechenart = resolveRechenart(getActiveRechenartCfg());
@@ -2525,7 +2344,7 @@ function _doStartGame(mode, reihe, inputType) {
 
   const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
   const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
-  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏆 Turnier', training:'📚 Training' };
+  const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏃 Marathon', training:'📚 Training' };
   document.getElementById('game-mode-label').textContent =
     modeLabels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '') + rechenartSuffix;
 
@@ -2536,10 +2355,14 @@ function _doStartGame(mode, reihe, inputType) {
     livesWrap.style.display = 'none';
     document.getElementById('game-timer').textContent = '60';
     document.getElementById('game-timer').classList.remove('warning');
-  } else {
+  } else if (mode === 'turnier') {
     timerWrap.style.display = 'none';
     livesWrap.style.display = 'block';
     renderLives();
+  } else {
+    // training: keine Leben, kein Timer — entspannt durchspielen
+    timerWrap.style.display = 'none';
+    livesWrap.style.display = 'none';
   }
   document.getElementById('game-score').textContent = '0';
   showScreen('game');
@@ -2561,7 +2384,6 @@ function startTimer() {
 // ── NEXT QUESTION ──────────────────────────────────────
 function nextQuestion() {
   if (!game.active) return;
-  if (game.mode === 'turnier' && game.qCount >= 10) { endGame('complete'); return; }
   if (game.mode === 'training' && game.qCount >= game.sequence.length) { endGame('complete'); return; }
 
   game.answered = false;
@@ -2573,9 +2395,10 @@ function nextQuestion() {
 
   if (game.mode === 'blitz') {
     document.getElementById('question-progress').textContent = `${game.correct} richtig`;
+  } else if (game.mode === 'turnier') {
+    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1}`;
   } else {
-    const total = game.mode === 'turnier' ? 10 : game.sequence.length;
-    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1} von ${total}`;
+    document.getElementById('question-progress').textContent = `Frage ${game.qCount+1} von ${game.sequence.length}`;
   }
 
   const useType = game.inputType === 'type';
@@ -2638,8 +2461,7 @@ function processAnswer(ok, xpX, xpY) {
     if (game.combo > game.maxCombo) game.maxCombo = game.combo;
     if (game.combo >= 2) playCombo(game.combo);
 
-    let xp = game.combo >= 10 ? 13 : game.combo >= 5 ? 9 : game.combo >= 3 ? 7 : 5;
-    if (game.mode === 'turnier') xp = Math.round(xp * 1.3);
+    const xp = computeAnswerXP(game.combo, game.mode);
     game.xpEarned += xp;
     game.score += 10 + Math.max(0, (game.combo-1)*3);
     document.getElementById('game-score').textContent = game.score;
@@ -2649,7 +2471,8 @@ function processAnswer(ok, xpX, xpY) {
   } else {
     playWrong();
     game.combo = 0; game.wrong++;
-    if (game.mode !== 'blitz') { game.lives--; renderLives(); }
+    // Nur Marathon hat Leben — Training motiviert nicht durch Game-Over, Blitz ist timer-bound.
+    if (game.mode === 'turnier') { game.lives--; renderLives(); }
     const msgs = ['Fast! Nicht ganz…','Nochmal versuchen!','Das war knapp!', getName() ? `Nicht aufgeben, ${getName()}!` : 'Nicht aufgeben!'];
     showFeedback(msgs[Math.floor(Math.random()*msgs.length)], '#EF4444');
   }
@@ -2664,7 +2487,7 @@ function processAnswer(ok, xpX, xpY) {
   game.qCount++;
   renderCombo();
 
-  if (game.mode !== 'blitz' && game.lives <= 0) {
+  if (game.mode === 'turnier' && game.lives <= 0) {
     setTimeout(()=>endGame('no-lives'), 900); return;
   }
   setTimeout(nextQuestion, ok ? 600 : 1100);
@@ -2699,7 +2522,7 @@ function quitGame() {
 
 // ── STAR EARNING ───────────────────────────────────────
 function earnStars() {
-  const cost = STAR_COSTS[Math.min(state.stars, STAR_COSTS.length - 1)];
+  const cost = nextStarCost(state.stars);
   if (state.xp >= cost) {
     state.stars++;
     state.xp -= cost;
@@ -2740,16 +2563,15 @@ function endGame(reason) {
         rechenart: game.rechenart,
         datum: new Date().toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
       };
-      state.highScores.blitzListe.push(entry);
-      state.highScores.blitzListe.sort((a,b) => b.score - a.score);
-      state.highScores.blitzListe = state.highScores.blitzListe.slice(0, 5);
+      state.highScores.blitzListe = addBlitzListeEntry(state.highScores.blitzListe, entry);
     }
   }
   if (game.mode === 'turnier') {
+    // Marathon-Modus: Highscore = Anzahl geschaffte Fragen (game.correct), nicht game.score
     const tsKey = game.rechenart === 'div' ? 'turnierDiv'
                 : game.rechenart === 'gemischt' ? 'turnierGemischt'
                 : 'turnier';
-    if (game.score > state.highScores[tsKey]) state.highScores[tsKey] = game.score;
+    if (game.correct > state.highScores[tsKey]) state.highScores[tsKey] = game.correct;
   }
 
   // Per-row stats (training mode only, only if at least 1 question answered)
@@ -2852,7 +2674,7 @@ function checkAchievements() {
   give('freezeused', (state.streakFreezeTotal || 0) >= 1);
   give('level5',     getLevelInfo(state.xp).level >= 5);
   give('level10',    getLevelInfo(state.xp).level >= 10);
-  give('allreihen',  trainedSet.size >= getMaxReihe());
+  give('allreihen',  trainedSet.size >= getMaxReihe(state.settings));
   give('kleines1x1', [1,2,3,4,5,6,7,8,9,10].every(i => areAllQuestionsMastered(i)));
   give('grosses1x1', Array.from({length:20},(_,i)=>i+1).every(i => areAllQuestionsMastered(i)));
   for (let i = 1; i <= 20; i++) {
@@ -2876,12 +2698,25 @@ function showResults(reason, leveledUp, newAchs) {
     title = game.correct>=40?(n?`Unglaublich, ${n}!`:'Unglaublich!'):game.correct>=20?'Klasse gemacht!':(n?`Gut geübt, ${n}!`:'Gut geübt!');
     sub   = `Blitz-Modus · ${game.correct} richtig · Rekord: ${state.highScores.blitz}`;
   } else if (reason === 'no-lives') {
-    emoji='😤'; title='Nächstes Mal klappt\'s!';
-    sub = `Turnier · ${game.correct} von 10 richtig`;
+    if (game.mode === 'turnier') {
+      // Marathon: jeder Run endet mit no-lives. Message basiert auf Anzahl geschaffter Fragen.
+      const tsKey = game.rechenart === 'div' ? 'turnierDiv'
+                  : game.rechenart === 'gemischt' ? 'turnierGemischt'
+                  : 'turnier';
+      const rekord = state.highScores[tsKey];
+      const newRecord = game.correct >= rekord && game.correct > 0;
+      emoji = newRecord ? '🏆' : game.correct>=20 ? '🏃' : '😤';
+      title = newRecord ? (n?`Neuer Rekord, ${n}! 🏆`:'Neuer Rekord! 🏆')
+            : game.correct>=20 ? 'Stark durchgehalten!' : 'Nächstes Mal klappt\'s!';
+      sub = `Marathon · ${game.correct} Fragen geschafft · Rekord: ${Math.max(rekord, game.correct)}`;
+    } else {
+      emoji='😤'; title='Nächstes Mal klappt\'s!';
+      sub = `Training · ${game.correct} richtig von ${game.qCount}`;
+    }
   } else {
     if (game.wrong===0) { emoji='👑'; title=n?`PERFEKT, ${n}! 🤩`:'PERFEKT! 🤩'; }
     else if (acc>=80)   { emoji='🌟'; title='Super Ergebnis!'; }
-    const label = game.mode==='turnier'?'Turnier':`${game.reihe}er-Reihe`;
+    const label = `${game.reihe}er-Reihe`;
     sub = `${label} · ${acc}% richtig`;
   }
 
@@ -2921,7 +2756,7 @@ function playAgain() {
 
 // ── STATS SCREEN ───────────────────────────────────────
 function showReiheDetail(reihe) {
-  const maxF = getMaxFactor(reihe);
+  const maxF = getMaxFactor(state.settings, reihe);
   const MASTERY = 6;
   document.getElementById('reihe-detail-title').textContent = `${reihe}er-Reihe — Aufgaben`;
   const grid = document.getElementById('reihe-detail-grid');
@@ -2959,7 +2794,7 @@ function renderStats() {
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = '';
 
-  for (let i = 1; i <= getMaxReihe(); i++) {
+  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
     const rs = state.reiheStats[i];
     const untrained = rs.sessions === 0;
     const rate = rs.totalQuestions > 0 ? Math.round(rs.totalCorrect / rs.totalQuestions * 100) : null;
@@ -2983,8 +2818,8 @@ function renderStats() {
     grid.appendChild(card);
   }
 
-  const fill = Math.round(mastered / getMaxReihe() * 100);
-  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe()}`;
+  const fill = Math.round(mastered / getMaxReihe(state.settings) * 100);
+  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe(state.settings)}`;
   document.getElementById('stats-progress-fill').style.width = fill + '%';
 }
 
@@ -4015,7 +3850,9 @@ window.addEventListener('load', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';
       banner.innerHTML = '🆕 Neue Version verfügbar! &nbsp;<button onclick="location.reload()" style="background:#fff;color:#1a1a2e;border:none;border-radius:12px;padding:6px 14px;font-weight:800;font-size:0.85rem;cursor:pointer">Jetzt laden</button>';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;';
+      // Banner im normalen Layout-Flow (keine fixed-Position): schiebt aktive .screen
+      // nach unten, statt Top-UI (Score/Leben/Zahnrad) zu überdecken.
+      banner.style.cssText = 'background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;font-size:0.85rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;width:100%;box-sizing:border-box;';
       document.body.prepend(banner);
     });
   }
