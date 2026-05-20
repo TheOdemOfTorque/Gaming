@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 8;
+var STATE_VERSION = 9;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 var LEVELS = [
@@ -44,7 +44,8 @@ function defaultReiheStats() {
   const s = {};
   for (let i = 1; i <= 20; i++) s[i] = {
     sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0,
-    divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0
+    divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0,
+    lastAccuracy: null   // v9: Accuracy der letzten Trainings-Session dieser Reihe (0-100, null = noch nie geübt)
   };
   return s;
 }
@@ -148,6 +149,17 @@ var STATE_MIGRATIONS = [
     if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
     if (!Array.isArray(s.trainingConfig.reihen))    s.trainingConfig.reihen     = [];
     if (typeof s.trainingConfig.alleReihen !== 'boolean') s.trainingConfig.alleReihen = false;
+    return s;
+  },
+  // v8 → v9: reiheStats kriegt lastAccuracy (Accuracy der letzten Session).
+  // Ersetzt die "rolling lifetime accuracy" als Anzeige-Metrik — Lifetime wandert
+  // nach langer Zeit nicht mehr und gibt kein Feedback zur jüngsten Performance.
+  (s) => {
+    if (!s.reiheStats) s.reiheStats = defaultReiheStats();
+    for (let i = 1; i <= 20; i++) {
+      if (!s.reiheStats[i]) s.reiheStats[i] = defaultReiheStats()[i];
+      if (s.reiheStats[i].lastAccuracy === undefined) s.reiheStats[i].lastAccuracy = null;
+    }
     return s;
   },
 ];

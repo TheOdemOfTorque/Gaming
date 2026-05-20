@@ -259,10 +259,10 @@
     .stats-card.red    { background: rgba(239,68,68,0.12);   border-color: rgba(239,68,68,0.45); }
     .stats-card.orange { background: rgba(245,158,11,0.12);  border-color: rgba(245,158,11,0.45); }
     .stats-card.green  { background: rgba(16,185,129,0.15);  border-color: rgba(16,185,129,0.55); }
-    .stats-card-num  { font-size: 1.1rem; font-weight: 900; margin-bottom: 2px; }
-    .stats-card-rate { font-size: 1.25rem; font-weight: 800; }
-    .stats-card-dots { font-size: 0.6rem; letter-spacing: 2px; margin: 4px 0 2px; }
-    .stats-card-sub  { font-size: 0.6rem; color: rgba(255,255,255,0.4); }
+    .stats-card-num     { font-size: 1.1rem; font-weight: 900; margin-bottom: 4px; }
+    .stats-card-rate    { font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.85); }
+    .stats-card-mastery { font-size: 0.78rem; font-weight: 700; color: rgba(255,255,255,0.7); margin-top: 2px; }
+    .stats-card-sub     { font-size: 0.62rem; color: rgba(255,255,255,0.4); margin-top: 4px; }
     .stats-legend { display: flex; gap: 14px; font-size: 0.75rem; color: rgba(255,255,255,0.55); margin-bottom: 12px; width: 100%; }
 
     /* FLOATING XP */
@@ -2663,6 +2663,8 @@ function endGame(reason) {
       rs.sessions++;
       rs.totalCorrect   += pr.correct;
       rs.totalQuestions += pr.correct + pr.wrong;
+      // lastAccuracy = per-Reihe Accuracy in dieser Session (0-100, gerundet)
+      rs.lastAccuracy = Math.round(pr.correct / (pr.correct + pr.wrong) * 100);
       if (game.rechenart === 'div') {
         rs.divCorrect += pr.correct;
         rs.divWrong   += pr.wrong;
@@ -2876,38 +2878,50 @@ function closeReiheDetail() {
 }
 
 function renderStats() {
-  const MASTERY = 6;
-  let mastered = 0;
-
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = '';
 
-  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
+  const maxR = getMaxReihe(state.settings);
+  let masteredRows = 0;
+
+  for (let i = 1; i <= maxR; i++) {
     const rs = state.reiheStats[i];
     const untrained = rs.sessions === 0;
-    const rate = rs.totalQuestions > 0 ? Math.round(rs.totalCorrect / rs.totalQuestions * 100) : null;
-    const cp = Math.min(rs.consecutivePerfect, MASTERY);
-    const isMastered = rs.consecutivePerfect >= MASTERY;
-    if (isMastered) mastered++;
+    const maxF = getMaxFactor(state.settings, i);
+    // Per-Faktor-Mastery: wie viele Aufgaben dieser Reihe sind gemeistert (consecutiveCorrect >= 6)?
+    // areAllQuestionsMastered prüft alle Faktoren; hier brauchen wir den Count für N/maxF.
+    let masteredFactors = 0;
+    for (let f = 1; f <= maxF; f++) {
+      if ((state.questionStats[i]?.[f]?.consecutiveCorrect ?? 0) >= 6) masteredFactors++;
+    }
+    const fullMastery = masteredFactors === maxF && maxF > 0;
+    if (fullMastery) masteredRows++;
 
-    const colorClass = untrained ? 'untrained' : getReiheColorClass(i);
+    // Farbgebung: grün wenn alle Faktoren gemeistert, orange bei Fortschritt, grau wenn nichts geübt
+    const colorClass = untrained ? 'untrained'
+                     : fullMastery ? 'green'
+                     : 'orange';
 
-    // Progress dots: ● filled, ○ empty
-    const dots = '●'.repeat(cp) + '○'.repeat(MASTERY - cp);
+    const lastAcc = rs.lastAccuracy;
+    const lastLine = untrained ? 'noch nicht geübt'
+                   : (lastAcc === null || lastAcc === undefined) ? '—'
+                   : `Letzte: ${lastAcc}%`;
+    const masteryLine = `Gem: ${masteredFactors}/${maxF}`;
+    const übungenLine = untrained ? '' : `${rs.sessions} ${rs.sessions === 1 ? 'Übung' : 'Übungen'}`;
 
     const card = document.createElement('div');
     card.className = `stats-card ${colorClass}`;
     card.onclick = () => showReiheDetail(i);
     card.innerHTML =
       `<div class="stats-card-num">${i}er</div>` +
-      `<div class="stats-card-rate">${rate !== null ? rate + '%' : '–'}</div>` +
-      `<div class="stats-card-dots">${dots}</div>` +
-      `<div class="stats-card-sub">${untrained ? 'nicht geübt' : rs.sessions + (rs.sessions === 1 ? ' Übung' : ' Übungen')}</div>`;
+      `<div class="stats-card-rate">${lastLine}</div>` +
+      `<div class="stats-card-mastery">${masteryLine}</div>` +
+      `<div class="stats-card-sub">${übungenLine}</div>`;
     grid.appendChild(card);
   }
 
-  const fill = Math.round(mastered / getMaxReihe(state.settings) * 100);
-  document.getElementById('stats-mastered-count').textContent = `${mastered} / ${getMaxReihe(state.settings)}`;
+  const fill = Math.round(masteredRows / maxR * 100);
+  document.getElementById('stats-mastered-count').textContent = `${masteredRows} / ${maxR}`;
   document.getElementById('stats-progress-fill').style.width = fill + '%';
 }
 

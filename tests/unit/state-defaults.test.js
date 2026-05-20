@@ -12,7 +12,7 @@ describe('defaultSettings', () => {
 });
 
 describe('defaultReiheStats', () => {
-  test('20 Einträge, alle Felder auf 0', () => {
+  test('20 Einträge, alle Felder auf 0/null', () => {
     const s = defaultReiheStats();
     expect(Object.keys(s)).toHaveLength(20);
     expect(s[1].sessions).toBe(0);
@@ -20,6 +20,7 @@ describe('defaultReiheStats', () => {
     expect(s[1].divConsecutivePerfect).toBe(0);
     expect(s[1].divCorrect).toBe(0);
     expect(s[20].totalCorrect).toBe(0);
+    expect(s[1].lastAccuracy).toBeNull();  // v9: lastAccuracy
   });
 });
 

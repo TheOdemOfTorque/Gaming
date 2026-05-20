@@ -1,7 +1,7 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
 
 describe('migrateState', () => {
-  test('leerer State {} bekommt komplettes v8-Schema', () => {
+  test('leerer State {} bekommt komplettes v9-Schema', () => {
     const result = migrateState({});
     expect(result._version).toBe(STATE_VERSION);
     expect(result.settings).toBeDefined();
@@ -23,6 +23,8 @@ describe('migrateState', () => {
     expect(result.mp).toBeDefined();
     expect(result.mp.enabled).toBe(false);
     expect(result.mp.pendingUploads).toEqual([]);
+    // v9: reiheStats kriegt lastAccuracy
+    expect(result.reiheStats[1].lastAccuracy).toBeNull();
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
@@ -199,5 +201,29 @@ describe('STATE_MIGRATIONS', () => {
     expect(result.trainingConfig).toBeDefined();
     expect(result.trainingConfig.reihen).toEqual([]);
     expect(result.trainingConfig.alleReihen).toBe(false);
+  });
+
+  test('Migration 8 (v8->v9) ergänzt lastAccuracy in reiheStats', () => {
+    const v8 = { _version: 8, reiheStats: {
+      1: { sessions: 5, totalCorrect: 80, totalQuestions: 100, consecutivePerfect: 3,
+           divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0 },
+      2: { sessions: 0, totalCorrect: 0, totalQuestions: 0, consecutivePerfect: 0,
+           divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0 },
+    }};
+    const result = STATE_MIGRATIONS[8](v8);
+    expect(result.reiheStats[1].lastAccuracy).toBeNull();
+    expect(result.reiheStats[2].lastAccuracy).toBeNull();
+    // Andere Felder unangetastet
+    expect(result.reiheStats[1].sessions).toBe(5);
+    expect(result.reiheStats[1].consecutivePerfect).toBe(3);
+  });
+
+  test('Migration 8 (v8->v9) lässt existierenden lastAccuracy unangetastet', () => {
+    const v8 = { _version: 8, reiheStats: {
+      1: { sessions: 5, totalCorrect: 80, totalQuestions: 100, consecutivePerfect: 3,
+           divConsecutivePerfect: 0, divCorrect: 0, divWrong: 0, lastAccuracy: 75 },
+    }};
+    const result = STATE_MIGRATIONS[8](v8);
+    expect(result.reiheStats[1].lastAccuracy).toBe(75);
   });
 });
