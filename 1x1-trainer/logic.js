@@ -195,6 +195,42 @@ function pickWeightedFactor(questionStats, reihe, maxF) {
   return maxF;
 }
 
+// Generiert die Frage-Sequenz für einen Training-Run.
+//
+// Input:
+//   reihen: Array von Reihen-Nummern (z.B. [3] für Single-Row, [3,7,8] für Mix).
+//           Wird zur Sicherheit toleriert: nicht-Array wird in [x] gewrappt.
+// Output:
+//   Array von {a, b}-Pairs, geshufflet. totalQ ist 20 (kleines 1×1) oder 30
+//   (großes 1×1, wenn mindestens eine gewählte Reihe maxF >= 20 hat).
+//
+// Mix-Verteilung: gleichmäßig per row (Math.floor(totalQ / reihen.length)),
+// Remainder auf die ersten Reihen verteilt. Pro Reihe: required-set
+// (alle Faktoren, abgeschnitten auf share) + weighted extras via Leitner.
+function generateTrainingSequence(questionStats, settings, reihen) {
+  if (!Array.isArray(reihen)) reihen = [reihen];
+  if (reihen.length === 0) return [];
+
+  const maxF_overall = Math.max(...reihen.map(r => getMaxFactor(settings, r)));
+  const totalQ = maxF_overall >= 20 ? 30 : 20;
+
+  const baseShare = Math.floor(totalQ / reihen.length);
+  const remainder = totalQ - baseShare * reihen.length;
+
+  const pairs = [];
+  reihen.forEach((r, idx) => {
+    const share = baseShare + (idx < remainder ? 1 : 0);
+    const maxF = getMaxFactor(settings, r);
+    const requiredCount = Math.min(maxF, share);
+    const required = shuffle(Array.from({ length: maxF }, (_, i) => i + 1)).slice(0, requiredCount);
+    const extras = Array.from({ length: Math.max(0, share - requiredCount) },
+                              () => pickWeightedFactor(questionStats, r, maxF));
+    [...required, ...extras].forEach(b => pairs.push({ a: r, b }));
+  });
+
+  return shuffle(pairs);
+}
+
 function pickBlitzReihe(blitzConfig, maxReihe) {
   if (blitzConfig.alleReihen || !blitzConfig.reihen.length)
     return null; // caller uses rnd(1, maxReihe)
@@ -290,6 +326,7 @@ function mpStateAfterLogout(state) {
 
 if (typeof module !== 'undefined') {
   module.exports = { getMaxReihe, getMaxFactor, getQuestionWeight, pickWeightedFactor,
+                     generateTrainingSequence,
                      pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
                      STATE_VERSION, STAR_COSTS, LEVELS,

@@ -2045,7 +2045,7 @@ function startTraining() {
   const reihe = selectedReihe;
   trainedSet.add(reihe);
   closeTrainingModal();
-  startGame('training', reihe);
+  startGame('training', [reihe]);  // Array-Wrapper — Multi-Select-UI kommt in Step 5 (#17)
 }
 
 document.getElementById('training-modal').addEventListener('click', function(e) {
@@ -2253,13 +2253,8 @@ function getQS(reihe, factor) {
 }
 
 
-function generateTrainingSequence(reihe) {
-  const maxF = getMaxFactor(state.settings, reihe);
-  const totalQ = maxF >= 20 ? 30 : 20;
-  const required = shuffle(Array.from({length: maxF}, (_, i) => i + 1));
-  const extras = Array.from({length: totalQ - maxF}, () => pickWeightedFactor(state.questionStats, reihe, maxF));
-  return shuffle([...required, ...extras]);
-}
+// generateTrainingSequence(questionStats, settings, reihen) lebt in logic.js
+// und ist global verfügbar (via <script src="logic.js">).
 
 function areAllQuestionsMastered(reihe) {
   const maxF = getMaxFactor(state.settings, reihe);
@@ -2282,7 +2277,8 @@ function getActiveRechenartCfg() {
 function makeQuestion() {
   let a, b;
   if (game.mode === 'training') {
-    a = game.reihe; b = game.sequence[game.qCount];
+    const pair = game.sequence[game.qCount];
+    a = pair.a; b = pair.b;
   } else if (game.mode === 'blitz') {
     const blitzCfg = _challengeConfig ?? state.blitzConfig;
     a = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
@@ -2315,28 +2311,44 @@ function makeQuestion() {
 }
 
 // ── START GAME ─────────────────────────────────────────
-let _pendingMode = null, _pendingReihe = null;
+let _pendingMode = null, _pendingReihen = null;
 
-function startGame(mode, reihe = null) {
+function startGame(mode, reihen = null) {
   const im = state.settings.inputMode;
   if (im === 'both') {
-    _pendingMode = mode; _pendingReihe = reihe;
+    _pendingMode = mode; _pendingReihen = reihen;
     document.getElementById('input-type-modal').classList.add('active');
     return;
   }
-  _doStartGame(mode, reihe, im);
+  _doStartGame(mode, reihen, im);
 }
 
 function pickInputType(type) {
   document.getElementById('input-type-modal').classList.remove('active');
   const resolved = type === 'random' ? (Math.random() < 0.5 ? 'tap' : 'type') : type;
-  _doStartGame(_pendingMode, _pendingReihe, resolved);
+  _doStartGame(_pendingMode, _pendingReihen, resolved);
 }
 
-function _doStartGame(mode, reihe, inputType) {
+// Label-Helper: Single-Row "7er-Reihe", Mix "Mix · 3 Reihen", Alle "Alle Reihen".
+function formatReihenLabel(reihen, settings) {
+  if (!Array.isArray(reihen) || reihen.length === 0) return '';
+  if (reihen.length === 1) return `${reihen[0]}er-Reihe`;
+  const maxR = getMaxReihe(settings);
+  if (reihen.length === maxR) return 'Alle Reihen';
+  return `Mix · ${reihen.length} Reihen`;
+}
+
+function _doStartGame(mode, reihen, inputType) {
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  const sequence = mode === 'training' ? generateTrainingSequence(reihe) : null;
-  game = { mode, reihe, inputType, sequence, score:0, correct:0, wrong:0, combo:0, maxCombo:0,
+  // Training-Modus: reihen muss ein Array sein. Fallback: scalar → [scalar] (BC für ggf. übersehene Callsites).
+  if (mode === 'training' && !Array.isArray(reihen)) reihen = reihen != null ? [reihen] : [];
+  const sequence = mode === 'training' ? generateTrainingSequence(state.questionStats, state.settings, reihen) : null;
+  // perReihe: tracking per-row correct/wrong während des Runs — Voraussetzung für saubere
+  // reiheStats-Updates am Ende, weil game.correct/wrong nur Scalars sind.
+  const perReihe = {};
+  if (mode === 'training' && Array.isArray(reihen)) reihen.forEach(r => { perReihe[r] = { correct: 0, wrong: 0 }; });
+  game = { mode, reihen, inputType, sequence, perReihe,
+           score:0, correct:0, wrong:0, combo:0, maxCombo:0,
            lives:3, timeLeft:60, timer:null, xpEarned:0, qCount:0,
            answered:false, active:true, q:null,
            rechenart: (() => {
@@ -2352,8 +2364,9 @@ function _doStartGame(mode, reihe, inputType) {
   const rechenartLabels = { mult: '×', div: '÷', gemischt: '× ÷' };
   const rechenartSuffix = ' · ' + rechenartLabels[game.rechenart];
   const modeLabels = { blitz:'⚡ Blitz-Modus', turnier:'🏃 Marathon', training:'📚 Training' };
+  const reihenLabel = mode === 'training' ? formatReihenLabel(reihen, state.settings) : '';
   document.getElementById('game-mode-label').textContent =
-    modeLabels[mode] + (reihe ? ` · ${reihe}er-Reihe` : '') + rechenartSuffix;
+    modeLabels[mode] + (reihenLabel ? ` · ${reihenLabel}` : '') + rechenartSuffix;
 
   const timerWrap = document.getElementById('game-timer-wrap');
   const livesWrap = document.getElementById('game-lives-wrap');
@@ -2484,11 +2497,16 @@ function processAnswer(ok, xpX, xpY) {
     showFeedback(msgs[Math.floor(Math.random()*msgs.length)], '#EF4444');
   }
 
-  // Per-question Leitner tracking (training mode only)
+  // Per-question Leitner tracking (training mode only) — Leitner-Reihe ist die
+  // tatsächliche Reihe der Frage (game.q.a), nicht eine fixe Game-Reihe (war
+  // im Single-Row-Modus identisch, weicht im Mix-Modus aber pro Frage ab).
   if (game.mode === 'training') {
-    const qs = getQS(game.reihe, game.q.b);
+    const qs = getQS(game.q.a, game.q.b);
     if (ok) { qs.correct++; qs.consecutiveCorrect++; }
     else    { qs.wrong++;   qs.consecutiveCorrect = 0; }
+    // perReihe-Bucket füllen — wird in endGame für reiheStats-Updates ausgewertet.
+    const pr = game.perReihe[game.q.a] || (game.perReihe[game.q.a] = { correct: 0, wrong: 0 });
+    if (ok) pr.correct++; else pr.wrong++;
   }
 
   game.qCount++;
@@ -2581,22 +2599,35 @@ function endGame(reason) {
     if (game.correct > state.highScores[tsKey]) state.highScores[tsKey] = game.correct;
   }
 
-  // Per-row stats (training mode only, only if at least 1 question answered)
+  // Per-row stats (training mode only, only if at least 1 question answered).
+  // Mix-Run: für jede berührte Reihe einen eigenen Update; consecutivePerfect-Streak
+  // wird nur bei Single-Row-Sessions berührt (weder erhöht noch resettet), damit
+  // ein Mix-Run keine fälschliche Mastery beansprucht, aber auch eine bestehende
+  // Streak nicht zerstört (vgl. Issue #17 Edge-Cases).
   if (game.mode === 'training' && game.correct + game.wrong > 0) {
-    const rs = state.reiheStats[game.reihe];
-    rs.sessions++;
-    rs.totalCorrect   += game.correct;
-    rs.totalQuestions += game.correct + game.wrong;
-    if (game.rechenart === 'div') {
-      rs.divCorrect += game.correct;
-      rs.divWrong   += game.wrong;
-      if (game.wrong === 0) rs.divConsecutivePerfect++;
-      else                  rs.divConsecutivePerfect = 0;
-    } else if (game.rechenart === 'mult') {
-      if (game.wrong === 0) rs.consecutivePerfect++;
-      else                  rs.consecutivePerfect = 0;
-    }
-    // 'gemischt': nur Totals werden gezählt, kein Leitner-Fortschritt
+    const isSingleRow = Array.isArray(game.reihen) && game.reihen.length === 1;
+    const touchedRows = Object.keys(game.perReihe || {}).map(Number);
+    touchedRows.forEach(r => {
+      const pr = game.perReihe[r];
+      if (pr.correct + pr.wrong === 0) return; // unberührte Reihe (kann bei sehr kleinen shares passieren)
+      const rs = state.reiheStats[r];
+      rs.sessions++;
+      rs.totalCorrect   += pr.correct;
+      rs.totalQuestions += pr.correct + pr.wrong;
+      if (game.rechenart === 'div') {
+        rs.divCorrect += pr.correct;
+        rs.divWrong   += pr.wrong;
+        if (isSingleRow) {
+          if (pr.wrong === 0) rs.divConsecutivePerfect++;
+          else                rs.divConsecutivePerfect = 0;
+        }
+      } else if (game.rechenart === 'mult' && isSingleRow) {
+        if (pr.wrong === 0) rs.consecutivePerfect++;
+        else                rs.consecutivePerfect = 0;
+      }
+      // 'gemischt': nur Totals werden gezählt, kein Leitner-Fortschritt
+      // Mix-Mode + mult/div: Totals updaten, consecutivePerfect bleibt unangetastet
+    });
   }
 
   const oldLevel = getLevelInfo(state.xp).level;
@@ -2724,7 +2755,7 @@ function showResults(reason, leveledUp, newAchs) {
   } else {
     if (game.wrong===0) { emoji='👑'; title=n?`PERFEKT, ${n}! 🤩`:'PERFEKT! 🤩'; }
     else if (acc>=80)   { emoji='🌟'; title='Super Ergebnis!'; }
-    const label = `${game.reihe}er-Reihe`;
+    const label = formatReihenLabel(game.reihen, state.settings);
     sub = `${label} · ${acc}% richtig`;
   }
 
@@ -2738,7 +2769,7 @@ function showResults(reason, leveledUp, newAchs) {
   document.getElementById('xp-gained').textContent        = `+${game.xpEarned} XP verdient! 🌟`;
 
   document.getElementById('results-again-btn').textContent =
-    game.mode==='training' ? `🔄 ${game.reihe}er-Reihe nochmal` : '🔄 Nochmal spielen';
+    game.mode==='training' ? `🔄 ${formatReihenLabel(game.reihen, state.settings)} nochmal` : '🔄 Nochmal spielen';
 
   const achBox  = document.getElementById('new-achievements');
   const achList = document.getElementById('new-ach-list');
@@ -2758,7 +2789,7 @@ function showResults(reason, leveledUp, newAchs) {
 }
 
 function playAgain() {
-  if (game.mode === 'training') startGame('training', game.reihe);
+  if (game.mode === 'training') startGame('training', game.reihen);
   else startGame(game.mode);
 }
 
