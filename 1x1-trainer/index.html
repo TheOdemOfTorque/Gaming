@@ -189,6 +189,14 @@
     .blitz-reihe-btn { padding: 10px 4px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.12); border-radius: 10px; color: #fff; font-size: 0.95rem; font-weight: 700; cursor: pointer; text-align: center; transition: transform 0.1s; }
     .blitz-reihe-btn:active { transform: scale(0.93); }
     .blitz-reihe-btn.selected { background: rgba(245,158,11,0.25); border-color: #F59E0B; }
+    /* TRAINING-Picker Multi-Select: starke Selektions-Visualisierung (Hintergrund + Border + Glow). */
+    .training-reihe-btn { background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 12px; text-align: left; cursor: pointer; color: #fff; display: flex; flex-direction: column; gap: 3px; -webkit-appearance: none; transition: background 0.12s, border-color 0.12s, box-shadow 0.12s; position: relative; }
+    .training-reihe-btn:active { transform: scale(0.97); }
+    .training-reihe-btn.has-progress { border-color: rgba(245,158,11,0.4); }
+    .training-reihe-btn.mastered     { border-color: rgba(16,185,129,0.6); }
+    .training-reihe-btn.selected     { background: rgba(108,99,255,0.28); border-color: #6C63FF; box-shadow: 0 0 0 2px rgba(108,99,255,0.45); }
+    .training-reihe-btn.selected::before { content: '✓'; position: absolute; top: 6px; right: 8px; color: #c4b5fd; font-weight: 900; font-size: 1.05rem; }
+    .training-reihe-btn.disabled-by-alle { opacity: 0.4; pointer-events: none; }
     /* RECHENART-TOGGLE (alle Modi) */
     .rechenart-toggle { display: flex; gap: 6px; margin-bottom: 12px; }
     .rechenart-btn {
@@ -901,7 +909,13 @@
         <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
       </div>
     </div>
-    <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:8px;margin-top:8px">Eine, mehrere oder alle Reihen:</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;margin-top:8px;gap:8px">
+      <span id="training-selection-info" style="font-size:0.82rem;color:rgba(255,255,255,0.55)">Eine, mehrere oder alle Reihen:</span>
+      <button id="training-clear-btn" type="button" onclick="clearTrainingSelection()"
+              style="background:none;border:1px solid rgba(255,255,255,0.18);color:rgba(255,255,255,0.6);font-size:0.72rem;padding:4px 10px;border-radius:8px;cursor:pointer;display:none">
+        Auswahl löschen
+      </button>
+    </div>
     <button class="blitz-alle-btn" id="training-alle-btn" onclick="toggleTrainingAlle()">
       <span id="training-alle-icon">☐</span>
       <div>
@@ -1999,6 +2013,7 @@ function showTrainingPicker() {
   document.getElementById('training-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
   document.getElementById('training-alle-btn').classList.toggle('selected', cfg.alleReihen);
   document.getElementById('training-alle-sub').textContent = `Reihen 1–${maxR} gemischt`;
+  updateTrainingSelectionInfo();
   // Reihen-Grid mit Dual-Progress
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
@@ -2016,15 +2031,17 @@ function showTrainingPicker() {
     const divText  = divMastered  ? '÷ gemeistert ✅'
                    : divPlayed    ? `÷ ${Math.min(rs.divConsecutivePerfect||0,5)} von 6 ⭐`
                    : '÷ noch nicht geübt';
-    const borderColor = multMastered && divMastered ? 'rgba(16,185,129,0.6)'
-                      : multPlayed || divPlayed      ? 'rgba(245,158,11,0.4)'
-                      : 'rgba(255,255,255,0.1)';
     const selected = !cfg.alleReihen && cfg.reihen.includes(i);
+
+    const classes = ['training-reihe-btn'];
+    if (multMastered && divMastered) classes.push('mastered');
+    else if (multPlayed || divPlayed) classes.push('has-progress');
+    if (selected)         classes.push('selected');
+    if (cfg.alleReihen)   classes.push('disabled-by-alle');
+
     const btn = document.createElement('button');
     btn.dataset.reihe = i;
-    btn.style.cssText = `background:rgba(255,255,255,0.06);border:1px solid ${borderColor};border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;color:#fff;display:flex;flex-direction:column;gap:3px;-webkit-appearance:none;` +
-      (cfg.alleReihen ? 'opacity:0.4;' : '') +
-      (selected ? 'outline:2px solid #6C63FF;' : '');
+    btn.className = classes.join(' ');
     btn.disabled = cfg.alleReihen;
     btn.innerHTML = `<div style="font-weight:800;font-size:0.95rem">${i}er-Reihe</div>
       <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${multText}</div>
@@ -2034,6 +2051,40 @@ function showTrainingPicker() {
   }
   updateTrainingStartBtn();
   document.getElementById('training-modal').classList.add('active');
+}
+
+// Selection-Info-Text + Clear-Button: macht die aktuelle Auswahl explizit lesbar,
+// damit eine stale Multi-Auswahl aus früheren Sessions nicht übersehen wird.
+function updateTrainingSelectionInfo() {
+  const cfg = state.trainingConfig;
+  const info  = document.getElementById('training-selection-info');
+  const clear = document.getElementById('training-clear-btn');
+  if (cfg.alleReihen) {
+    info.textContent  = 'Alle Reihen gemischt';
+    info.style.color  = '#c4b5fd';
+    clear.style.display = 'inline-block';
+  } else if (cfg.reihen.length === 0) {
+    info.textContent  = 'Eine, mehrere oder alle Reihen:';
+    info.style.color  = 'rgba(255,255,255,0.55)';
+    clear.style.display = 'none';
+  } else if (cfg.reihen.length === 1) {
+    info.textContent  = `1 Reihe gewählt: ${cfg.reihen[0]}er`;
+    info.style.color  = '#c4b5fd';
+    clear.style.display = 'inline-block';
+  } else {
+    const sorted = cfg.reihen.slice().sort((a, b) => a - b);
+    info.textContent  = `${cfg.reihen.length} Reihen gewählt: ${sorted.map(r => r + 'er').join(', ')}`;
+    info.style.color  = '#c4b5fd';
+    clear.style.display = 'inline-block';
+  }
+}
+
+function clearTrainingSelection() {
+  const cfg = state.trainingConfig;
+  cfg.reihen = [];
+  cfg.alleReihen = false;
+  saveState();
+  showTrainingPicker();
 }
 
 function toggleTrainingAlle() {
