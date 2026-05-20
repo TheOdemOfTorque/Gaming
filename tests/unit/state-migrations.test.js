@@ -1,7 +1,7 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
 
 describe('migrateState', () => {
-  test('leerer State {} bekommt komplettes v7-Schema', () => {
+  test('leerer State {} bekommt komplettes v8-Schema', () => {
     const result = migrateState({});
     expect(result._version).toBe(STATE_VERSION);
     expect(result.settings).toBeDefined();
@@ -10,6 +10,9 @@ describe('migrateState', () => {
     expect(result.settings.rechenart).toBe('both'); // v7: globale Rechenart
     expect(result.blitzConfig.rechenart).toBe('mult');
     expect(result.trainingConfig.rechenart).toBe('mult');
+    // v8: trainingConfig kriegt reihen[] + alleReihen
+    expect(result.trainingConfig.reihen).toEqual([]);
+    expect(result.trainingConfig.alleReihen).toBe(false);
     expect(result.highScores.blitzDiv).toBe(0);
     expect(result.highScores.blitzListe).toEqual([]);
     // v5: turnier highscores resettet (Marathon-Modus, neue Semantik)
@@ -171,5 +174,30 @@ describe('STATE_MIGRATIONS', () => {
     };
     const result = STATE_MIGRATIONS[6](v6);
     expect(result.settings.rechenart).toBe('mult');
+  });
+
+  test('Migration 7 (v7->v8) ergänzt trainingConfig.reihen + alleReihen', () => {
+    const v7 = { _version: 7, trainingConfig: { rechenart: 'mult' } };
+    const result = STATE_MIGRATIONS[7](v7);
+    expect(result.trainingConfig.reihen).toEqual([]);
+    expect(result.trainingConfig.alleReihen).toBe(false);
+    expect(result.trainingConfig.rechenart).toBe('mult'); // unangetastet
+  });
+
+  test('Migration 7 (v7->v8) lässt existierende reihen-Auswahl unangetastet', () => {
+    const v7 = { _version: 7,
+      trainingConfig: { rechenart: 'div', reihen: [3, 7], alleReihen: false } };
+    const result = STATE_MIGRATIONS[7](v7);
+    expect(result.trainingConfig.reihen).toEqual([3, 7]);
+    expect(result.trainingConfig.alleReihen).toBe(false);
+    expect(result.trainingConfig.rechenart).toBe('div');
+  });
+
+  test('Migration 7 (v7->v8) legt trainingConfig komplett an wenn fehlend', () => {
+    const v7 = { _version: 7 };
+    const result = STATE_MIGRATIONS[7](v7);
+    expect(result.trainingConfig).toBeDefined();
+    expect(result.trainingConfig.reihen).toEqual([]);
+    expect(result.trainingConfig.alleReihen).toBe(false);
   });
 });

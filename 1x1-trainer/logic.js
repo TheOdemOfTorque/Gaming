@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 7;
+var STATE_VERSION = 8;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 var LEVELS = [
@@ -58,7 +58,7 @@ function defaultState() {
                          blitzDiv: 0, blitzGemischt: 0,
                          turnierDiv: 0, turnierGemischt: 0 },
            blitzConfig: { reihen: [], alleReihen: true, rechenart: 'mult' },
-           trainingConfig: { rechenart: 'mult' },
+           trainingConfig: { rechenart: 'mult', reihen: [], alleReihen: false },
            turnierConfig: { rechenart: 'mult' },
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
@@ -140,6 +140,14 @@ var STATE_MIGRATIONS = [
   (s) => {
     if (!s.settings) s.settings = defaultSettings();
     if (!s.settings.rechenart) s.settings.rechenart = 'both';
+    return s;
+  },
+  // v7 → v8: Multi-Reihen-Training. trainingConfig kriegt reihen[] + alleReihen,
+  // analog zu blitzConfig. Default leer/false = User wählt beim ersten Picker-Aufruf.
+  (s) => {
+    if (!s.trainingConfig) s.trainingConfig = { rechenart: 'mult' };
+    if (!Array.isArray(s.trainingConfig.reihen))    s.trainingConfig.reihen     = [];
+    if (typeof s.trainingConfig.alleReihen !== 'boolean') s.trainingConfig.alleReihen = false;
     return s;
   },
 ];
