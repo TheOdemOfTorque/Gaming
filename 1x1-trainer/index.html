@@ -892,7 +892,7 @@
 <!-- TRAINING MODAL -->
 <div class="modal-overlay" id="training-modal">
   <div class="modal-sheet">
-    <div class="modal-title">📚 Welche Reihe möchtest du üben?</div>
+    <div class="modal-title">📚 Welche Reihen möchtest du üben?</div>
     <div id="training-rechenart-wrap">
       <div style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Rechenart</div>
       <div class="rechenart-toggle" id="training-rechenart-toggle">
@@ -901,6 +901,14 @@
         <button class="rechenart-btn" data-r="gemischt" onclick="selectTrainingRechenart('gemischt')">× ÷</button>
       </div>
     </div>
+    <div style="font-size:0.8rem;color:rgba(255,255,255,0.5);margin-bottom:8px;margin-top:8px">Eine, mehrere oder alle Reihen:</div>
+    <button class="blitz-alle-btn" id="training-alle-btn" onclick="toggleTrainingAlle()">
+      <span id="training-alle-icon">☐</span>
+      <div>
+        <div style="font-weight:700">Alle Reihen</div>
+        <div style="font-size:0.72rem;color:rgba(255,255,255,0.4)" id="training-alle-sub">Reihen 1–10 gemischt</div>
+      </div>
+    </button>
     <div class="reihe-grid" id="reihe-grid"></div>
     <button class="btn btn-training" id="start-training-btn" onclick="startTraining()" disabled style="opacity:0.5">▶ Los geht's!</button>
     <button class="btn btn-secondary mt-8" onclick="closeTrainingModal()">Abbrechen</button>
@@ -1966,7 +1974,9 @@ function renderTrophies() {
 }
 
 // ── TRAINING MODAL ─────────────────────────────────────
-let selectedReihe = null;
+// Multi-Reihen-Auswahl: state.trainingConfig.reihen (Array) + alleReihen (Bool).
+// Auswahl persistiert über Sessions hinweg — Henry kriegt beim Wiedereintritt
+// die letzte Konfiguration vorgesetzt.
 
 function getReiheColorClass(i) {
   const rs = state.reiheStats[i];
@@ -1976,21 +1986,25 @@ function getReiheColorClass(i) {
 }
 
 function showTrainingPicker() {
-  selectedReihe = null;
+  const cfg = state.trainingConfig;
   const globalR = state.settings.rechenart || 'both';
   document.getElementById('training-rechenart-wrap').style.display = globalR === 'both' ? '' : 'none';
   if (globalR === 'both') {
-    const rcfg = state.trainingConfig || { rechenart: 'mult' };
     document.querySelectorAll('#training-rechenart-toggle .rechenart-btn').forEach(b => {
-      b.classList.toggle('active-training', b.dataset.r === (rcfg.rechenart || 'mult'));
+      b.classList.toggle('active-training', b.dataset.r === (cfg.rechenart || 'mult'));
     });
   }
+  // Alle-Reihen-Button (Top-Level Toggle)
+  const maxR = getMaxReihe(state.settings);
+  document.getElementById('training-alle-icon').textContent = cfg.alleReihen ? '✅' : '☐';
+  document.getElementById('training-alle-btn').classList.toggle('selected', cfg.alleReihen);
+  document.getElementById('training-alle-sub').textContent = `Reihen 1–${maxR} gemischt`;
   // Reihen-Grid mit Dual-Progress
   const grid = document.getElementById('reihe-grid');
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = '1fr 1fr';
   grid.style.gap = '8px';
-  for (let i = 1; i <= getMaxReihe(state.settings); i++) {
+  for (let i = 1; i <= maxR; i++) {
     const rs = state.reiheStats[i] || {};
     const multMastered = areAllQuestionsMastered(i);
     const multPlayed   = (rs.totalQuestions || 0) > 0;
@@ -2005,31 +2019,61 @@ function showTrainingPicker() {
     const borderColor = multMastered && divMastered ? 'rgba(16,185,129,0.6)'
                       : multPlayed || divPlayed      ? 'rgba(245,158,11,0.4)'
                       : 'rgba(255,255,255,0.1)';
+    const selected = !cfg.alleReihen && cfg.reihen.includes(i);
     const btn = document.createElement('button');
-    btn.style.cssText = `background:rgba(255,255,255,0.06);border:1px solid ${borderColor};border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;color:#fff;display:flex;flex-direction:column;gap:3px;-webkit-appearance:none;`;
+    btn.dataset.reihe = i;
+    btn.style.cssText = `background:rgba(255,255,255,0.06);border:1px solid ${borderColor};border-radius:10px;padding:10px 12px;text-align:left;cursor:pointer;color:#fff;display:flex;flex-direction:column;gap:3px;-webkit-appearance:none;` +
+      (cfg.alleReihen ? 'opacity:0.4;' : '') +
+      (selected ? 'outline:2px solid #6C63FF;' : '');
+    btn.disabled = cfg.alleReihen;
     btn.innerHTML = `<div style="font-weight:800;font-size:0.95rem">${i}er-Reihe</div>
       <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${multText}</div>
       <div style="font-size:0.62rem;color:rgba(255,255,255,0.45)">${divText}</div>`;
-    btn.onclick = () => selectReihe(i, btn);
+    btn.onclick = () => toggleTrainingReihe(i);
     grid.appendChild(btn);
   }
-  const sb = document.getElementById('start-training-btn');
-  sb.disabled = true; sb.style.opacity = '0.5'; sb.textContent = '▶ Los geht\'s!';
+  updateTrainingStartBtn();
   document.getElementById('training-modal').classList.add('active');
 }
 
-function selectReihe(n, el) {
-  selectedReihe = n;
-  document.querySelectorAll('#reihe-grid button').forEach(b => b.style.outline = '');
-  el.style.outline = '2px solid #6C63FF';
-  const sb = document.getElementById('start-training-btn');
-  sb.disabled = false; sb.style.opacity = '1';
-  sb.textContent = `▶ ${n}er-Reihe üben!`;
+function toggleTrainingAlle() {
+  const cfg = state.trainingConfig;
+  cfg.alleReihen = !cfg.alleReihen;
+  if (cfg.alleReihen) cfg.reihen = [];
+  saveState();
+  showTrainingPicker();
+}
+
+function toggleTrainingReihe(n) {
+  const cfg = state.trainingConfig;
+  cfg.alleReihen = false;
+  const idx = cfg.reihen.indexOf(n);
+  if (idx >= 0) cfg.reihen.splice(idx, 1);
+  else          cfg.reihen.push(n);
+  saveState();
+  showTrainingPicker();
+}
+
+function updateTrainingStartBtn() {
+  const cfg = state.trainingConfig;
+  const btn = document.getElementById('start-training-btn');
+  const hasSelection = cfg.alleReihen || cfg.reihen.length > 0;
+  btn.disabled = !hasSelection;
+  btn.style.opacity = hasSelection ? '1' : '0.5';
+  if (!hasSelection) {
+    btn.textContent = '▶ Reihe wählen!';
+  } else if (cfg.alleReihen) {
+    btn.textContent = '▶ Alle Reihen üben!';
+  } else if (cfg.reihen.length === 1) {
+    btn.textContent = `▶ ${cfg.reihen[0]}er-Reihe üben!`;
+  } else {
+    const sorted = cfg.reihen.slice().sort((a, b) => a - b);
+    btn.textContent = `▶ ${sorted.map(r => r + 'er').join(', ')} üben!`;
+  }
 }
 
 function closeTrainingModal() {
   document.getElementById('training-modal').classList.remove('active');
-  selectedReihe = null;
 }
 
 function selectTrainingRechenart(r) {
@@ -2041,11 +2085,16 @@ function selectTrainingRechenart(r) {
 }
 
 function startTraining() {
-  if (selectedReihe === null) return;
-  const reihe = selectedReihe;
-  trainedSet.add(reihe);
+  const cfg = state.trainingConfig;
+  // Wenn "Alle Reihen" aktiv: expandiere zu konkreter Liste 1..maxR.
+  // Im Game-State ist alleReihen kein Konzept — wir tracken nur reihen[].
+  const reihen = cfg.alleReihen
+    ? Array.from({ length: getMaxReihe(state.settings) }, (_, i) => i + 1)
+    : cfg.reihen.slice().sort((a, b) => a - b);
+  if (reihen.length === 0) return;
+  reihen.forEach(r => trainedSet.add(r));  // alle gewählten Reihen für allreihen-Achievement
   closeTrainingModal();
-  startGame('training', [reihe]);  // Array-Wrapper — Multi-Select-UI kommt in Step 5 (#17)
+  startGame('training', reihen);
 }
 
 document.getElementById('training-modal').addEventListener('click', function(e) {
