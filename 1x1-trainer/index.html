@@ -700,6 +700,11 @@
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Was-ist-neu</div>
+    <button class="btn btn-secondary" onclick="replayChangelog()">📰 Letzte Updates ansehen</button>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Zurücksetzen</div>
     <button class="btn btn-danger" onclick="resetHighscores()">🏆 Highscores zurücksetzen</button>
     <button class="btn btn-danger mt-8" onclick="resetAll()">🗑️ Alle Daten zurücksetzen</button>
@@ -874,6 +879,16 @@
 </div>
 
 <!-- STERN ABGELAUFEN MODAL -->
+<!-- CHANGELOG (Was-ist-neu nach App-Update, Issue #29) -->
+<div class="modal-overlay" id="changelog-modal">
+  <div class="modal-sheet">
+    <div style="text-align:center;font-size:2.6rem;margin-bottom:6px">🎉</div>
+    <div class="modal-title" id="changelog-title">Was ist neu?</div>
+    <div id="changelog-body" style="max-height:60vh;overflow-y:auto;margin:8px 0 16px;font-size:0.95rem;line-height:1.5"></div>
+    <button class="btn btn-primary" onclick="dismissChangelog()">Verstanden! ⚡</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="star-expired-modal">
   <div class="modal-sheet">
     <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
@@ -3960,6 +3975,77 @@ function devResetStreak() {
   saveState(); updateHomeUI(); closeDevPanel();
 }
 
+// ── CHANGELOG-MODAL (#29) ──────────────────────────────
+// Beim App-Start aufgerufen. Erste Installation: changelogSeenVersion=null →
+// still auf APP_VERSION setzen, kein Modal. Sonst: prüfe CHANGELOG via
+// changelogSince(); falls Einträge → Modal aufbauen + zeigen.
+function showChangelogIfNew() {
+  if (state.changelogSeenVersion == null) {
+    // Erste Installation: still markieren, kein Modal
+    state.changelogSeenVersion = APP_VERSION;
+    saveState();
+    return;
+  }
+  const entries = changelogSince(CHANGELOG, state.changelogSeenVersion, APP_VERSION);
+  if (entries.length === 0) return;
+
+  // Title: bei einer Version "v2.10", bei mehreren "neue Updates seit deinem letzten Besuch"
+  const title = entries.length === 1
+    ? `Was ist neu in v${entries[0].version}?`
+    : `Neu seit deinem letzten Besuch`;
+  document.getElementById('changelog-title').textContent = title;
+
+  // Body: Version-Gruppen, jede mit ihren Bullets. Versions-Header nur, wenn
+  // mehrere Versionen — bei einer einzelnen kommt der Header schon im Titel.
+  const showHeaders = entries.length > 1;
+  const html = entries.map(e => {
+    const header = showHeaders
+      ? `<div style="font-weight:800;color:#c4b5fd;margin:12px 0 4px;font-size:0.95rem">v${e.version}</div>`
+      : '';
+    const bullets = (e.entries || []).map(line =>
+      `<div style="padding:4px 0;color:rgba(255,255,255,0.92)">${line}</div>`
+    ).join('');
+    return header + bullets;
+  }).join('');
+  document.getElementById('changelog-body').innerHTML = html;
+  document.getElementById('changelog-modal').classList.add('active');
+}
+
+function dismissChangelog() {
+  state.changelogSeenVersion = APP_VERSION;
+  saveState();
+  document.getElementById('changelog-modal').classList.remove('active');
+}
+
+// Re-Trigger des Modals aus Settings — zeigt die letzten paar Versionen
+// (alle, weil Untergrenze null gesetzt wird). Verändert changelogSeenVersion
+// NICHT, damit ein "Verstanden!"-Klick danach trotzdem korrekt aktualisiert.
+function replayChangelog() {
+  if (!Array.isArray(CHANGELOG) || CHANGELOG.length === 0) {
+    showToast('Keine Updates gespeichert.');
+    return;
+  }
+  const entries = CHANGELOG.filter(e => compareVersion(e.version, APP_VERSION) <= 0)
+                           .slice().sort((a, b) => compareVersion(b.version, a.version));
+  if (entries.length === 0) return;
+  const title = entries.length === 1
+    ? `Was war in v${entries[0].version}?`
+    : `Letzte Updates`;
+  document.getElementById('changelog-title').textContent = title;
+  const showHeaders = entries.length > 1;
+  const html = entries.map(e => {
+    const header = showHeaders
+      ? `<div style="font-weight:800;color:#c4b5fd;margin:12px 0 4px;font-size:0.95rem">v${e.version}</div>`
+      : '';
+    const bullets = (e.entries || []).map(line =>
+      `<div style="padding:4px 0;color:rgba(255,255,255,0.92)">${line}</div>`
+    ).join('');
+    return header + bullets;
+  }).join('');
+  document.getElementById('changelog-body').innerHTML = html;
+  document.getElementById('changelog-modal').classList.add('active');
+}
+
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', () => {
   document.getElementById('settings-version-number').textContent = APP_VERSION;
@@ -4031,6 +4117,11 @@ window.addEventListener('load', () => {
   } else {
     showScreen('home');
   }
+
+  // Changelog-Modal nach App-Update (#29). Erste Installation (null) → still auf
+  // APP_VERSION setzen, kein Modal. Existierende User mit changelogSeenVersion <
+  // APP_VERSION → Modal mit allen neuen Einträgen.
+  showChangelogIfNew();
 
   // Multiplayer startup
   if (state.mp && state.mp.enabled) {
