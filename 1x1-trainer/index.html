@@ -1107,6 +1107,19 @@ const ACHIEVEMENTS = [
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
 const APP_VERSION = '2.9'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
+// CHANGELOG: bei jedem APP_VERSION-Bump einen Eintrag hinzu, oben einsortiert.
+// Konvention (siehe memory/project_release_notes_convention.md): max 5 Bullets
+// pro Version, max ~7 Wörter pro Eintrag, kindgerechte Sprache (keine Tech-Terms),
+// emoji-Präfix nach Typ: 🆕 neues Feature · ⚡ UX-Verbesserung · 🔧 Bug-Fix
+// · 🐛 Sammel-Bugfixes ("kleine Verbesserungen unter der Haube").
+const CHANGELOG = [
+  { version: '2.10', date: '2026-05-21', entries: [
+    '🆕 Mehrere Reihen gleichzeitig im Training üben',
+    '⚡ Reihen-Power zeigt jetzt deine letzte Leistung',
+    '⚡ Trainings-Auswahl ist deutlich klarer markiert',
+  ]},
+];
+
 // ── MULTIPLAYER ────────────────────────────────────────────────────────────
 // _rng / mulberry32 / initSeededRNG / resetRNG leben in logic.js (zentrale RNG-
 // Infrastruktur, damit shuffle/rnd/pickBlitzReihe/pickWeightedFactor/resolve-

@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 9;
+var STATE_VERSION = 10;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 var LEVELS = [
@@ -67,7 +67,8 @@ function defaultState() {
            stars: 0, gameSecondsLeft: 0,
            mp: { enabled: false, groupCode: null, nickname: null,
                  pinHash: null, token: null, pendingUploads: [],
-                 lastSeedDate: null, lastSeed: null, lastChallengeId: null } };
+                 lastSeedDate: null, lastSeed: null, lastChallengeId: null },
+           changelogSeenVersion: null };
 }
 
 var STATE_MIGRATIONS = [
@@ -160,6 +161,14 @@ var STATE_MIGRATIONS = [
       if (!s.reiheStats[i]) s.reiheStats[i] = defaultReiheStats()[i];
       if (s.reiheStats[i].lastAccuracy === undefined) s.reiheStats[i].lastAccuracy = null;
     }
+    return s;
+  },
+  // v9 → v10: changelogSeenVersion — verhindert rückwirkende Anzeige für
+  // existierende User. Auf '2.9' setzen (= Stand bei v9→v10-Bump), neue
+  // Einträge ab dann werden gezeigt. Neue User (defaultState) starten mit null,
+  // bekommen auf erstem Start ihre aktuelle APP_VERSION zugewiesen.
+  (s) => {
+    if (s.changelogSeenVersion === undefined) s.changelogSeenVersion = '2.9';
     return s;
   },
 ];
@@ -329,6 +338,36 @@ function buildChallengePayload(state, score, correctCount, targetNickname) {
   };
 }
 
+// Vergleicht zwei Versions-Strings ('2.9' vs '2.10') semver-stil.
+// Liefert <0 wenn a < b, 0 bei Gleichheit, >0 wenn a > b.
+// String-Compare reicht NICHT: '2.10' < '2.9' string-mäßig, aber 2.10 > 2.9 numerisch.
+function compareVersion(a, b) {
+  const pa = String(a || '0').split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b || '0').split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x - y;
+  }
+  return 0;
+}
+
+// Liefert die CHANGELOG-Einträge, die einem User mit seenVersion auf currentVersion
+// angezeigt werden sollen — gefiltert auf seenVersion < e.version <= currentVersion.
+// Sortiert absteigend (neueste oben). Wenn seenVersion null/undefined → [] (erste
+// Installation, kein retroaktives Modal). Obergrenze currentVersion verhindert,
+// dass CHANGELOG-Einträge für eine künftige Version angezeigt werden, deren
+// Features im aktuellen Build noch nicht alle drin sind.
+function changelogSince(changelog, seenVersion, currentVersion) {
+  if (!Array.isArray(changelog)) return [];
+  if (seenVersion == null) return [];
+  const filtered = changelog.filter(e =>
+    compareVersion(e.version, seenVersion) > 0 &&
+    (currentVersion == null || compareVersion(e.version, currentVersion) <= 0)
+  );
+  return filtered.slice().sort((a, b) => compareVersion(b.version, a.version));
+}
+
 // Liefert neuen State mit zurückgesetztem mp-Feld — restlicher State (xp,
 // streak, stars, name etc.) bleibt unangetastet. Pure: gibt neues Objekt
 // zurück, mutiert nicht.
@@ -341,6 +380,7 @@ if (typeof module !== 'undefined') {
                      generateTrainingSequence,
                      pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
+                     compareVersion, changelogSince,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,

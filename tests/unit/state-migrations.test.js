@@ -1,7 +1,7 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
 
 describe('migrateState', () => {
-  test('leerer State {} bekommt komplettes v9-Schema', () => {
+  test('leerer State {} bekommt komplettes v10-Schema', () => {
     const result = migrateState({});
     expect(result._version).toBe(STATE_VERSION);
     expect(result.settings).toBeDefined();
@@ -25,6 +25,10 @@ describe('migrateState', () => {
     expect(result.mp.pendingUploads).toEqual([]);
     // v9: reiheStats kriegt lastAccuracy
     expect(result.reiheStats[1].lastAccuracy).toBeNull();
+    // v10: changelogSeenVersion — leerer State bekommt '2.9' (Migration setzt es,
+    // weil das Feld bei {} undefined ist; defaultState wäre null bei neuer
+    // Installation aber Migration v9→v10 fängt das vor)
+    expect(result.changelogSeenVersion).toBe('2.9');
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
@@ -225,5 +229,17 @@ describe('STATE_MIGRATIONS', () => {
     }};
     const result = STATE_MIGRATIONS[8](v8);
     expect(result.reiheStats[1].lastAccuracy).toBe(75);
+  });
+
+  test('Migration 9 (v9->v10) setzt changelogSeenVersion=2.9 für existierende User', () => {
+    const v9 = { _version: 9 };
+    const result = STATE_MIGRATIONS[9](v9);
+    expect(result.changelogSeenVersion).toBe('2.9');
+  });
+
+  test('Migration 9 (v9->v10) lässt existierenden changelogSeenVersion unangetastet', () => {
+    const v9 = { _version: 9, changelogSeenVersion: '2.7' };
+    const result = STATE_MIGRATIONS[9](v9);
+    expect(result.changelogSeenVersion).toBe('2.7');
   });
 });
