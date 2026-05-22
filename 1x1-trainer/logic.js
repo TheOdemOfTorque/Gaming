@@ -18,9 +18,14 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 10;
+var STATE_VERSION = 11;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
+
+// Diamanten als Streak-Schutz-Currency (#18). Fix-Preis 2000 XP, weiches Cap bei 3
+// — verhindert, dass Henry einen Dauer-Polster anhäuft und Streaks an Bedeutung verlieren.
+var DIAMOND_PRICE = 2000;
+var DIAMOND_CAP   = 3;
 var LEVELS = [
   { xp:    0, title: '⭐ Anfänger',           avatar: '🚀' },
   { xp:  200, title: '🌟 Lehrling',           avatar: '🌱' },
@@ -64,7 +69,7 @@ function defaultState() {
            trainedReihen: [], settings: defaultSettings(), reiheStats: defaultReiheStats(),
            streakFreezeUsedDate: null, streakFreezeTotal: 0,
            questionStats: {},
-           stars: 0, gameSecondsLeft: 0,
+           stars: 0, gameSecondsLeft: 0, diamonds: 0,
            mp: { enabled: false, groupCode: null, nickname: null,
                  pinHash: null, token: null, pendingUploads: [],
                  lastSeedDate: null, lastSeed: null, lastChallengeId: null },
@@ -169,6 +174,16 @@ var STATE_MIGRATIONS = [
   // bekommen auf erstem Start ihre aktuelle APP_VERSION zugewiesen.
   (s) => {
     if (s.changelogSeenVersion === undefined) s.changelogSeenVersion = '2.9';
+    return s;
+  },
+  // v10 → v11: diamonds-Currency (#18). Existierende streakFreezeTotal als
+  // Loyalty-Geschenk in Diamanten umrechnen (1:1), gedeckelt auf DIAMOND_CAP.
+  // Wer früher 5× geschützt hat → 3 Start-Diamanten; wer 0× → 0.
+  // streakFreezeTotal bleibt als historischer Counter erhalten (BC).
+  (s) => {
+    if (s.diamonds === undefined) {
+      s.diamonds = Math.min(s.streakFreezeTotal || 0, DIAMOND_CAP);
+    }
     return s;
   },
 ];
@@ -297,6 +312,21 @@ function nextStarCost(stars) {
   return STAR_COSTS[Math.min(stars, STAR_COSTS.length - 1)];
 }
 
+// XP-Kosten für nächsten Diamant. Fix (DIAMOND_PRICE) bis zum weichen Cap;
+// liefert null, wenn der User schon DIAMOND_CAP-viele Diamanten hat (Kauf
+// nicht möglich). Caller verwendet das null für UI-Disable.
+function nextDiamondCost(currentDiamonds) {
+  if ((currentDiamonds || 0) >= DIAMOND_CAP) return null;
+  return DIAMOND_PRICE;
+}
+
+// Kann der User einen Diamant kaufen? Checkt Cap UND XP-Budget.
+function canBuyDiamond(state) {
+  const cost = nextDiamondCost(state.diamonds || 0);
+  if (cost === null) return false;
+  return (state.xp || 0) >= cost;
+}
+
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
 // qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
 // Wird gecappt bei maxReihe (Großes 1×1 = 20).
@@ -385,6 +415,7 @@ if (typeof module !== 'undefined') {
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,
                      computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS,
+                     nextDiamondCost, canBuyDiamond, DIAMOND_PRICE, DIAMOND_CAP,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

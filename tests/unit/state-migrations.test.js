@@ -1,7 +1,7 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
 
 describe('migrateState', () => {
-  test('leerer State {} bekommt komplettes v10-Schema', () => {
+  test('leerer State {} bekommt komplettes v11-Schema', () => {
     const result = migrateState({});
     expect(result._version).toBe(STATE_VERSION);
     expect(result.settings).toBeDefined();
@@ -29,6 +29,8 @@ describe('migrateState', () => {
     // weil das Feld bei {} undefined ist; defaultState wäre null bei neuer
     // Installation aber Migration v9→v10 fängt das vor)
     expect(result.changelogSeenVersion).toBe('2.9');
+    // v11: diamonds — leerer State bekommt 0 (kein streakFreezeTotal in {})
+    expect(result.diamonds).toBe(0);
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
@@ -241,5 +243,30 @@ describe('STATE_MIGRATIONS', () => {
     const v9 = { _version: 9, changelogSeenVersion: '2.7' };
     const result = STATE_MIGRATIONS[9](v9);
     expect(result.changelogSeenVersion).toBe('2.7');
+  });
+
+  test('Migration 10 (v10->v11): kein streakFreezeTotal → diamonds=0', () => {
+    const v10 = { _version: 10 };
+    const result = STATE_MIGRATIONS[10](v10);
+    expect(result.diamonds).toBe(0);
+  });
+
+  test('Migration 10 (v10->v11): streakFreezeTotal=2 → diamonds=2 (Loyalty)', () => {
+    const v10 = { _version: 10, streakFreezeTotal: 2 };
+    const result = STATE_MIGRATIONS[10](v10);
+    expect(result.diamonds).toBe(2);
+    expect(result.streakFreezeTotal).toBe(2); // historischer Counter bleibt
+  });
+
+  test('Migration 10 (v10->v11): streakFreezeTotal=10 → diamonds=3 (Cap)', () => {
+    const v10 = { _version: 10, streakFreezeTotal: 10 };
+    const result = STATE_MIGRATIONS[10](v10);
+    expect(result.diamonds).toBe(3);
+  });
+
+  test('Migration 10 (v10->v11): existierender diamonds-Wert unangetastet', () => {
+    const v10 = { _version: 10, streakFreezeTotal: 5, diamonds: 1 };
+    const result = STATE_MIGRATIONS[10](v10);
+    expect(result.diamonds).toBe(1);
   });
 });
