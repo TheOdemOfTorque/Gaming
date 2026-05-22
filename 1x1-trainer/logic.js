@@ -454,6 +454,37 @@ function changelogSince(changelog, seenVersion, currentVersion) {
   return filtered.slice().sort((a, b) => compareVersion(b.version, a.version));
 }
 
+// Cleart aktive Challenge-Felder aus state.mp — pure, kein Side-Effect.
+// Wird von quitGame gerufen, damit ein abgebrochener Challenge-Run keinen
+// stale _activeChallengeId zurücklässt, der spätere endGames ungewollt
+// als Challenge-Submit deuten würde.
+function resetActiveChallengeState(state) {
+  const mp = (state && state.mp) || {};
+  return Object.assign({}, state, {
+    mp: Object.assign({}, mp, {
+      _activeChallengeId: null,
+      _activeChallengeTheirScore: null,
+    }),
+  });
+}
+
+// Entscheidet, ob eine ausgehende Challenge wirklich gesendet werden soll.
+// Verhindert den Tab-im-Hintergrund-Fall (Timer läuft auf 0 ohne Antworten),
+// wo eine 0-Punkte-Challenge an den Gegner ginge.
+function shouldSubmitOutgoingChallenge(game) {
+  if (!game) return false;
+  return (game.correct || 0) > 0;
+}
+
+// Bestimmt die Labels für die Challenge-Ergebnis-Tabelle (Bug 4).
+// Echte Nicknames werden bevorzugt; "Du"/"Gegner" als Fallback wenn fehlend.
+function formatChallengeResultLabels(myNickname, opponentNickname) {
+  return {
+    myLabel:    (myNickname    && String(myNickname).trim())    || 'Du',
+    theirLabel: (opponentNickname && String(opponentNickname).trim()) || 'Gegner',
+  };
+}
+
 // Formatiert ein "vor X Sekunden/Minuten/Stunden/Tagen"-Label für Challenge-Alter.
 // Eingabe: secondsAgo (kann auch negativ sein bei Uhr-Drift). Pure.
 // Tests: tests/unit/challenge-format.test.js
@@ -496,6 +527,8 @@ if (typeof module !== 'undefined') {
                      resolveRechenart, shuffle, rnd,
                      compareVersion, changelogSince,
                      formatChallengeAge, formatOutgoingChallengeRow,
+                     resetActiveChallengeState, shouldSubmitOutgoingChallenge,
+                     formatChallengeResultLabels,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,

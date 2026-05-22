@@ -428,7 +428,10 @@ async function handleRespondToChallenge(request, path, env) {
   if (correctCount > 120 || score > 30000) return json({ error: 'Score implausible' }, 400);
 
   const challenge = await env.DB.prepare(
-    'SELECT * FROM direct_challenges WHERE id = ? AND challenged_id = ? AND status = ?'
+    `SELECT dc.*, p.nickname AS challenger_nickname
+     FROM direct_challenges dc
+     JOIN players p ON p.id = dc.challenger_id
+     WHERE dc.id = ? AND dc.challenged_id = ? AND dc.status = ?`
   ).bind(id, player.id, 'pending').first();
   if (!challenge) return json({ error: 'Challenge not found or already completed' }, 404);
 
@@ -446,6 +449,7 @@ async function handleRespondToChallenge(request, path, env) {
     theirScore: challenge.challenger_score,
     myCorrect: correctCount,
     theirCorrect: challenge.challenger_correct,
+    theirNickname: challenge.challenger_nickname,  // Bug 4: Empfänger-Sicht braucht Sender-Name
   });
 }
 
