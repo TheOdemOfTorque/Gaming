@@ -454,6 +454,34 @@ function changelogSince(changelog, seenVersion, currentVersion) {
   return filtered.slice().sort((a, b) => compareVersion(b.version, a.version));
 }
 
+// Formatiert ein "vor X Sekunden/Minuten/Stunden/Tagen"-Label für Challenge-Alter.
+// Eingabe: secondsAgo (kann auch negativ sein bei Uhr-Drift). Pure.
+// Tests: tests/unit/challenge-format.test.js
+function formatChallengeAge(secondsAgo) {
+  const s = Math.max(0, Math.floor(secondsAgo || 0));
+  if (s < 60) return 'gerade eben';
+  const min = Math.floor(s / 60);
+  if (min < 60) return min === 1 ? 'vor 1 Minute' : `vor ${min} Minuten`;
+  const hr = Math.floor(s / 3600);
+  if (hr < 24) return hr === 1 ? 'vor 1 Stunde' : `vor ${hr} Stunden`;
+  const days = Math.floor(s / 86400);
+  return days === 1 ? 'gestern' : `vor ${days} Tagen`;
+}
+
+// Formatiert eine ausgehende Challenge für die UI-Anzeige.
+// Eingabe: challenge-Objekt vom Worker, nowSec = aktueller Unix-Timestamp in Sekunden.
+// Output: { title, subtitle } — pure, kein DOM.
+function formatOutgoingChallengeRow(challenge, nowSec) {
+  const nick = challenge.challenged_nickname || 'Unbekannt';
+  const age  = formatChallengeAge(nowSec - (challenge.created_at || nowSec));
+  const score = challenge.challenger_score ?? 0;
+  const correct = challenge.challenger_correct ?? 0;
+  return {
+    title:    `Du hast ${nick} herausgefordert`,
+    subtitle: `${age} · ${score} Punkte, ${correct} richtig`,
+  };
+}
+
 // Liefert neuen State mit zurückgesetztem mp-Feld — restlicher State (xp,
 // streak, stars, name etc.) bleibt unangetastet. Pure: gibt neues Objekt
 // zurück, mutiert nicht.
@@ -467,6 +495,7 @@ if (typeof module !== 'undefined') {
                      pickBlitzReihe, addBlitzListeEntry,
                      resolveRechenart, shuffle, rnd,
                      compareVersion, changelogSince,
+                     formatChallengeAge, formatOutgoingChallengeRow,
                      STATE_VERSION, STAR_COSTS, LEVELS,
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,

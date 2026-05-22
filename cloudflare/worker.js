@@ -382,6 +382,26 @@ async function handleCreateDirectChallenge(request, env) {
   return json({ id, status: 'pending' });
 }
 
+// Ausgehende Challenges: ich bin der Challenger, Status='pending' (Empfänger hat
+// noch nicht gespielt). Im Frontend sichtbar als „Meine ausgehenden Challenges"
+// — Counter neben dem Standard-Inbox-Button (Bug 2 Fix Variante B).
+async function handleGetOutgoingChallenges(request, env) {
+  const player = await requirePlayer(request, env);
+  const rows = await env.DB.prepare(
+    `SELECT dc.id, dc.seed, dc.seed_date, dc.reihen_config, dc.challenger_score, dc.challenger_correct, dc.created_at,
+            p.nickname AS challenged_nickname
+     FROM direct_challenges dc
+     JOIN players p ON p.id = dc.challenged_id
+     WHERE dc.challenger_id = ? AND dc.status = 'pending'
+     ORDER BY dc.created_at DESC`
+  ).bind(player.id).all();
+  const challenges = (rows.results || []).map(c => ({
+    ...c,
+    reihen_config: JSON.parse(c.reihen_config || '{"alleReihen":true,"rechenart":"mult"}'),
+  }));
+  return json({ challenges });
+}
+
 async function handleGetPendingChallenges(request, env) {
   const player = await requirePlayer(request, env);
   const rows = await env.DB.prepare(
@@ -441,6 +461,7 @@ async function route(request, url, method, path, env) {
   if (method === 'GET'  && path === '/api/players')                           return handleGetGroupPlayers(request, env);
   if (method === 'POST' && path === '/api/challenges')                        return handleCreateDirectChallenge(request, env);
   if (method === 'GET'  && path === '/api/challenges/pending')                return handleGetPendingChallenges(request, env);
+  if (method === 'GET'  && path === '/api/challenges/outgoing')               return handleGetOutgoingChallenges(request, env);
   if (method === 'POST' && path.startsWith('/api/challenges/') && path.endsWith('/respond')) return handleRespondToChallenge(request, path, env);
   if (path.startsWith('/api/admin/'))                                         return handleAdmin(request, url, path, method, env);
   return json({ error: 'Not Found' }, 404);
