@@ -704,12 +704,18 @@
 
   <div class="settings-section">
     <div class="settings-section-title">Diamanten</div>
-    <div style="font-size:0.82rem;color:rgba(255,255,255,0.55);margin-bottom:8px">
+    <div style="font-size:0.82rem;color:rgba(255,255,255,0.55);margin-bottom:10px">
       💎 Diamanten schützen deine Tage-Serie, wenn du mal einen Tag verpasst.
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:8px">
-      <span style="font-weight:700">Du hast: <span id="diamond-shop-count">0</span> 💎</span>
-      <span style="font-size:0.78rem;color:rgba(255,255,255,0.45)" id="diamond-shop-cap-info">Maximum: 3</span>
+    <div style="padding:12px;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:0.78rem;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:.05em">Du hast</span>
+        <span style="font-size:0.78rem;color:rgba(255,255,255,0.5)" id="diamond-shop-cap-info">Maximum: 3</span>
+      </div>
+      <div id="diamond-shop-slots" style="font-size:1.6rem;letter-spacing:6px;text-align:center;margin-bottom:8px">○○○</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;font-size:0.85rem;color:rgba(255,255,255,0.8);text-align:center" id="diamond-shop-xp-preview">
+        Du hast <strong id="diamond-shop-xp-now">0</strong> XP
+      </div>
     </div>
     <button class="btn btn-primary" id="diamond-buy-btn" onclick="buyDiamondFromShop()">💎 Diamant kaufen</button>
     <div id="diamond-shop-hint" style="font-size:0.72rem;color:rgba(255,255,255,0.45);margin-top:6px;text-align:center"></div>
@@ -1832,28 +1838,42 @@ function populateSettings() {
   updateDiamondShopUI();
 }
 
-// Aktualisiert die Diamant-Shop-Sektion in Settings — Count, Button-Status,
-// Hint-Text (zu wenig XP / Cap erreicht). Wird bei jedem Settings-Open +
-// nach Kauf aufgerufen.
+// Aktualisiert die Diamant-Shop-Sektion in Settings:
+// 1. Visuelle Slots (💎💎○ = 2 von 3 Diamanten),
+// 2. aktuelle XP + Vorschau "nach Kauf: X XP",
+// 3. Button-Status + Hint-Text bei Cap / zu wenig XP.
+// Aufgerufen bei jedem Settings-Open und nach jedem Kauf.
 function updateDiamondShopUI() {
   const count = state.diamonds || 0;
-  document.getElementById('diamond-shop-count').textContent = count;
+  const xp    = state.xp || 0;
   document.getElementById('diamond-shop-cap-info').textContent = `Maximum: ${DIAMOND_CAP}`;
+  // Slots: gefüllte Diamanten + leere Kreise. Macht Cap UND aktueller Stand auf einen Blick lesbar.
+  document.getElementById('diamond-shop-slots').textContent =
+    '💎'.repeat(count) + '○'.repeat(Math.max(0, DIAMOND_CAP - count));
+
   const btn  = document.getElementById('diamond-buy-btn');
   const hint = document.getElementById('diamond-shop-hint');
+  const preview = document.getElementById('diamond-shop-xp-preview');
   const cost = nextDiamondCost(count);
+
   if (cost === null) {
+    // Cap erreicht — kein Kauf, aber XP-Stand trotzdem zeigen.
     btn.disabled = true; btn.style.opacity = '0.5';
     btn.textContent = '💎 Voll — kein Platz für mehr';
     hint.textContent = '';
-  } else if ((state.xp || 0) < cost) {
+    preview.innerHTML = `Du hast <strong>${xp}</strong> XP`;
+  } else if (xp < cost) {
+    // Zu wenig XP — Preview zeigt "fehlt noch X XP".
     btn.disabled = true; btn.style.opacity = '0.5';
     btn.textContent = `💎 Diamant kaufen (${cost} XP)`;
-    hint.textContent = `Du brauchst noch ${cost - state.xp} XP.`;
+    hint.textContent = `Du brauchst noch ${cost - xp} XP.`;
+    preview.innerHTML = `Du hast <strong>${xp}</strong> XP · für 1 💎 brauchst du <strong>${cost}</strong> XP`;
   } else {
+    // Kaufbar — XP-Vorher-Nachher anzeigen.
     btn.disabled = false; btn.style.opacity = '1';
-    btn.textContent = `💎 Diamant kaufen (${cost} XP)`;
+    btn.textContent = `💎 Diamant kaufen (−${cost} XP)`;
     hint.textContent = '';
+    preview.innerHTML = `<strong>${xp}</strong> XP → <strong style="color:#a5b4fc">${xp - cost}</strong> XP nach dem Kauf`;
   }
 }
 
