@@ -460,6 +460,9 @@
     <div class="stat-card">
       <div class="stat-value" id="stat-streak">🔥 0</div>
       <div class="stat-label">Tage-Serie</div>
+      <div id="stat-diamonds-wrap" style="display:none;margin-top:4px;font-size:0.85rem;color:#a5b4fc;font-weight:700">
+        <span id="stat-diamonds">💎 0</span>
+      </div>
     </div>
   </div>
   <div class="card level-card">
@@ -700,6 +703,19 @@
   </div>
 
   <div class="settings-section">
+    <div class="settings-section-title">Diamanten</div>
+    <div style="font-size:0.82rem;color:rgba(255,255,255,0.55);margin-bottom:8px">
+      💎 Diamanten schützen deine Tage-Serie, wenn du mal einen Tag verpasst.
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,0.05);border-radius:10px;margin-bottom:8px">
+      <span style="font-weight:700">Du hast: <span id="diamond-shop-count">0</span> 💎</span>
+      <span style="font-size:0.78rem;color:rgba(255,255,255,0.45)" id="diamond-shop-cap-info">Maximum: 3</span>
+    </div>
+    <button class="btn btn-primary" id="diamond-buy-btn" onclick="buyDiamondFromShop()">💎 Diamant kaufen</button>
+    <div id="diamond-shop-hint" style="font-size:0.72rem;color:rgba(255,255,255,0.45);margin-top:6px;text-align:center"></div>
+  </div>
+
+  <div class="settings-section">
     <div class="settings-section-title">Was-ist-neu</div>
     <button class="btn btn-secondary" onclick="replayChangelog()">📰 Letzte Updates ansehen</button>
   </div>
@@ -865,19 +881,6 @@
 </div>
 
 <!-- STREAK FREEZE MODAL -->
-<div class="modal-overlay" id="streak-freeze-modal">
-  <div class="modal-sheet">
-    <div style="text-align:center;font-size:3rem;margin-bottom:8px">🧊</div>
-    <div class="modal-title">Streak in Gefahr!</div>
-    <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
-      Du hast gestern nicht geübt.<br>
-      Dein <strong id="freeze-streak-count">0-Tage</strong> Streak steht auf dem Spiel.
-    </div>
-    <button class="btn btn-primary mt-8" id="freeze-buy-btn" onclick="useStreakFreeze()">🧊 Streak schützen (−2000 XP)</button>
-    <button class="btn btn-secondary mt-8" onclick="skipStreakFreeze()">Streak verlieren</button>
-  </div>
-</div>
-
 <!-- STERN ABGELAUFEN MODAL -->
 <!-- CHANGELOG (Was-ist-neu nach App-Update, Issue #29) -->
 <div class="modal-overlay" id="changelog-modal">
@@ -1120,7 +1123,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.9'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.10'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
 // CHANGELOG: bei jedem APP_VERSION-Bump einen Eintrag hinzu, oben einsortiert.
 // Konvention (siehe memory/project_release_notes_convention.md): max 5 Bullets
@@ -1128,8 +1131,9 @@ const APP_VERSION = '2.9'; // Anzeigeversion in Einstellungen — bei Releases a
 // emoji-Präfix nach Typ: 🆕 neues Feature · ⚡ UX-Verbesserung · 🔧 Bug-Fix
 // · 🐛 Sammel-Bugfixes ("kleine Verbesserungen unter der Haube").
 const CHANGELOG = [
-  { version: '2.10', date: '2026-05-21', entries: [
+  { version: '2.10', date: '2026-05-22', entries: [
     '🆕 Mehrere Reihen gleichzeitig im Training üben',
+    '🆕 💎 Diamanten schützen deine Tage-Serie',
     '⚡ Reihen-Power zeigt jetzt deine letzte Leistung',
     '⚡ Trainings-Auswahl ist deutlich klarer markiert',
   ]},
@@ -1825,22 +1829,58 @@ function populateSettings() {
   document.querySelectorAll('#rechenart-mode-seg .seg-btn').forEach((btn, i) => {
     btn.classList.toggle('active', i === rechenartMap[state.settings.rechenart || 'both']);
   });
+  updateDiamondShopUI();
 }
 
-function useStreakFreeze() {
-  document.getElementById('streak-freeze-modal').classList.remove('active');
-  state.xp -= 2000;
+// Aktualisiert die Diamant-Shop-Sektion in Settings — Count, Button-Status,
+// Hint-Text (zu wenig XP / Cap erreicht). Wird bei jedem Settings-Open +
+// nach Kauf aufgerufen.
+function updateDiamondShopUI() {
+  const count = state.diamonds || 0;
+  document.getElementById('diamond-shop-count').textContent = count;
+  document.getElementById('diamond-shop-cap-info').textContent = `Maximum: ${DIAMOND_CAP}`;
+  const btn  = document.getElementById('diamond-buy-btn');
+  const hint = document.getElementById('diamond-shop-hint');
+  const cost = nextDiamondCost(count);
+  if (cost === null) {
+    btn.disabled = true; btn.style.opacity = '0.5';
+    btn.textContent = '💎 Voll — kein Platz für mehr';
+    hint.textContent = '';
+  } else if ((state.xp || 0) < cost) {
+    btn.disabled = true; btn.style.opacity = '0.5';
+    btn.textContent = `💎 Diamant kaufen (${cost} XP)`;
+    hint.textContent = `Du brauchst noch ${cost - state.xp} XP.`;
+  } else {
+    btn.disabled = false; btn.style.opacity = '1';
+    btn.textContent = `💎 Diamant kaufen (${cost} XP)`;
+    hint.textContent = '';
+  }
+}
+
+// Click-Handler — delegiert an buyDiamond() in logic-Schicht-Stil.
+function buyDiamondFromShop() { buyDiamond(); }
+
+// Diamant einsetzen, um Streak zu schützen (#18). Wird automatisch bei verpasstem
+// Tag aufgerufen — kein Modal mehr, sondern Toast als Feedback. Caller stellt
+// sicher, dass state.diamonds >= 1 ist.
+function spendDiamondForStreak() {
+  state.diamonds--;
   state.streakFreezeUsedDate = new Date().toISOString();
   state.streakFreezeTotal = (state.streakFreezeTotal || 0) + 1;
   state.lastPlayDate = new Date().toDateString(); // treat today as played
   saveState();
-  updateHomeUI();
 }
 
-function skipStreakFreeze() {
-  document.getElementById('streak-freeze-modal').classList.remove('active');
-  state.streak = 0; saveState();
-  document.getElementById('stat-streak').textContent = '🔥 0';
+// Kauft einen Diamanten (Settings-Shop-Trigger).
+function buyDiamond() {
+  if (!canBuyDiamond(state)) return false;
+  state.xp -= DIAMOND_PRICE;
+  state.diamonds++;
+  saveState();
+  updateHomeUI();
+  updateDiamondShopUI();
+  showToast(`💎 Diamant gekauft! Du hast jetzt ${state.diamonds}.`);
+  return true;
 }
 
 function setInputMode(mode) {
@@ -1925,6 +1965,15 @@ function updateHomeUI() {
   document.getElementById('stat-level').textContent      = info.level;
   document.getElementById('stat-total').textContent      = state.totalCorrect;
   document.getElementById('stat-streak').textContent     = '🔥 ' + state.streak;
+  // Diamant-Anzeige nur wenn vorhanden (clutter-frei für neue User mit 0 Diamanten)
+  const diamondsWrap = document.getElementById('stat-diamonds-wrap');
+  const diamondsCount = state.diamonds || 0;
+  if (diamondsCount > 0) {
+    document.getElementById('stat-diamonds').textContent = '💎 ' + diamondsCount;
+    diamondsWrap.style.display = 'block';
+  } else {
+    diamondsWrap.style.display = 'none';
+  }
   document.getElementById('level-title-home').textContent = info.title;
   document.getElementById('level-xp-home').textContent   = `${info.xpIn} / ${info.xpNeed} XP`;
   document.getElementById('xp-fill-home').style.width    = (info.progress * 100) + '%';
@@ -1978,22 +2027,33 @@ function updateHomeUI() {
     </div>`;
   }
 
-  // Break streak if more than 1 day missed (or offer freeze)
-  if (!_devMode && state.lastPlayDate) {
-    const today = new Date().toDateString();
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
-    if (state.lastPlayDate !== today && state.lastPlayDate !== yesterday.toDateString()) {
-      const lastFreeze = state.streakFreezeUsedDate ? new Date(state.streakFreezeUsedDate) : null;
-      const daysSinceFreeze = lastFreeze ? Math.floor((Date.now() - lastFreeze) / 86400000) : 999;
-      const canFreeze = state.xp >= 2000 && daysSinceFreeze >= 7 && state.streak >= 2;
-      if (canFreeze) {
-        document.getElementById('freeze-streak-count').textContent = state.streak + '-Tage';
-        document.getElementById('streak-freeze-modal').classList.add('active');
+  // Streak-Schutz via Diamanten-Auto-Spend (#18). Mehrere Tage hintereinander
+  // verpasst → mehrere Diamanten hintereinander einlösen, solange vorhanden.
+  // Sobald keine mehr da sind: Streak bricht. Toast informiert Henry über den
+  // Schutz, ohne den Flow zu unterbrechen (Vorgänger: Modal mit Ja/Nein-Frage).
+  if (!_devMode && state.lastPlayDate && state.streak >= 1) {
+    const dayMs = 86400000;
+    const todayStr = new Date().toDateString();
+    let last = state.lastPlayDate;
+    let saved = 0;
+    while (last !== todayStr) {
+      const lastD = new Date(last);
+      const nextD = new Date(lastD.getTime() + dayMs);
+      if (nextD.toDateString() === todayStr) break;       // gestern → kein Schutz nötig
+      // Lücke entdeckt: Diamant einsetzen wenn vorhanden, sonst Streak bricht.
+      if (state.diamonds >= 1) {
+        spendDiamondForStreak();
+        saved++;
+        last = state.lastPlayDate; // spendDiamondForStreak setzt last auf today
+        break;                     // ein Auto-Spend deckt die ganze Lücke ab — heute ist "wieder da"
       } else {
-        state.streak = 0; saveState();
+        state.streak = 0;
+        saveState();
         document.getElementById('stat-streak').textContent = '🔥 0';
+        break;
       }
     }
+    if (saved > 0) showToast(`💎 Dein Diamant hat deine ${state.streak}-Tage-Streak gerettet!`);
   }
   updateBlitzRekordLabel();
   updateBlitzHighscoresNavDesc();
