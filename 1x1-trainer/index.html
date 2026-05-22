@@ -1880,22 +1880,13 @@ function updateDiamondShopUI() {
 // Click-Handler — delegiert an buyDiamond() in logic-Schicht-Stil.
 function buyDiamondFromShop() { buyDiamond(); }
 
-// Diamant einsetzen, um Streak zu schützen (#18). Wird automatisch bei verpasstem
-// Tag aufgerufen — kein Modal mehr, sondern Toast als Feedback. Caller stellt
-// sicher, dass state.diamonds >= 1 ist.
-function spendDiamondForStreak() {
-  state.diamonds--;
-  state.streakFreezeUsedDate = new Date().toISOString();
-  state.streakFreezeTotal = (state.streakFreezeTotal || 0) + 1;
-  state.lastPlayDate = new Date().toDateString(); // treat today as played
-  saveState();
-}
-
-// Kauft einen Diamanten (Settings-Shop-Trigger).
+// Kauft einen Diamanten (Settings-Shop-Trigger). Logik kommt aus
+// applyDiamondPurchase (pure, getestet). UI-Schicht ist nur State-Apply +
+// DOM-Updates + Toast.
 function buyDiamond() {
-  if (!canBuyDiamond(state)) return false;
-  state.xp -= DIAMOND_PRICE;
-  state.diamonds++;
+  const r = applyDiamondPurchase(state);
+  if (!r.success) return false;
+  Object.assign(state, r.state);
   saveState();
   updateHomeUI();
   updateDiamondShopUI();
@@ -2047,33 +2038,19 @@ function updateHomeUI() {
     </div>`;
   }
 
-  // Streak-Schutz via Diamanten-Auto-Spend (#18). Mehrere Tage hintereinander
-  // verpasst → mehrere Diamanten hintereinander einlösen, solange vorhanden.
-  // Sobald keine mehr da sind: Streak bricht. Toast informiert Henry über den
-  // Schutz, ohne den Flow zu unterbrechen (Vorgänger: Modal mit Ja/Nein-Frage).
-  if (!_devMode && state.lastPlayDate && state.streak >= 1) {
-    const dayMs = 86400000;
-    const todayStr = new Date().toDateString();
-    let last = state.lastPlayDate;
-    let saved = 0;
-    while (last !== todayStr) {
-      const lastD = new Date(last);
-      const nextD = new Date(lastD.getTime() + dayMs);
-      if (nextD.toDateString() === todayStr) break;       // gestern → kein Schutz nötig
-      // Lücke entdeckt: Diamant einsetzen wenn vorhanden, sonst Streak bricht.
-      if (state.diamonds >= 1) {
-        spendDiamondForStreak();
-        saved++;
-        last = state.lastPlayDate; // spendDiamondForStreak setzt last auf today
-        break;                     // ein Auto-Spend deckt die ganze Lücke ab — heute ist "wieder da"
-      } else {
-        state.streak = 0;
-        saveState();
-        document.getElementById('stat-streak').textContent = '🔥 0';
-        break;
+  // Streak-Schutz via Diamanten-Auto-Spend (#18). Pure Logik lebt in
+  // computeStreakProtection (getestet in tests/unit/streak-protection.test.js);
+  // UI-Schicht hier macht nur State-Apply + DOM-Refresh + Toast.
+  if (!_devMode) {
+    const result = computeStreakProtection(state, new Date().toDateString());
+    if (result.saved || result.broken) {
+      Object.assign(state, result.state);
+      saveState();
+      document.getElementById('stat-streak').textContent = '🔥 ' + state.streak;
+      if (result.saved) {
+        showToast(`💎 Dein Diamant hat deine ${state.streak}-Tage-Streak gerettet!`);
       }
     }
-    if (saved > 0) showToast(`💎 Dein Diamant hat deine ${state.streak}-Tage-Streak gerettet!`);
   }
   updateBlitzRekordLabel();
   updateBlitzHighscoresNavDesc();

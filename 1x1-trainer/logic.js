@@ -327,6 +327,62 @@ function canBuyDiamond(state) {
   return (state.xp || 0) >= cost;
 }
 
+// Wendet einen Diamant-Kauf an. Pure: input-state nie mutiert. Liefert
+// neuen State + Erfolgs-Flag. UI-Schicht macht side effects (saveState,
+// updateHomeUI, showToast). Tests: tests/unit/diamond-purchase.test.js
+function applyDiamondPurchase(state) {
+  if (!canBuyDiamond(state)) {
+    return { state, success: false };
+  }
+  const next = Object.assign({}, state, {
+    xp: (state.xp || 0) - DIAMOND_PRICE,
+    diamonds: (state.diamonds || 0) + 1,
+  });
+  return { state: next, success: true };
+}
+
+// Berechnet Streak-Schutz nach Datum-Lücke. Pure: input-state nie mutiert.
+//
+// Liefert { state, saved, broken }:
+//   - state: neuer State (lastPlayDate, diamonds, streak ggf. angepasst)
+//   - saved: true wenn ein Diamant eingelöst wurde
+//   - broken: true wenn Streak gebrochen wurde (0 Diamanten + Lücke)
+//
+// Logik:
+//   - lastPlayDate ist heute oder gestern → keine Aktion (Streak heil)
+//   - state.streak < 1 oder lastPlayDate fehlt → keine Aktion
+//   - Lücke entdeckt + diamonds >= 1 → 1 Diamant verbrauchen, lastPlayDate=today,
+//     streakFreezeUsedDate + streakFreezeTotal aktualisieren
+//   - Lücke entdeckt + diamonds === 0 → streak=0
+//
+// Tests: tests/unit/streak-protection.test.js
+function computeStreakProtection(state, todayStr) {
+  // Default no-op return
+  const noop = { state, saved: false, broken: false };
+  if (!state.lastPlayDate)  return noop;
+  if ((state.streak || 0) < 1) return noop;
+  if (state.lastPlayDate === todayStr) return noop;
+
+  const dayMs = 86400000;
+  const yesterdayStr = new Date(Date.now() - dayMs).toDateString();
+  if (state.lastPlayDate === yesterdayStr) return noop;
+
+  // Lücke: heute ≠ gestern relativ zum lastPlayDate.
+  if ((state.diamonds || 0) >= 1) {
+    const next = Object.assign({}, state, {
+      diamonds: state.diamonds - 1,
+      streakFreezeUsedDate: new Date().toISOString(),
+      streakFreezeTotal: (state.streakFreezeTotal || 0) + 1,
+      lastPlayDate: todayStr,
+    });
+    return { state: next, saved: true, broken: false };
+  }
+
+  // 0 Diamanten — Streak bricht.
+  const next = Object.assign({}, state, { streak: 0 });
+  return { state: next, saved: false, broken: true };
+}
+
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
 // qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
 // Wird gecappt bei maxReihe (Großes 1×1 = 20).
@@ -415,7 +471,9 @@ if (typeof module !== 'undefined') {
                      defaultSettings, defaultReiheStats, defaultState, defaultQS,
                      STATE_MIGRATIONS, migrateState, getLevelInfo,
                      computeAnswerXP, nextStarCost, XP_MODE_MULTIPLIERS,
-                     nextDiamondCost, canBuyDiamond, DIAMOND_PRICE, DIAMOND_CAP,
+                     nextDiamondCost, canBuyDiamond, applyDiamondPurchase,
+                     computeStreakProtection,
+                     DIAMOND_PRICE, DIAMOND_CAP,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };
