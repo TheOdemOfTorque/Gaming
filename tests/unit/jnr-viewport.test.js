@@ -31,9 +31,19 @@ describe('jnr-viewport computeLayout', () => {
     expect(l.VW).toBeGreaterThanOrEqual(VW_MIN);
   });
 
-  test('Canvas ist senkrecht am unteren Rand verankert (kein Leerraum unter dem Boden)', () => {
+  test('Querformat: Canvas ist senkrecht am unteren Rand verankert (kein Leerraum unter dem Boden)', () => {
     const l = computeLayout(844, 390, 3);
     expect(l.top).toBe(390 - l.ch);
+  });
+
+  test('Hochformat: Canvas bleibt senkrecht zentriert, nicht am unteren Rand (sonst liegen die Buttons auf Lumo)', () => {
+    const l = computeLayout(390, 844, 3);
+    expect(l.top).toBe((844 - l.ch) / 2);
+  });
+
+  test('Desktop 16:9: kein Leerraum, Verankerung ist irrelevant', () => {
+    const l = computeLayout(1280, 720, 1);
+    expect(l.top).toBe(0);
   });
 
   test('sehr kleine Fenster erzeugen mindestens Skalierung 1', () => {

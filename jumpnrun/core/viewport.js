@@ -16,7 +16,12 @@
     var k = Math.max(1, Math.floor(Math.min(H * dpr / VH, W * dpr / VW_MIN)));
     var VW = Math.max(VW_MIN, Math.ceil(W * dpr / k));
     var cw = VW * k / dpr, ch = VH * k / dpr;
-    return { k: k, VW: VW, VH: VH, cw: cw, ch: ch, left: (W - cw) / 2, top: H - ch };
+    // Ist die Hoehe der begrenzende Faktor (typisch Querformat), bleibt kaum Resthoehe
+    // (< VH/dpr): die Welt wird am unteren Rand verankert, der Boden sitzt am Bildschirmrand.
+    // Ist die Breite der begrenzende Faktor (typisch Hochformat), ist die Resthoehe gross;
+    // dort zentrieren, sonst liegt die Touch-Steuerung ganz unten auf der sichtbaren Welt.
+    var slack = H - ch, top = slack < ch ? slack : slack / 2;
+    return { k: k, VW: VW, VH: VH, cw: cw, ch: ch, left: (W - cw) / 2, top: top };
   }
 
   return { VH: VH, VW_MIN: VW_MIN, computeLayout: computeLayout };
