@@ -746,7 +746,10 @@ h1 { margin: 0; font-size: 26px; }
   document.addEventListener('visibilitychange', function () { if (document.hidden) persistRun(); });
 
   // ===== Trainer-Anbindung (Integrations-Vertrag siehe knobel-logic.js) =====
-  if (embedded) $('backlink').hidden = true;
+  // .hidden-Attribut allein reicht nicht: .linkbtn setzt display:inline-flex mit
+  // derselben Spezifität wie das UA-Default für [hidden] und gewinnt per Reihenfolge
+  // -> der Link blieb sichtbar/klickbar und hätte den Trainer im iframe verschachtelt.
+  if (embedded) { $('backlink').hidden = true; $('backlink').style.display = 'none'; }
   window.addEventListener('message', function (ev) {
     if (ev.origin !== location.origin) return;
     var d = ev.data;

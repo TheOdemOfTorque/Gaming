@@ -87,6 +87,15 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(secondsLeft).toBe(0);
   });
 
+  test('Knobelwerkstatt im iframe: "Zum Trainer"-Link ist nicht sichtbar/klickbar (würde den Trainer im iframe verschachteln)', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 0 });
+    await page.locator('.game-card[data-game="knobel"] button').click();
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+
+    const backlink = page.frameLocator('#game-frame').locator('#backlink');
+    await expect(backlink).toBeHidden();
+  });
+
   test('Querformat: Schließen-Button des Hosts überlappt Lumos eigenes HUD nicht', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 600 });
     await page.setViewportSize({ width: 844, height: 390 }); // iPhone 13 Querformat
