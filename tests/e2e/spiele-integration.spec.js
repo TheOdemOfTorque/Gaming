@@ -65,6 +65,26 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
   });
 
+  test('Lumo-Fortschritt übersteht ein Neuladen des Trainers', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    await page.frameLocator('#game-frame').locator('body').evaluate(() => {
+      window.parent.postMessage(
+        { type: 'jnr:result', level: '1-1', medaillen: 2, funken: 10, xp: 30 },
+        location.origin
+      );
+    });
+    await expect.poll(() => page.evaluate(() => state.xp)).toBe(30);
+    await page.locator('#game-overlay-close').click();
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    const [xp, awarded] = await page.evaluate(() => [state.xp, state.jnr.xpAwarded['1-1']]);
+    expect(xp).toBe(30);
+    expect(awarded).toBe(true);
+  });
+
   test('Timer-Ablauf schließt Lumo automatisch und sendet jnr:timeup', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 2 });
     await page.locator('.game-card[data-game="jnr"] button').click();
