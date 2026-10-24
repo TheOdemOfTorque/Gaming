@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Knobel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Knobelwerkstatt</title>
+<style>
+:root {
+  --bg: #0d0d2b;
+  --card: rgba(255,255,255,0.07);
+  --card-hi: rgba(255,255,255,0.12);
+  --line: rgba(255,255,255,0.18);
+  --accent: #6C63FF;
+  --accent-hi: #9d97ff;
+  --gold: #F59E0B;
+  --ok: #10B981;
+  --err: #EF4444;
+  --text: #f1f1ff;
+  --muted: #b4b4d6;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums; overscroll-behavior: none; }
+body { height: 100vh; height: 100dvh; overflow: hidden; }
+button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; border: 0; }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.screen { position: absolute; inset: 0; display: none; flex-direction: column;
+  padding: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-right) + 16px)
+           calc(env(safe-area-inset-bottom) + 10px) calc(env(safe-area-inset-left) + 16px); }
+.screen.on { display: flex; }
+h1 { margin: 0; font-size: 26px; }
+.sub { color: var(--muted); font-size: 14px; }
+
+/* Menue */
+#menu { overflow-y: auto; gap: 12px; }
+.topline { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.linkbtn { background: var(--card); border-radius: 12px; padding: 0 14px; min-height: 44px; min-width: 44px;
+  display: inline-flex; align-items: center; color: var(--text); text-decoration: none; font-size: 15px; }
+.mode { background: var(--card); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.mode h2 { margin: 0; font-size: 20px; }
+.lvls { display: flex; gap: 6px; }
+.lvl { flex: 1; min-height: 44px; border-radius: 10px; background: var(--card-hi); font-size: 17px; position: relative; }
+.lvl[aria-pressed="true"] { background: var(--accent); }
+.lvl .rec { position: absolute; top: 2px; right: 5px; font-size: 11px; color: var(--gold); }
+.primary { min-height: 52px; border-radius: 14px; background: var(--accent); font-size: 18px; font-weight: 600; }
+.primary.gold { background: var(--gold); color: #1b1200; }
+.primary:disabled { opacity: .45; }
+.secondary { min-height: 48px; border-radius: 14px; background: var(--card-hi); font-size: 16px; }
+
+/* Spiel */
+#game { gap: 8px; }
+#hdr { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+#hdr .title { flex: 1; text-align: center; font-weight: 600; }
+.iconbtn { min-width: 44px; min-height: 44px; border-radius: 12px; background: var(--card); font-size: 15px; padding: 0 10px; }
+#rule { font-size: 13px; color: var(--muted); text-align: center; min-height: 18px; }
+#status { min-height: 22px; text-align: center; font-size: 15px; }
+#status.bad { color: #ff9a9a; }
+#status.good { color: var(--ok); }
+#area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; }
+
+/* Zahlenmauer */
+#board.mauer { display: grid; gap: 6px 0; width: 100%; }
+.stone { position: relative; height: 52px; margin: 0 3px; border-radius: 10px; background: var(--card-hi);
+  border: 2px solid transparent; font-size: 22px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 3px 0 rgba(0,0,0,.35); }
+.stone.fest { background: rgba(108,99,255,.28); color: #fff; }
+.stone.hint { background: rgba(245,158,11,.22); }
+.stone.big { font-size: 17px; }
+.stone[data-op]::before { position: absolute; top: 1px; left: 6px; font-size: 11px; color: var(--muted); }
+.stone[data-op="mul"]::before { content: "×"; }
+.stone[data-op="add"]::before { content: "+"; }
+.stone.sel { border-color: var(--gold); background: rgba(245,158,11,.18); }
+.stone.err, .cell.err { border-color: var(--err); }
+.stone.err::after, .cell.err::after { content: "✕"; position: absolute; top: 1px; right: 5px; font-size: 12px; color: var(--err); }
+.stone.top.done { background: var(--gold); color: #1b1200; }
+
+/* Rechenkaefige */
+#board.kaefige { display: grid; width: var(--bs); height: var(--bs); background: var(--line); border: 2px solid var(--accent-hi); border-radius: 6px; }
+.cell { position: relative; background: #17173f; display: flex; align-items: center; justify-content: center;
+  font-size: calc(var(--bs) / var(--n) * .5); font-weight: 600; min-width: 0; min-height: 0; padding: 0;
+  border: 1px solid rgba(255,255,255,.10); }
+.cell.bt { border-top: 3px solid var(--accent-hi); }
+.cell.br { border-right: 3px solid var(--accent-hi); }
+.cell.bb { border-bottom: 3px solid var(--accent-hi); }
+.cell.bl { border-left: 3px solid var(--accent-hi); }
+.cell.fest { background: rgba(108,99,255,.30); }
+.cell.hint { background: rgba(245,158,11,.22); }
+.cell.sel { background: rgba(245,158,11,.30); box-shadow: inset 0 0 0 3px var(--gold); }
+.cell.conf { color: #ff9a9a; }
+.cell.conf::before { content: "≠"; position: absolute; bottom: 1px; right: 4px; font-size: 12px; color: #ff9a9a; }
+.cell.err { box-shadow: inset 0 0 0 3px var(--err); }
+.cell.done { background: rgba(245,158,11,.25); }
+.lbl { position: absolute; top: 1px; left: 3px; font-size: calc(var(--bs) / var(--n) * .21); color: var(--accent-hi); font-weight: 700; line-height: 1; }
+.notes { position: absolute; inset: 14% 8% 6% 8%; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
+  font-size: calc(var(--bs) / var(--n) * .2); color: var(--muted); font-weight: 400; pointer-events: none; text-align: center; align-items: center; }
+
+/* Eingabe */
+#tools { display: flex; gap: 6px; }
+#tools .tool { flex: 1; min-height: 46px; border-radius: 12px; background: var(--card-hi); font-size: 14px; }
+#tools .tool[aria-pressed="true"] { background: var(--accent); }
+#pad { display: grid; gap: 6px; }
+.key { min-height: 56px; border-radius: 12px; background: var(--card-hi); font-size: 24px; font-weight: 600; }
+.key:active { background: var(--accent); }
+.key.del { font-size: 20px; }
+
+/* Einrasten */
+#solved { position: absolute; inset: 0; background: rgba(13,13,43,.9); display: none; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: 24px; text-align: center; z-index: 10; }
+#solved.on { display: flex; }
+#solved h2 { margin: 0; font-size: 34px; color: var(--gold); animation: pop .5s ease-out; }
+#solved .xp { font-size: 44px; font-weight: 700; color: var(--gold); }
+#solved .btns { display: flex; flex-direction: column; gap: 10px; width: min(320px, 100%); margin-top: 8px; }
+@keyframes pop { 0% { transform: scale(.4); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) {
+  #solved h2 { animation: none; }
+  * { transition: none !important; animation: none !important; }
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<!-- Menue -->
+<section id="menu" class="screen on" aria-label="Knobelwerkstatt Menü">
+  <div class="topline">
+    <a class="linkbtn" id="backlink" href="../1x1-trainer/">Zum Trainer</a>
+    <button class="iconbtn" id="mute-menu" aria-pressed="false">Ton an</button>
+  </div>
+  <div>
+    <h1>Knobelwerkstatt</h1>
+    <div class="sub" id="xpinfo">&nbsp;</div>
+  </div>
+  <button class="primary gold" id="resume" hidden>Weiterknobeln</button>
+  <button class="secondary" id="daily">Tagesrätsel</button>
+
+  <div class="mode" data-modus="mauer">
+    <h2>Zahlenmauer</h2>
+    <div class="sub">Jeder Stein ist das Produkt der zwei Steine darunter. Reihen mit + addieren.</div>
+    <div class="lvls" role="group" aria-label="Stufe Zahlenmauer"></div>
+    <button class="primary" id="start-mauer">Neue Mauer</button>
+  </div>
+  <div class="mode" data-modus="kaefige">
+    <h2>Rechenkäfige</h2>
+    <div class="sub">Jede Zahl kommt in jeder Zeile und Spalte genau einmal vor. Die Käfige nennen Ziel und Rechenart.</div>
+    <div class="lvls" role="group" aria-label="Stufe Rechenkäfige"></div>
+    <button class="primary" id="start-kaefige">Neue Käfige</button>
+  </div>
+</section>
+
+<!-- Spiel -->
+<section id="game" class="screen" aria-label="Rätsel">
+  <div id="hdr">
+    <button class="iconbtn" id="back" aria-label="Zurück zum Menü">Menü</button>
+    <div class="title" id="title"></div>
+    <button class="iconbtn" id="mute" aria-pressed="false">Ton an</button>
+  </div>
+  <div id="rule"></div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="area"><div id="board" role="group"></div></div>
+  <div id="tools">
+    <button class="tool" id="t-notes" aria-pressed="false">Notizen</button>
+    <button class="tool" id="t-undo">Rückgängig</button>
+    <button class="tool" id="t-check">Prüfen</button>
+    <button class="tool" id="t-hint">Tipp</button>
+  </div>
+  <div id="pad"></div>
+
+  <div id="solved" role="dialog" aria-modal="true" aria-label="Rätsel gelöst">
+    <h2>Eingerastet!</h2>
+    <div class="xp" id="s-xp"></div>
+    <div class="sub" id="s-info"></div>
+    <div class="btns">
+      <button class="primary gold" id="s-next">Weiter</button>
+      <button class="secondary" id="s-menu">Zum Menü</button>
+    </div>
+  </div>
+</section>
+
+<script src="knobel-logic.js"></script>
+<script>
+(function () {
+  'use strict';
+  var L = window.KnobelLogic;
+  var STORE = 'henry_knobel';
+  var NAMEN = { mauer: 'Zahlenmauer', kaefige: 'Rechenkäfige' };
+  var embedded = window.parent !== window;
+  var params = new URLSearchParams(location.search);
+  var debug = params.get('debug') === '1';
+
+  function $(id) { return document.getElementById(id); }
+  function heute() {
+    var d = new Date(), p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  // ===== Speicher (nur henry_knobel) =====
+  function load() {
+    try { return L.knobelMigration(JSON.parse(localStorage.getItem(STORE))); }
+    catch (e) { return L.defaultKnobelState(); }
+  }
+  var S = load();
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* privat/voll */ } }
+
+  // ===== Ton (Web Audio, synthetisch) =====
+  var ac = null;
+  function audio() {
+    if (S.stumm) return null;
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+    } catch (e) { return null; }
+    return ac;
+  }
+  function tone(freq, dur, type, vol, delay) {
+    var a = audio(); if (!a) return;
+    var t0 = a.currentTime + (delay || 0), o = a.createOscillator(), g = a.createGain();
+    o.type = type || 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol || 0.08, t0 + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  var snd = {
+    select: function () { tone(660, 0.025, 'sine', 0.03); },
+    set: function () { tone(880, 0.04, 'sine', 0.07); },
+    wrong: function () { tone(180, 0.12, 'triangle', 0.09); },
+    part: function () { tone(660, 0.08, 'sine', 0.07); tone(880, 0.1, 'sine', 0.07, 0.09); },
+    solved: function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tone(f, 0.22, 'sine', 0.09, i * 0.11); }); },
+    tick: function (i) { tone(1200 + i * 30, 0.02, 'sine', 0.03, i * 0.04); }
+  };
+
+  // ===== Spielzustand =====
+  var cur = null;           // aktuelles Raetsel samt Eingaben
+  var statusTimer = null;
+
+  function key(r, c) { return r + ',' + c; }
+  function say(text, kind) {
+    var el = $('status');
+    el.textContent = text || '';
+    el.className = kind || '';
+  }
+
+  function emptyInput(modus, p) {
+    var rows = [], r;
+    if (modus === 'mauer') { for (r = 0; r < p.n; r++) rows.push(new Array(p.n - r).fill(null)); }
+    else { for (r = 0; r < p.n; r++) rows.push(new Array(p.n).fill(0)); }
+    return rows;
+  }
+
+  function startGame(modus, stufe, seed, opt) {
+    opt = opt || {};
+    var p = L.generatePuzzle(modus, stufe, seed);
+    cur = {
+      modus: modus, stufe: stufe, seed: seed, puzzle: p,
+      eingabe: opt.eingabe || emptyInput(modus, p), notizen: opt.notizen || {}, hinweise: opt.hinweise || {},
+      tipps: opt.tipps || 0, sek: opt.sek || 0, tagesraetsel: !!opt.tagesraetsel,
+      sel: null, notizModus: false, undo: [], marks: {}, conflicts: {}, solved: false
+    };
+    persistRun();
+    buildBoard();
+    buildPad();
+    show('game');
+    say(modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.');
+    $('title').textContent = NAMEN[modus] + ' · Stufe ' + stufe + (cur.tagesraetsel ? ' · Tagesrätsel' : '');
+    $('rule').textContent = modus === 'mauer'
+      ? 'Zahlen von ' + p.fmin + ' bis ' + p.fmax + ' stehen in der untersten Reihe. × multipliziert, + addiert.'
+      : 'Zahlen 1 bis ' + p.n + ', keine doppelt in Zeile oder Spalte.';
+    $('t-notes').hidden = modus !== 'kaefige';
+    $('t-notes').setAttribute('aria-pressed', 'false');
+    $('solved').classList.remove('on');
+    fit();
+  }
+
+  function persistRun() {
+    if (!cur || cur.solved) return;
+    S.laufend = { modus: cur.modus, stufe: cur.stufe, seed: cur.seed, genVersion: L.GEN_VERSION,
+      eingabe: cur.eingabe, notizen: cur.notizen, hinweise: cur.hinweise, tipps: cur.tipps, sek: cur.sek,
+      tagesraetsel: cur.tagesraetsel };
+    save();
+  }
+
+  // ===== Rendering =====
+  function buildBoard() {
+    var b = $('board'), p = cur.puzzle, r, c;
+    b.innerHTML = '';
+    b.className = cur.modus;
+    b.setAttribute('aria-label', NAMEN[cur.modus]);
+    if (cur.modus === 'mauer') {
+      b.style.gridTemplateColumns = 'repeat(' + (p.n * 2) + ', 1fr)';
+      for (r = p.n - 1; r >= 0; r--) {
+        for (c = 0; c < p.n - r; c++) {
+          var s = document.createElement('button');
+          s.type = 'button';
+          s.className = 'stone';
+          s.dataset.r = r; s.dataset.c = c;
+          s.style.gridColumn = (r + 2 * c + 1) + ' / span 2';
+          s.style.gridRow = (p.n - r);
+          if (r >= 1) s.dataset.op = p.regeln[r];
+          if (r === p.n - 1) s.classList.add('top');
+          b.appendChild(s);
+        }
+      }
+    } else {
+      b.style.gridTemplateColumns = 'repeat(' + p.n + ', 1fr)';
+      b.style.gridTemplateRows = 'repeat(' + p.n + ', 1fr)';
+      b.style.setProperty('--n', p.n);
+      for (r = 0; r < p.n; r++) {
+        for (c = 0; c < p.n; c++) {
+          var cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'cell';
+          cell.dataset.r = r; cell.dataset.c = c;
+          var k = L.kaefigFuer(p, r, c);
+          [[-1, 0, 'bt'], [0, 1, 'br'], [1, 0, 'bb'], [0, -1, 'bl']].forEach(function (d) {
+            var nk = (r + d[0] >= 0 && r + d[0] < p.n && c + d[1] >= 0 && c + d[1] < p.n) ? L.kaefigFuer(p, r + d[0], c + d[1]) : null;
+            if (nk !== k) cell.classList.add(d[2]);
+          });
+          b.appendChild(cell);
+        }
+      }
+    }
+    b.onclick = function (ev) {
+      var t = ev.target.closest('[data-r]');
+      if (t) selectCell(+t.dataset.r, +t.dataset.c);
+    };
+    renderAll();
+  }
+
+  function buildPad() {
+    var pad = $('pad'), keys = [], i;
+    if (cur.modus === 'mauer') { for (i = 1; i <= 9; i++) keys.push(i); keys.push(0); }
+    else { for (i = 1; i <= cur.puzzle.n; i++) keys.push(i); }
+    keys.push('del');
+    pad.style.gridTemplateColumns = 'repeat(' + (cur.modus === 'mauer' ? 6 : keys.length) + ', 1fr)';
+    pad.innerHTML = '';
+    keys.forEach(function (kk) {
+      var bt = document.createElement('button');
+      bt.type = 'button';
+      bt.className = 'key' + (kk === 'del' ? ' del' : '');
+      bt.dataset.k = kk;
+      bt.textContent = kk === 'del' ? '⌫' : kk;
+      bt.setAttribute('aria-label', kk === 'del' ? 'Löschen' : 'Zahl ' + kk);
+      pad.appendChild(bt);
+    });
+  }
+
+  function cellEl(r, c) { return $('board').querySelector('[data-r="' + r + '"][data-c="' + c + '"]'); }
+
+  function renderAll() {
+    var p = cur.puzzle, modus = cur.modus;
+    var res = L.checkSolution(modus, p, cur.eingabe);
+    $('board').querySelectorAll('[data-r]').forEach(function (el) {
+      var r = +el.dataset.r, c = +el.dataset.c, kk = key(r, c);
+      var fest = L.istFest(modus, p, r, c), hint = !!cur.hinweise[kk];
+      var v = fest ? L.festerWert(modus, p, r, c) : cur.eingabe[r][c];
+      var base = modus === 'mauer' ? 'stone' : 'cell';
+      var cls = [base];
+      var old = el.className.split(' ');
+      ['bt', 'br', 'bb', 'bl', 'top'].forEach(function (x) { if (old.indexOf(x) >= 0) cls.push(x); });
+      if (fest) cls.push('fest');
+      if (hint) cls.push('hint');
+      if (cur.sel && cur.sel[0] === r && cur.sel[1] === c) cls.push('sel');
+      if (cur.marks[kk]) cls.push('err');
+      if (cur.conflicts[kk]) cls.push('conf');
+      if (v && String(v).length >= 4) cls.push('big');
+      if (cur.solved && (modus === 'kaefige' || el.classList.contains('top'))) cls.push('done');
+      el.className = cls.join(' ');
+      el.innerHTML = '';
+      if (modus === 'kaefige') {
+        var k = L.kaefigFuer(p, r, c);
+        var fc = labelZelle(k);
+        if (k.op !== '=' && fc[0] === r && fc[1] === c) {
+          var lb = document.createElement('span');
+          lb.className = 'lbl';
+          lb.textContent = k.ziel + k.op;
+          el.appendChild(lb);
+        }
+        if (!v && cur.notizen[kk]) {
+          var nt = document.createElement('span');
+          nt.className = 'notes';
+          var txt = '';
+          for (var d = 1; d <= p.n; d++) txt += '<span>' + ((cur.notizen[kk] & (1 << d)) ? d : '') + '</span>';
+          nt.innerHTML = txt;
+          el.appendChild(nt);
+        }
+      }
+      if (v) el.appendChild(document.createTextNode(v));
+      var lab = modus === 'mauer'
+        ? 'Reihe ' + (r + 1) + ', Stein ' + (c + 1) + (fest ? ', vorgegeben ' + v : (v ? ', ' + v : ', leer'))
+        : 'Zeile ' + (r + 1) + ', Spalte ' + (c + 1) + (fest ? ', vorgegeben ' + v : (v ? ', ' + v : ', leer')) + kaefigLabel(p, r, c);
+      el.setAttribute('aria-label', lab);
+    });
+    $('t-hint').textContent = 'Tipp' + (cur.tipps ? ' (' + cur.tipps + ')' : '');
+    return res;
+  }
+  function labelZelle(k) {
+    var best = k.zellen[0];
+    k.zellen.forEach(function (z) { if (z[0] < best[0] || (z[0] === best[0] && z[1] < best[1])) best = z; });
+    return best;
+  }
+  function kaefigLabel(p, r, c) {
+    var k = L.kaefigFuer(p, r, c);
+    if (!k || k.op === '=') return '';
+    var namen = { '+': 'plus', '×': 'mal', '−': 'minus', '÷': 'geteilt' };
+    return ', Käfig ' + k.ziel + ' ' + namen[k.op];
+  }
+
+  // ===== Eingabe =====
+  function selectCell(r, c) {
+    if (!cur || cur.solved) return;
+    if (L.istFest(cur.modus, cur.puzzle, r, c)) return;
+    cur.sel = [r, c];
+    snd.select();
+    renderAll();
+  }
+
+  function clearMarks() { cur.marks = {}; }
+
+  function doMove(r, c, neu) {
+    var alt = cur.eingabe[r][c];
+    if (alt === neu) return;
+    var m = { r: r, c: c, alt: alt, neu: neu };
+    cur.eingabe = L.applyMove(cur.eingabe, m);
+    cur.undo.push(m);
+    clearMarks();
+  }
+
+  function pressKey(kk) {
+    if (!cur || cur.solved) return;
+    if (!cur.sel) { say('Tippe zuerst ein leeres Feld an.'); return; }
+    var r = cur.sel[0], c = cur.sel[1], kkey = key(r, c);
+    if (cur.hinweise[kkey]) { say('Dieses Feld hat dir der Tipp verraten.'); return; }
+    var p = cur.puzzle, alt = cur.eingabe[r][c];
+    if (cur.modus === 'mauer') {
+      if (kk === 'del') doMove(r, c, alt ? (Math.floor(alt / 10) || null) : null);
+      else {
+        var neu = (alt || 0) * 10 + kk;
+        if (neu === 0) return;
+        if (neu > L.MAX_STEIN) neu = kk || null;
+        doMove(r, c, neu);
+      }
+      snd.set();
+    } else {
+      if (kk === 'del') {
+        if (alt) doMove(r, c, 0); else if (cur.notizen[kkey]) { delete cur.notizen[kkey]; }
+      } else if (cur.notizModus) {
+        if (!alt) { cur.notizen[kkey] = (cur.notizen[kkey] || 0) ^ (1 << kk); if (!cur.notizen[kkey]) delete cur.notizen[kkey]; }
+        snd.select();
+      } else {
+        doMove(r, c, alt === kk ? 0 : kk);
+        if (alt !== kk) delete cur.notizen[kkey];
+        snd.set();
+      }
+    }
+    afterMove(r, c);
+  }
+
+  function afterMove(r, c) {
+    var res = L.checkSolution(cur.modus, cur.puzzle, cur.eingabe);
+    cur.conflicts = {};
+    res.konflikte.forEach(function (z) { cur.conflicts[key(z[0], z[1])] = true; });
+    if (cur.modus === 'kaefige' && cur.conflicts[key(r, c)]) {
+      var v = cur.eingabe[r][c];
+      say('Hier passt die ' + v + ' nicht, sie steht in der Zeile oder Spalte schon.', 'bad');
+    } else if (res.richtig) {
+      renderAll(); persistRun(); onSolved(); return;
+    } else if (res.vollstaendig) {
+      say('Alles ausgefüllt, aber noch nicht ganz richtig. Tippe auf Prüfen.');
+    } else {
+      say('');
+    }
+    renderAll();
+    persistRun();
+  }
+
+  function undo() {
+    if (!cur || cur.solved || !cur.undo.length) return;
+    var m = cur.undo.pop();
+    cur.eingabe = L.undoMove(cur.eingabe, m);
+    clearMarks();
+    cur.sel = [m.r, m.c];
+    snd.select();
+    afterMove(m.r, m.c);
+  }
+
+  function check() {
+    if (!cur || cur.solved) return;
+    var res = L.checkSolution(cur.modus, cur.puzzle, cur.eingabe);
+    clearMarks();
+    res.falsche.forEach(function (z) { cur.marks[key(z[0], z[1])] = true; });
+    if (res.falsche.length) {
+      say(res.falsche.length === 1 ? 'Ein Feld stimmt nicht (mit ✕ markiert).' : res.falsche.length + ' Felder stimmen nicht (mit ✕ markiert).', 'bad');
+      snd.wrong();
+    } else {
+      say('Bis hier ist alles richtig.', 'good');
+      snd.part();
+    }
+    renderAll();
+  }
+
+  function hint() {
+    if (!cur || cur.solved) return;
+    var h = L.findHint(cur.modus, cur.puzzle, cur.eingabe);
+    if (!h) return;
+    var m = { r: h.r, c: h.c, alt: cur.eingabe[h.r][h.c], neu: h.wert };
+    cur.eingabe = L.applyMove(cur.eingabe, m);
+    cur.undo = cur.undo.filter(function (x) { return !(x.r === h.r && x.c === h.c); });
+    cur.hinweise[key(h.r, h.c)] = true;
+    delete cur.notizen[key(h.r, h.c)];
+    cur.tipps++;
+    clearMarks();
+    cur.sel = [h.r, h.c];
+    say('Tipp: Das Feld ist jetzt verraten. Jeder Tipp senkt die XP.');
+    snd.part();
+    afterMove(h.r, h.c);
+  }
+
+  function moveSel(dr, dc) {
+    if (!cur || cur.solved) return;
+    var p = cur.puzzle, r, c;
+    if (!cur.sel) { cur.sel = firstFree(); renderAll(); return; }
+    r = cur.sel[0]; c = cur.sel[1];
+    if (cur.modus === 'mauer') {
+      if (dr) { r = Math.max(0, Math.min(p.n - 1, r - dr)); c = Math.max(0, Math.min(p.n - r - 1, c)); }
+      else c = Math.max(0, Math.min(p.n - r - 1, c + dc));
+    } else {
+      r = Math.max(0, Math.min(p.n - 1, r + dr)); c = Math.max(0, Math.min(p.n - 1, c + dc));
+    }
+    cur.sel = [r, c];
+    snd.select();
+    renderAll();
+  }
+  function firstFree() {
+    var p = cur.puzzle, r, c;
+    for (r = 0; r < p.n; r++) for (c = 0; c < (cur.modus === 'mauer' ? p.n - r : p.n); c++) {
+      if (!L.istFest(cur.modus, p, r, c) && !cur.eingabe[r][c]) return [r, c];
+    }
+    return null;
+  }
+
+  // ===== Geloest =====
+  function onSolved() {
+    cur.solved = true;
+    var datum = heute();
+    var bisher = L.tagesXpFuer(S.tagesXp, datum);
+    var res = L.computeKnobelXP({ modus: cur.modus, stufe: cur.stufe, tipps: cur.tipps, tagesraetsel: cur.tagesraetsel }, bisher);
+    S.tagesXp = { datum: datum, xp: bisher + res.xp };
+    S.geloest[cur.modus]++;
+    if (cur.tipps === 0) S.ohneTipp[cur.modus]++;
+    var best = S.bestSek[cur.modus][cur.stufe];
+    var neuerRekord = !best || cur.sek < best;
+    if (neuerRekord) S.bestSek[cur.modus][cur.stufe] = cur.sek;
+    if (!cur.tagesraetsel && cur.stufe === S.stufe[cur.modus]) {
+      var nx = L.nextKnobelStufe(cur.stufe, S.serie[cur.modus], cur.tipps === 0);
+      S.stufe[cur.modus] = nx.stufe; S.serie[cur.modus] = nx.serie;
+    }
+    if (cur.tagesraetsel) S.tagesraetsel = { datum: datum, modus: cur.modus, geloest: true };
+    S.laufend = null;
+    save();
+
+    if (embedded) {
+      try {
+        window.parent.postMessage({ type: 'knobel:result', mode: cur.modus, stufe: cur.stufe,
+          tipps: cur.tipps, xp: res.xp, seed: cur.seed }, location.origin);
+      } catch (e) { console.error('postMessage', e); }
+    }
+
+    $('s-xp').textContent = res.xp > 0 ? '+' + res.xp + ' XP' : '0 XP';
+    var info = 'Zeit ' + fmtTime(cur.sek) + (neuerRekord ? ' · neue Bestzeit' : '') + ' · Tipps: ' + cur.tipps;
+    if (res.gedeckelt || S.tagesXp.xp >= L.TAGES_CAP) info += '\nHeute alle Knobel-XP geholt.';
+    $('s-info').style.whiteSpace = 'pre-line';
+    $('s-info').textContent = info;
+    renderAll();
+    $('solved').classList.add('on');
+    $('s-next').focus();
+    say('Gelöst! ' + $('s-xp').textContent);
+    snd.solved();
+    for (var i = 0; i < Math.min(8, Math.ceil(res.xp / 40)); i++) snd.tick(i);
+  }
+  function fmtTime(s) { return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+
+  // ===== Menue =====
+  var gewaehlt = { mauer: 1, kaefige: 1 };
+  function show(id) {
+    $('menu').classList.toggle('on', id === 'menu');
+    $('game').classList.toggle('on', id === 'game');
+    if (id === 'menu') renderMenu();
+  }
+  function renderMenu() {
+    ['mauer', 'kaefige'].forEach(function (m) {
+      var box = document.querySelector('.mode[data-modus="' + m + '"] .lvls');
+      box.innerHTML = '';
+      for (var s = 1; s <= 5; s++) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.className = 'lvl'; b.dataset.modus = m; b.dataset.stufe = s;
+        b.setAttribute('aria-pressed', gewaehlt[m] === s ? 'true' : 'false');
+        b.setAttribute('aria-label', 'Stufe ' + s + (S.stufe[m] === s ? ', empfohlen' : ''));
+        b.textContent = s;
+        if (S.stufe[m] === s) { var rec = document.createElement('span'); rec.className = 'rec'; rec.textContent = '★'; b.appendChild(rec); }
+        box.appendChild(b);
+      }
+    });
+    var rest = Math.max(0, L.TAGES_CAP - L.tagesXpFuer(S.tagesXp, heute()));
+    $('xpinfo').textContent = rest > 0 ? 'Heute noch ' + rest + ' Knobel-XP' : 'Heute alle Knobel-XP geholt';
+    var lf = S.laufend;
+    $('resume').hidden = !(lf && lf.genVersion === L.GEN_VERSION);
+    if (lf && lf.genVersion === L.GEN_VERSION) $('resume').textContent = 'Weiterknobeln: ' + NAMEN[lf.modus] + ', Stufe ' + lf.stufe;
+    var d = S.tagesraetsel && S.tagesraetsel.datum === heute() && S.tagesraetsel.geloest;
+    $('daily').disabled = !!d;
+    $('daily').textContent = d ? 'Tagesrätsel heute erledigt' : 'Tagesrätsel (mehr XP)';
+    $('mute-menu').textContent = S.stumm ? 'Ton aus' : 'Ton an';
+    $('mute-menu').setAttribute('aria-pressed', S.stumm ? 'true' : 'false');
+    $('mute').textContent = S.stumm ? 'Ton aus' : 'Ton an';
+    $('mute').setAttribute('aria-pressed', S.stumm ? 'true' : 'false');
+  }
+
+  function newSeed() { return (Math.floor(Math.random() * 4294967295)) >>> 0; }
+
+  function abandonRun() {
+    // Ein verworfenes, angefangenes Raetsel zaehlt als "unsauber".
+    var lf = S.laufend;
+    if (lf && lf.stufe === S.stufe[lf.modus] && !lf.tagesraetsel) {
+      var nx = L.nextKnobelStufe(lf.stufe, S.serie[lf.modus], false);
+      S.stufe[lf.modus] = nx.stufe; S.serie[lf.modus] = nx.serie;
+    }
+    S.laufend = null;
+  }
+
+  function startNew(modus, stufe) {
+    abandonRun();
+    startGame(modus, stufe, newSeed());
+  }
+
+  function resume() {
+    var lf = S.laufend;
+    if (!lf || lf.genVersion !== L.GEN_VERSION) { S.laufend = null; save(); renderMenu(); return; }
+    startGame(lf.modus, lf.stufe, lf.seed, lf);
+    cur.sek = lf.sek || 0;
+  }
+
+  // ===== Layout =====
+  function fit() {
+    if (!cur || cur.modus !== 'kaefige') return;
+    var a = $('area'), size = Math.floor(Math.min(a.clientWidth, a.clientHeight));
+    $('board').style.setProperty('--bs', Math.max(120, size) + 'px');
+  }
+  window.addEventListener('resize', fit);
+
+  // ===== Verdrahtung =====
+  document.addEventListener('pointerdown', function () { audio(); }, { once: true });
+  document.addEventListener('click', function (ev) {
+    var t = ev.target.closest('button');
+    if (!t) return;
+    if (t.classList.contains('lvl')) { gewaehlt[t.dataset.modus] = +t.dataset.stufe; renderMenu(); }
+    else if (t.classList.contains('key')) pressKey(t.dataset.k === 'del' ? 'del' : +t.dataset.k);
+  });
+  $('start-mauer').onclick = function () { startNew('mauer', gewaehlt.mauer); };
+  $('start-kaefige').onclick = function () { startNew('kaefige', gewaehlt.kaefige); };
+  $('resume').onclick = resume;
+  $('daily').onclick = function () {
+    var datum = heute();
+    var modus = L.dailySeed(datum, 'wahl') % 2 ? 'kaefige' : 'mauer';
+    abandonRun();
+    startGame(modus, S.stufe[modus], L.dailySeed(datum, modus), { tagesraetsel: true });
+  };
+  $('back').onclick = function () { persistRun(); show('menu'); };
+  $('t-undo').onclick = undo;
+  $('t-check').onclick = check;
+  $('t-hint').onclick = hint;
+  $('t-notes').onclick = function () {
+    cur.notizModus = !cur.notizModus;
+    $('t-notes').setAttribute('aria-pressed', cur.notizModus ? 'true' : 'false');
+    say(cur.notizModus ? 'Notizen an: Zahlen erscheinen klein im Feld.' : '');
+  };
+  function toggleMute() { S.stumm = !S.stumm; save(); renderMenu(); }
+  $('mute').onclick = toggleMute;
+  $('mute-menu').onclick = toggleMute;
+  $('s-next').onclick = function () {
+    var m = cur.modus;
+    startGame(m, S.stufe[m], newSeed());
+  };
+  $('s-menu').onclick = function () { $('solved').classList.remove('on'); show('menu'); };
+
+  document.addEventListener('keydown', function (ev) {
+    if (!cur || !$('game').classList.contains('on')) return;
+    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); return; }
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (/^[0-9]$/.test(ev.key)) {
+      var d = +ev.key;
+      if (cur.modus === 'kaefige' && (d < 1 || d > cur.puzzle.n)) return;
+      pressKey(d);
+    } else if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); pressKey('del'); }
+    else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') $('t-notes').click();
+    else if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSel(-1, 0); }
+    else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSel(1, 0); }
+    else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSel(0, -1); }
+    else if (ev.key === 'ArrowRight') { ev.preventDefault(); moveSel(0, 1); }
+  });
+
+  // Stoppuhr: laeuft nur sichtbar und ungeloest, geht nie ins Limit
+  setInterval(function () {
+    if (!cur || cur.solved || document.hidden || !$('game').classList.contains('on')) return;
+    cur.sek++;
+    if (cur.sek % 5 === 0) persistRun();
+  }, 1000);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) persistRun(); });
+
+  // ===== Trainer-Anbindung (Integrations-Vertrag siehe knobel-logic.js) =====
+  if (embedded) $('backlink').hidden = true;
+  window.addEventListener('message', function (ev) {
+    if (ev.origin !== location.origin) return;
+    var d = ev.data;
+    if (!d || d.type !== 'knobel:init') return;
+    if (d.tagesXp && typeof d.tagesXp.xp === 'number' && d.tagesXp.datum) S.tagesXp = { datum: d.tagesXp.datum, xp: d.tagesXp.xp };
+    if (d.stufe) ['mauer', 'kaefige'].forEach(function (m) {
+      var v = d.stufe[m];
+      if (Number.isInteger(v) && v >= 1 && v <= 5) { S.stufe[m] = v; gewaehlt[m] = v; }
+    });
+    if (typeof d.stumm === 'boolean') S.stumm = d.stumm;
+    save();
+    if ($('menu').classList.contains('on')) renderMenu();
+  });
+
+  // ===== Start =====
+  gewaehlt.mauer = S.stufe.mauer; gewaehlt.kaefige = S.stufe.kaefige;
+  renderMenu();
+  var dm = params.get('modus'), dseed = params.get('seed');
+  if (debug && dseed !== null && (dm === 'mauer' || dm === 'kaefige')) {
+    startGame(dm, Math.max(1, Math.min(5, +params.get('stufe') || 1)), (+dseed) >>> 0);
+  }
+  if (debug) window.__knobel = { get cur() { return cur; }, get S() { return S; }, L: L };
+
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    try { navigator.serviceWorker.register('./sw.js').catch(function () {}); } catch (e) { /* egal */ }
+  }
+})();
+</script>
+</body>
+</html>
