@@ -233,7 +233,6 @@
   var mode = 'menu'; // menu | play | pause | won | ended
   var meta = null, level = null, game = null;
   var cam = 0, shake = 0, squash = 0, animT = 0, lastY = 0;
-  var wasPortraitPause = false;
   var particles = [];
   for (var pi = 0; pi < 48; pi++) particles.push({ life: 0, x: 0, y: 0, vx: 0, vy: 0, max: 1, col: '#fff', s: 1 });
 
@@ -322,7 +321,7 @@
   var portraitMQ = window.matchMedia('(orientation: portrait)');
   function onOrient() {
     if (portraitMQ.matches) {
-      if (mode === 'play' && !$('portrait-hint').classList.contains('dismissed')) { pause(); wasPortraitPause = true; }
+      if (mode === 'play' && !$('portrait-hint').classList.contains('dismissed')) pause();
     } else {
       $('portrait-hint').classList.remove('dismissed');
     }
