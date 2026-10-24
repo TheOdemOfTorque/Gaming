@@ -448,6 +448,12 @@
       else if (m.kind === 'init') {
         jnr = m.jnr;
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
+        else if (mode === 'ended' || mode === 'won') {
+          // Reset-Pfad aus einem beendeten Lauf heraus: ohne ihn bliebe das Spiel nach
+          // jnr:timeup dauerhaft in mode 'ended' haengen (siehe Vertrag oben).
+          if (actx && actx.state === 'suspended') actx.resume();
+          if (m.level) startLevel(m.level); else showMenu();
+        }
       }
     });
   }

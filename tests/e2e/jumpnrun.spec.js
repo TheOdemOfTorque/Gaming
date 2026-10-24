@@ -112,6 +112,30 @@ test('Direktstart im Hochformat pausiert sofort hinter dem Dreh-Hinweis', async 
   expect(b.t).toBe(a.t);
 });
 
+test('Eingebettetes Spiel erholt sich nach jnr:timeup durch ein erneutes jnr:init', async ({ page }) => {
+  await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><body><iframe id="f" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  await page.goto('/jumpnrun-harness.html');
+  const frameState = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+  const send = msg => page.evaluate(m => {
+    document.getElementById('f').contentWindow.postMessage(m, location.origin);
+  }, msg);
+
+  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await page.waitForTimeout(200);
+  expect((await frameState()).mode).toBe('play');
+
+  await send({ type: 'jnr:timeup' });
+  await page.waitForTimeout(100);
+  expect((await frameState()).mode).toBe('ended');
+
+  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await page.waitForTimeout(200);
+  expect((await frameState()).mode).toBe('play');
+});
+
 test('Pause stoppt die Simulation', async ({ page }) => {
   await page.goto(URL1);
   await page.keyboard.down('ArrowRight');
