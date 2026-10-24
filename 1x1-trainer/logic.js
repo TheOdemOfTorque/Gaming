@@ -383,6 +383,36 @@ function computeStreakProtection(state, todayStr) {
   return { state: next, saved: false, broken: true };
 }
 
+// ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
+// Defaults, Marco noch zu bestätigen (siehe Vault-Plan Spiele-Integration):
+// Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
+// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sperren.
+const GAME_RULES = {
+  invader: { kostetSternZeit: true,  minStreak: 3 },
+  jnr:      { kostetSternZeit: true,  minStreak: 3 },
+  knobel:   { kostetSternZeit: false, minStreak: 0 },
+};
+
+// Tests: tests/unit/spiele-zugang.test.js
+function getGameAccess(state, gameId) {
+  const rule = GAME_RULES[gameId];
+  if (!rule) return { spielbar: false, grund: 'unbekannt' };
+  if ((state.streak || 0) < rule.minStreak) return { spielbar: false, grund: 'streak' };
+  if (rule.kostetSternZeit && (state.stars || 0) === 0 && (state.gameSecondsLeft || 0) <= 0) {
+    return { spielbar: false, grund: 'keine_sterne' };
+  }
+  return { spielbar: true, grund: null };
+}
+
+// Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
+// und das Verzweigen bei Ablauf (Invader: Pause-Dialog/Toast, Lumo: jnr:timeup)
+// bleiben in index.html. Tests: tests/unit/spiele-zugang.test.js
+function tickStarTime(state) {
+  if ((state.gameSecondsLeft || 0) <= 0) return { state, abgelaufen: false };
+  const left = state.gameSecondsLeft - 1;
+  return { state: Object.assign({}, state, { gameSecondsLeft: left }), abgelaufen: left === 0 };
+}
+
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
 // qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
 // Wird gecappt bei maxReihe (Großes 1×1 = 20).
@@ -536,6 +566,7 @@ if (typeof module !== 'undefined') {
                      nextDiamondCost, canBuyDiamond, applyDiamondPurchase,
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
+                     GAME_RULES, getGameAccess, tickStarTime,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };
