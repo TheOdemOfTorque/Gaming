@@ -101,6 +101,17 @@ test('Hochformat zeigt den Dreh-Hinweis', async ({ page }) => {
   await expect(page.locator('#portrait-hint')).toContainText('Dreh dein iPhone');
 });
 
+test('Direktstart im Hochformat pausiert sofort hinter dem Dreh-Hinweis', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(URL1);
+  await expect(page.locator('#portrait-hint')).toBeVisible();
+  const a = await state(page);
+  expect(a.mode).toBe('pause');
+  await page.waitForTimeout(300);
+  const b = await state(page);
+  expect(b.t).toBe(a.t);
+});
+
 test('Pause stoppt die Simulation', async ({ page }) => {
   await page.goto(URL1);
   await page.keyboard.down('ArrowRight');

@@ -375,6 +375,7 @@
     updateHud();
     mode = 'play';
     jnr.lastLevel = id;
+    onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
   }
   function updateHud() { $('funken').textContent = '✦ ' + game.funken; }
 
