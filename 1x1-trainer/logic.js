@@ -73,7 +73,13 @@ function defaultState() {
            mp: { enabled: false, groupCode: null, nickname: null,
                  pinHash: null, token: null, pendingUploads: [],
                  lastSeedDate: null, lastSeed: null, lastChallengeId: null },
-           changelogSeenVersion: null };
+           changelogSeenVersion: null,
+           // v12: knobel/jnr müssen hier mit rein — defaultState() setzt _version
+           // direkt auf STATE_VERSION, migrateState() würde die v11→v12-Migration
+           // für einen Neuinstall also nie laufen lassen.
+           knobel: { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } },
+           jnr: { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
+                  options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } } };
 }
 
 var STATE_MIGRATIONS = [

@@ -38,6 +38,18 @@ describe('defaultState', () => {
     expect(s.trainingConfig).toBeDefined();
     expect(s.turnierConfig).toBeDefined();
   });
+
+  // Regression: defaultState() setzt _version direkt auf STATE_VERSION, dadurch
+  // läuft migrateState(defaultState()) die v11→v12-Migration NIE (fromVersion ===
+  // STATE_VERSION). Ein Neuinstall-State muss knobel/jnr deshalb schon selbst mitbringen.
+  test('hat state.knobel und state.jnr (v12, auch ohne Migration)', () => {
+    const s = defaultState();
+    expect(s.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(s.jnr).toEqual({
+      v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
+      options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+    });
+  });
 });
 
 describe('defaultQS', () => {
