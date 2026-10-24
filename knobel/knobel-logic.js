@@ -441,12 +441,192 @@
     return p;
   }
 
+  // ===== Raetsel, Pruefen, Tipp, Zuege =====
+  function generatePuzzle(modus, stufe, seed) {
+    var rng = mulberry32(seed), p;
+    if (modus === 'mauer') p = generatePyramid(stufe, rng);
+    else if (modus === 'kaefige') p = generateCages(stufe, rng);
+    else throw new Error('Unbekannter Modus: ' + modus);
+    p.seed = seed >>> 0;
+    p.genVersion = GEN_VERSION;
+    return p;
+  }
+
+  function kaefigFuer(p, r, c) {
+    for (var i = 0; i < p.kaefige.length; i++) {
+      for (var j = 0; j < p.kaefige[i].zellen.length; j++) {
+        var z = p.kaefige[i].zellen[j];
+        if (z[0] === r && z[1] === c) return p.kaefige[i];
+      }
+    }
+    return null;
+  }
+  // Ist die Zelle vorgegeben (nicht vom Kind zu fuellen)?
+  function istFest(modus, p, r, c) {
+    if (modus === 'mauer') return p.gegeben[r][c] !== null;
+    var k = kaefigFuer(p, r, c);
+    return !!k && k.op === '=';
+  }
+  function festerWert(modus, p, r, c) {
+    if (modus === 'mauer') return p.gegeben[r][c];
+    return kaefigFuer(p, r, c).ziel;
+  }
+  function wirksam(modus, p, e, r, c) {
+    if (istFest(modus, p, r, c)) return festerWert(modus, p, r, c);
+    var v = e[r] ? e[r][c] : null;
+    return v ? v : null;
+  }
+  function zellenListe(modus, p) {
+    var out = [], r, c;
+    if (modus === 'mauer') {
+      for (r = 0; r < p.n; r++) for (c = 0; c < p.n - r; c++) out.push([r, c]);
+    } else {
+      for (r = 0; r < p.n; r++) for (c = 0; c < p.n; c++) out.push([r, c]);
+    }
+    return out;
+  }
+
+  function checkSolution(modus, p, e) {
+    var falsche = [], konflikte = [], voll = true;
+    zellenListe(modus, p).forEach(function (z) {
+      var v = wirksam(modus, p, e, z[0], z[1]);
+      if (v === null) { voll = false; return; }
+      if (v !== p.loesung[z[0]][z[1]]) falsche.push([z[0], z[1]]);
+    });
+    if (modus === 'kaefige') {
+      for (var r = 0; r < p.n; r++) for (var c = 0; c < p.n; c++) {
+        var v = wirksam(modus, p, e, r, c);
+        if (v === null) continue;
+        for (var x = 0; x < p.n; x++) {
+          if ((x !== c && wirksam(modus, p, e, r, x) === v) ||
+              (x !== r && wirksam(modus, p, e, x, c) === v)) { konflikte.push([r, c]); break; }
+        }
+      }
+    }
+    return { vollstaendig: voll, richtig: voll && falsche.length === 0, falsche: falsche, konflikte: konflikte };
+  }
+
+  // Tipp: korrigiert zuerst ein falsches Feld, sonst verraet er ein Feld, das
+  // sich (Mauer) aus dem bereits Bekannten ableiten laesst.
+  function findHint(modus, p, e) {
+    var liste = zellenListe(modus, p), i, z;
+    for (i = 0; i < liste.length; i++) {
+      z = liste[i];
+      if (istFest(modus, p, z[0], z[1])) continue;
+      var v = wirksam(modus, p, e, z[0], z[1]);
+      if (v !== null && v !== p.loesung[z[0]][z[1]]) return { r: z[0], c: z[1], wert: p.loesung[z[0]][z[1]] };
+    }
+    var offen = liste.filter(function (q) { return wirksam(modus, p, e, q[0], q[1]) === null; });
+    if (!offen.length) return null;
+    if (modus === 'mauer') {
+      var bekannt = function (r, c) { return wirksam(modus, p, e, r, c) !== null; };
+      var leitbar = function (q) {
+        var r = q[0], c = q[1], dreiecke = [];
+        if (r >= 1) dreiecke.push([[r - 1, c], [r - 1, c + 1], [r, c]]);        // q ist Spitze
+        if (r + 1 < p.n) {
+          if (c < p.n - r - 1) dreiecke.push([[r + 1, c], [r, c + 1], [r, c]]);  // q ist linke Basis
+          if (c > 0) dreiecke.push([[r + 1, c - 1], [r, c - 1], [r, c]]);        // q ist rechte Basis
+        }
+        return dreiecke.some(function (t) { return bekannt(t[0][0], t[0][1]) && bekannt(t[1][0], t[1][1]); });
+      };
+      var l = offen.filter(leitbar);
+      if (l.length) z = l[0]; else z = offen[0];
+    } else {
+      z = offen[0];
+    }
+    return { r: z[0], c: z[1], wert: p.loesung[z[0]][z[1]] };
+  }
+
+  function applyMove(e, m) {
+    var neu = e.map(function (row) { return row.slice(); });
+    neu[m.r][m.c] = m.neu;
+    return neu;
+  }
+  function undoMove(e, m) {
+    var neu = e.map(function (row) { return row.slice(); });
+    neu[m.r][m.c] = m.alt;
+    return neu;
+  }
+
+  // ===== XP, Stufen, Seeds =====
+  var BASIS_XP = { 1: 80, 2: 120, 3: 170, 4: 230, 5: 300 };
+  var TAGES_CAP = 600;
+  function computeKnobelXP(opt, tagesXpBisher) {
+    var basis = BASIS_XP[opt.stufe] || 0;
+    var f = Math.max(0.4, 1 - 0.2 * (opt.tipps || 0));
+    var voll = Math.round(basis * f * (opt.tagesraetsel ? 1.5 : 1));
+    var rest = Math.max(0, TAGES_CAP - (tagesXpBisher || 0));
+    var gedeckelt = voll > rest;
+    return { xp: Math.min(voll, rest), gedeckelt: gedeckelt, basis: basis };
+  }
+
+  // serie: positiv = saubere Loesungen in Folge, negativ = unsaubere (Tipp/Abbruch)
+  function nextKnobelStufe(stufe, serie, sauber) {
+    if (sauber) {
+      serie = serie > 0 ? serie + 1 : 1;
+      if (serie >= 2) return { stufe: Math.min(5, stufe + 1), serie: 0 };
+    } else {
+      serie = serie < 0 ? serie - 1 : -1;
+      if (serie <= -2) return { stufe: Math.max(1, stufe - 1), serie: 0 };
+    }
+    return { stufe: stufe, serie: serie };
+  }
+
+  function hashString(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function dailySeed(datum, modus) { return hashString('knobel|' + modus + '|' + datum); }
+
+  // ===== Standalone-Speicher henry_knobel =====
+  var KNOBEL_STATE_VERSION = 1;
+  function defaultKnobelState() {
+    return {
+      v: KNOBEL_STATE_VERSION,
+      stufe: { mauer: 1, kaefige: 1 },
+      serie: { mauer: 0, kaefige: 0 },
+      geloest: { mauer: 0, kaefige: 0 },
+      ohneTipp: { mauer: 0, kaefige: 0 },
+      bestSek: { mauer: {}, kaefige: {} },
+      tagesXp: { datum: null, xp: 0 },
+      tagesraetsel: { datum: null, modus: null, geloest: false },
+      laufend: null,
+      stumm: false
+    };
+  }
+  function knobelMigration(state) {
+    var d = defaultKnobelState();
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return d;
+    var out = {};
+    Object.keys(d).forEach(function (k) {
+      var dv = d[k], sv = state[k];
+      if (dv && typeof dv === 'object' && !Array.isArray(dv)) {
+        out[k] = Object.assign({}, dv, sv && typeof sv === 'object' ? sv : {});
+      } else {
+        out[k] = sv === undefined ? dv : sv;
+      }
+    });
+    out.v = KNOBEL_STATE_VERSION;
+    return out;
+  }
+  function tagesXpFuer(tagesXp, heute) {
+    return tagesXp && tagesXp.datum === heute ? (tagesXp.xp || 0) : 0;
+  }
+
   return {
     GEN_VERSION: GEN_VERSION, STUFEN: STUFEN, MAX_STEIN: MAX_STEIN,
     mulberry32: mulberry32, randInt: randInt, shuffle: shuffle, pick: pick,
     buildPyramid: buildPyramid, solvePyramid: solvePyramid,
     logicSolvePyramid: logicSolvePyramid, generatePyramid: generatePyramid,
     cageZiel: cageZiel, cageOk: cageOk, zellenZusammenhaengend: zellenZusammenhaengend,
-    solveCages: solveCages, logicSolveCages: logicSolveCages, generateCages: generateCages
+    solveCages: solveCages, logicSolveCages: logicSolveCages, generateCages: generateCages,
+    generatePuzzle: generatePuzzle, checkSolution: checkSolution, findHint: findHint,
+    istFest: istFest, festerWert: festerWert, kaefigFuer: kaefigFuer,
+    applyMove: applyMove, undoMove: undoMove,
+    BASIS_XP: BASIS_XP, TAGES_CAP: TAGES_CAP, computeKnobelXP: computeKnobelXP,
+    nextKnobelStufe: nextKnobelStufe, dailySeed: dailySeed,
+    KNOBEL_STATE_VERSION: KNOBEL_STATE_VERSION, defaultKnobelState: defaultKnobelState,
+    knobelMigration: knobelMigration, tagesXpFuer: tagesXpFuer
   };
 });
