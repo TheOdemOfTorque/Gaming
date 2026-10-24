@@ -122,7 +122,7 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#status')).toContainText('Tipp');
   });
 
-  test.describe('Querformat auf dem Telefon (kurze Seite < 500px): Dreh-Hinweis statt Raetsel', () => {
+  test.describe('Querformat auf dem Telefon (kurze Seite < 520px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
 
@@ -148,7 +148,7 @@ test.describe('Knobelwerkstatt', () => {
     });
   });
 
-  test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 500px): weiterhin spielbar', () => {
+  test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 520px): weiterhin spielbar', () => {
     const { defaultBrowserType, ...geraet } = devices['iPad (gen 7) landscape'];
     test.use(geraet);
 
@@ -166,6 +166,25 @@ test.describe('Knobelwerkstatt', () => {
       await expect(page.locator('#board.mauer')).toBeVisible();
       await expect(page.locator('#rotate-hint')).toBeHidden();
       const box = await page.locator('#board.mauer .stone').first().boundingBox();
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    });
+  });
+
+  test.describe('Grenzfall an der 520px-Schwelle (breiter Desktop-Browser, kein Telefon)', () => {
+    test('knapp unter der Schwelle (900x519): Dreh-Hinweis greift, bevor Zellen zu klein wuerden', async ({ page }) => {
+      await page.setViewportSize({ width: 900, height: 519 });
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeAttached();
+      await expect(page.locator('#rotate-hint')).toBeVisible();
+    });
+
+    test('knapp ueber der Schwelle (900x520): kein Dreh-Hinweis, Zellen bleiben >= 44px', async ({ page }) => {
+      await page.setViewportSize({ width: 900, height: 520 });
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      await expect(page.locator('#rotate-hint')).toBeHidden();
+      const box = await page.locator('#board.kaefige .cell').first().boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
       expect(box.height).toBeGreaterThanOrEqual(44);
     });
   });
