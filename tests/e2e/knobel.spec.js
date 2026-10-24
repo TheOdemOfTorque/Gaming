@@ -122,21 +122,51 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#status')).toContainText('Tipp');
   });
 
-  test.describe('Querformat (echtes Geraete-Profil, dynamische Toolbar-Hoehe)', () => {
+  test.describe('Querformat auf dem Telefon (kurze Seite < 500px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
 
-    test('Zahlenmauer ueberlappt im Querformat nicht die Werkzeugleiste (Stufe 5, groesste Mauer)', async ({ page }) => {
+    test('zeigt den Dreh-Hinweis und verdeckt das unspielbare Raetsel (Stufe 5, groesste Mauer)', async ({ page }) => {
       await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=5&seed=1');
-      await expect(page.locator('#board.mauer')).toBeVisible();
-      // Reale Pruefung: liegt in der Bildschirmmitte von "Pruefen" wirklich
-      // der Knopf, oder faengt ein darueberliegender Stein den Klick ab?
+      await expect(page.locator('#board.mauer')).toBeAttached();
+      await expect(page.locator('#rotate-hint')).toBeVisible();
+      await expect(page.locator('#game')).toBeHidden();
+      // Die Flaeche hinter dem Hinweis ist nicht erreichbar: der Klick auf die
+      // Bildschirmmitte von "Pruefen" trifft den Dreh-Hinweis, nicht den Knopf.
       const getroffen = await page.locator('#t-check').evaluate(btn => {
         const r = btn.getBoundingClientRect();
         const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
         return btn.contains(el);
       });
-      expect(getroffen).toBe(true);
+      expect(getroffen).toBe(false);
+    });
+
+    test('Menue selbst bleibt ohne Dreh-Hinweis sichtbar (nur das Raetsel ist betroffen)', async ({ page }) => {
+      await page.goto('/knobel/index.html');
+      await expect(page.locator('#rotate-hint')).toBeHidden();
+      await expect(page.locator('#menu')).toBeVisible();
+    });
+  });
+
+  test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 500px): weiterhin spielbar', () => {
+    const { defaultBrowserType, ...geraet } = devices['iPad (gen 7) landscape'];
+    test.use(geraet);
+
+    test('kein Dreh-Hinweis, Rechenkaefige-Zellen bleiben mindestens 44px (Stufe 5, 6x6)', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      await expect(page.locator('#rotate-hint')).toBeHidden();
+      const box = await page.locator('#board.kaefige .cell').first().boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    });
+
+    test('kein Dreh-Hinweis, Zahlenmauer-Steine bleiben mindestens 44px hoch (Stufe 5, groesste Mauer)', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=5&seed=1');
+      await expect(page.locator('#board.mauer')).toBeVisible();
+      await expect(page.locator('#rotate-hint')).toBeHidden();
+      const box = await page.locator('#board.mauer .stone').first().boundingBox();
+      expect(box.height).toBeGreaterThanOrEqual(44);
     });
   });
 });
