@@ -211,6 +211,9 @@ function migrateState(s) {
     s = STATE_MIGRATIONS[v](s) || s;
   }
   s._version = STATE_VERSION;
+  // achievements gab es schon vor STATE_MIGRATIONS[0] — ein kaputter/unvollständiger
+  // Spielstand ohne dieses Feld lässt sonst updateHomeUI() crashen (state.achievements.length).
+  if (!Array.isArray(s.achievements)) s.achievements = [];
   return s;
 }
 
