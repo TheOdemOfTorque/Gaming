@@ -1,4 +1,4 @@
-const CACHE = '1x1-trainer-v25'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
+const CACHE = '1x1-trainer-v26'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,24 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './logic.js',
+  // Knobelwerkstatt + Lumo (ADR-0001, Same-Origin-iframe) — Cache-Storage-Einträge
+  // ausserhalb des SW-Scopes von 1x1-trainer/; sie werden NICHT automatisch beim
+  // iframe-Request ausgeliefert (dafür bräuchte jedes Spiel seinen eigenen Service
+  // Worker im eigenen Scope). Knobel hat ein eigenes sw.js, Lumo noch nicht.
+  '../knobel/index.html',
+  '../knobel/knobel-logic.js',
+  '../knobel/manifest.json',
+  '../knobel/icon-192.png',
+  '../knobel/icon-512.png',
+  '../jumpnrun/index.html',
+  '../jumpnrun/core/collision.js',
+  '../jumpnrun/core/game.js',
+  '../jumpnrun/core/host.js',
+  '../jumpnrun/core/level.js',
+  '../jumpnrun/core/mathgen.js',
+  '../jumpnrun/core/physics.js',
+  '../jumpnrun/core/rewards.js',
+  '../jumpnrun/data/levels.js',
 ];
 
 self.addEventListener('install', e => {

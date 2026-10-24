@@ -4,7 +4,7 @@
   "description": "Einmaleins üben mit Blitz-Modus, Turnier und Training",
   "start_url": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0d0d2b",
   "theme_color": "#0d0d2b",
   "lang": "de",

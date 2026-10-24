@@ -422,6 +422,62 @@
       padding: 8px 14px; cursor: pointer; -webkit-appearance: none;
     }
     .games-bar-btn:active { transform: scale(0.95); }
+
+    /* SPIELE-LEISTE — 3 Karten (Invader, Lumo, Knobelwerkstatt, #9/#10) */
+    .games-bar-cards { display: flex; gap: 8px; }
+    .game-card {
+      flex: 1; border-radius: 14px; padding: 10px 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+      min-width: 0;
+    }
+    .game-card.ready {
+      background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(239,68,68,0.1));
+      border: 1px solid rgba(245,158,11,0.4);
+    }
+    .game-card.free {
+      background: linear-gradient(135deg, rgba(108,99,255,0.18), rgba(157,151,255,0.08));
+      border: 1px solid rgba(108,99,255,0.4);
+    }
+    .game-card.locked {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      opacity: 0.55;
+    }
+    .game-card-icon { font-size: 1.4rem; }
+    .game-card-title { font-size: 0.7rem; font-weight: 800; }
+    .game-card-sub { font-size: 0.58rem; color: rgba(255,255,255,0.45); line-height: 1.2; }
+    .game-card-btn {
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border: none; border-radius: 8px; color: #fff;
+      font-weight: 800; font-size: 0.66rem;
+      padding: 6px 10px; cursor: pointer; -webkit-appearance: none; margin-top: 2px;
+    }
+    .game-card-btn:active { transform: scale(0.95); }
+    .game-card-btn:disabled { opacity: 0.35; cursor: default; }
+
+    /* GAME OVERLAY — iframe-Host für Lumo + Knobelwerkstatt (ADR-0001) */
+    .game-overlay { display: none; position: fixed; inset: 0; z-index: 300; background: #0d0d2b; }
+    .game-overlay.active { display: flex; flex-direction: column; }
+    .game-overlay-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 310;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+               10px calc(14px + env(safe-area-inset-left));
+      pointer-events: none;
+    }
+    .game-overlay-bar > * { pointer-events: all; }
+    #game-overlay-close {
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 10px; color: #fff; font-size: 1rem; font-weight: 700;
+      padding: 6px 12px; cursor: pointer;
+    }
+    .game-overlay-timer {
+      display: none;
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px; color: #fff; font-size: 1rem; font-weight: 800; padding: 6px 12px;
+    }
+    .game-overlay-timer.show { display: block; }
+    .game-frame { flex: 1; width: 100%; height: 100%; border: 0; background: #0d0d2b; }
   </style>
 </head>
 <body>
@@ -1089,7 +1145,18 @@
 
 </div>
 
+<!-- GAME OVERLAY: Lumo + Knobelwerkstatt (Same-Origin-iframe, ADR-0001) -->
+<div id="game-overlay" class="game-overlay">
+  <div class="game-overlay-bar">
+    <button id="game-overlay-close" onclick="closeGame()">✕</button>
+    <div id="game-overlay-timer" class="game-overlay-timer"></div>
+  </div>
+  <iframe id="game-frame" class="game-frame" allow="autoplay" title="Spiel"></iframe>
+</div>
+
 <script src="logic.js"></script>
+<script src="../knobel/knobel-logic.js"></script>
+<script src="../jumpnrun/core/rewards.js"></script>
 <script>
 
 const ACHIEVEMENTS = [
@@ -1140,7 +1207,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.10'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.11'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
 // CHANGELOG: bei jedem APP_VERSION-Bump einen Eintrag hinzu, oben einsortiert.
 // Konvention (siehe memory/project_release_notes_convention.md): max 5 Bullets
@@ -1148,6 +1215,11 @@ const APP_VERSION = '2.10'; // Anzeigeversion in Einstellungen — bei Releases 
 // emoji-Präfix nach Typ: 🆕 neues Feature · ⚡ UX-Verbesserung · 🔧 Bug-Fix
 // · 🐛 Sammel-Bugfixes ("kleine Verbesserungen unter der Haube").
 const CHANGELOG = [
+  { version: '2.11', date: '2026-10-25', entries: [
+    '🆕 Lumo und die Zahlennacht: neues Spring-Spiel dazu',
+    '🆕 Knobelwerkstatt: Rätsel ohne Sterne, immer spielbar',
+    '⚡ Spiele-Leiste zeigt jetzt drei Spielkarten',
+  ]},
   { version: '2.10', date: '2026-05-22', entries: [
     '🆕 Mehrere Reihen gleichzeitig im Training üben',
     '🆕 💎 Diamanten schützen deine Tage-Serie',
@@ -1749,12 +1821,37 @@ function floatXP(txt, x, y) {
   setTimeout(()=>el.remove(), 1100);
 }
 
-// ── INVADER SCREEN ──────────────────────────────────────
-let invaderTimerInterval = null;
+// ── GETEILTER STERN-TIMER (Invader + Lumo, ADR-0001) ────────────────────
+// tickStarTime (logic.js) ist die reine Dekrementier-Logik; hier nur der
+// setInterval-Loop + das Verzweigen bei Ablauf, injiziert über onTimeUp.
+let starTimerInterval = null;
 
+function startStarTimer(displayFn, onTimeUp) {
+  if (starTimerInterval) clearInterval(starTimerInterval);
+  displayFn();
+  starTimerInterval = setInterval(() => {
+    const result = tickStarTime(state);
+    state.gameSecondsLeft = result.state.gameSecondsLeft;
+    saveState();
+    displayFn();
+    if (result.abgelaufen) {
+      clearInterval(starTimerInterval);
+      starTimerInterval = null;
+      onTimeUp();
+    }
+  }, 1000);
+}
+
+function stopStarTimer() {
+  if (starTimerInterval) {
+    clearInterval(starTimerInterval);
+    starTimerInterval = null;
+  }
+}
+
+// ── INVADER SCREEN ──────────────────────────────────────
 function enterInvaderScreen() {
-  if (state.streak < 3) return;
-  if (state.stars <= 0 && state.gameSecondsLeft <= 0) return;
+  if (!getGameAccess(state, 'invader').spielbar) return;
 
   // Stern nur abziehen wenn kein aktiver Block mehr läuft
   if (state.gameSecondsLeft <= 0) {
@@ -1773,33 +1870,22 @@ function enterInvaderScreen() {
 }
 
 function startInvaderTimer() {
-  if (invaderTimerInterval) clearInterval(invaderTimerInterval);
-  updateInvaderTimerDisplay();
-  invaderTimerInterval = setInterval(() => {
-    if (state.gameSecondsLeft > 0) {
-      state.gameSecondsLeft--;
-      saveState();
-      updateInvaderTimerDisplay();
-      if (state.gameSecondsLeft === 0) {
-        clearInterval(invaderTimerInterval);
-        invaderTimerInterval = null;
-        if (state.stars > 0) {
-          // Spiel pausieren und Dialog zeigen
-          if (invState === 'playing') {
-            document.getElementById('ui').style.display = 'none';
-            invState = 'paused';
-          }
-          const n = state.stars;
-          document.getElementById('star-count-in-modal').textContent =
-            n === 1 ? '1 Stern' : n + ' Sterne';
-          document.getElementById('star-expired-modal').classList.add('active');
-        } else {
-          showToast('⏱ Zeit abgelaufen!');
-          setTimeout(() => exitInvaderScreen(), 1500);
-        }
+  startStarTimer(updateInvaderTimerDisplay, () => {
+    if (state.stars > 0) {
+      // Spiel pausieren und Dialog zeigen
+      if (invState === 'playing') {
+        document.getElementById('ui').style.display = 'none';
+        invState = 'paused';
       }
+      const n = state.stars;
+      document.getElementById('star-count-in-modal').textContent =
+        n === 1 ? '1 Stern' : n + ' Sterne';
+      document.getElementById('star-expired-modal').classList.add('active');
+    } else {
+      showToast('⏱ Zeit abgelaufen!');
+      setTimeout(() => exitInvaderScreen(), 1500);
     }
-  }, 1000);
+  });
 }
 
 function updateInvaderTimerDisplay() {
@@ -1816,10 +1902,7 @@ function updateInvaderTimerDisplay() {
 }
 
 function exitInvaderScreen() {
-  if (invaderTimerInterval) {
-    clearInterval(invaderTimerInterval);
-    invaderTimerInterval = null;
-  }
+  stopStarTimer();
   invShowMenu();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-home').classList.add('active');
@@ -1844,6 +1927,128 @@ function stopInvader() {
   document.getElementById('star-expired-modal').classList.remove('active');
   exitInvaderScreen();
 }
+
+// ── SPIELE-LEISTE (3 Karten) + IFRAME-HOST (Lumo + Knobelwerkstatt) ──────
+// ADR-0001: Same-Origin-iframe, Trainer bleibt einziger Schreiber von
+// henry_einmaleins. GAME_SRC ist relativ zu 1x1-trainer/index.html.
+const GAME_SRC = { jnr: '../jumpnrun/index.html', knobel: '../knobel/index.html' };
+let currentGame = null; // 'jnr' | 'knobel' | null — welches Spiel im Overlay läuft
+
+function gameCardHtml(gameId, icon, title, onClick) {
+  const access = getGameAccess(state, gameId);
+  const rule = GAME_RULES[gameId];
+  const cls = !access.spielbar ? 'locked' : (rule.kostetSternZeit ? 'ready' : 'free');
+  let sub;
+  if (!access.spielbar && access.grund === 'streak') {
+    sub = `🔒 ab 3 Tagen Streak (${state.streak})`;
+  } else if (!access.spielbar && access.grund === 'keine_sterne') {
+    sub = '🔒 keine Sterne übrig';
+  } else if (rule.kostetSternZeit) {
+    const totalMin = state.gameSecondsLeft > 0
+      ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
+      : state.stars * 10;
+    const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
+    sub = `${starsDisplay} · ${totalMin} min`;
+  } else {
+    sub = 'immer spielbar';
+  }
+  return `<div class="game-card ${cls}" data-game="${gameId}">
+    <div class="game-card-icon">${icon}</div>
+    <div class="game-card-title">${title}</div>
+    <div class="game-card-sub">${sub}</div>
+    <button class="game-card-btn" ${access.spielbar ? `onclick="${onClick}"` : 'disabled'}>Los! →</button>
+  </div>`;
+}
+
+function renderGamesBar() {
+  const gBar = document.getElementById('games-bar-content');
+  gBar.innerHTML = `<div class="games-bar-cards">
+    ${gameCardHtml('invader', '👾', 'Space Invader', 'enterInvaderScreen()')}
+    ${gameCardHtml('jnr', '🌙', 'Lumo', "openGame('jnr')")}
+    ${gameCardHtml('knobel', '🧩', 'Knobelwerkstatt', "openGame('knobel')")}
+  </div>`;
+}
+
+function updateLumoTimerDisplay() {
+  const el = document.getElementById('game-overlay-timer');
+  if (!el) return;
+  el.classList.add('show');
+  const m = Math.floor(state.gameSecondsLeft / 60);
+  const s = state.gameSecondsLeft % 60;
+  el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
+}
+
+function startLumoTimer() {
+  startStarTimer(updateLumoTimerDisplay, () => {
+    sendToGameFrame({ type: 'jnr:timeup' });
+    closeGame();
+  });
+}
+
+function sendToGameFrame(msg) {
+  const frame = document.getElementById('game-frame');
+  if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, location.origin);
+}
+
+function openGame(gameId) {
+  const access = getGameAccess(state, gameId);
+  if (!access.spielbar) return;
+
+  const rule = GAME_RULES[gameId];
+  if (rule.kostetSternZeit && state.gameSecondsLeft <= 0) {
+    state.stars--;
+    state.gameSecondsLeft = 600;
+  }
+  saveState();
+  updateHomeUI();
+
+  currentGame = gameId;
+  const frame = document.getElementById('game-frame');
+  document.getElementById('game-overlay-timer').classList.remove('show');
+  frame.onload = () => {
+    if (gameId === 'knobel') {
+      frame.contentWindow.postMessage({
+        type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
+      }, location.origin);
+    } else if (gameId === 'jnr') {
+      frame.contentWindow.postMessage({ type: 'jnr:init', jnr: state.jnr }, location.origin);
+    }
+  };
+  frame.src = GAME_SRC[gameId];
+  document.getElementById('game-overlay').classList.add('active');
+
+  if (rule.kostetSternZeit) startLumoTimer();
+}
+
+function closeGame() {
+  stopStarTimer();
+  document.getElementById('game-overlay').classList.remove('active');
+  const frame = document.getElementById('game-frame');
+  frame.onload = null;
+  frame.src = 'about:blank'; // stoppt Loop/Audio im iframe sauber
+  currentGame = null;
+  updateHomeUI();
+}
+
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin) return;
+  const frame = document.getElementById('game-frame');
+  if (!frame || e.source !== frame.contentWindow) return;
+  if (!e.data || typeof e.data !== 'object') return;
+
+  if (e.data.type === 'knobel:result') {
+    const heute = new Date().toISOString().slice(0, 10);
+    const { state: next } = applyKnobelResult(state, e.data, heute, KnobelLogic.computeKnobelXP);
+    Object.assign(state, next);
+    saveState();
+    updateHomeUI();
+  } else if (e.data.type === 'jnr:result') {
+    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult, JNR.rewards.xpFor);
+    Object.assign(state, next);
+    saveState();
+    updateHomeUI();
+  }
+});
 
 // ── NAVIGATION ─────────────────────────────────────────
 function showScreen(name) {
@@ -2064,34 +2269,7 @@ function updateHomeUI() {
   document.getElementById('home-subtitle').textContent  = sub;
 
   // ── Spiele-Leiste ───────────────────────────────────
-  const gBar = document.getElementById('games-bar-content');
-  if (state.streak < 3) {
-    gBar.innerHTML = `<div class="games-bar-inner locked">
-      <div>
-        <div class="games-bar-title">🔒 Spiele</div>
-        <div class="games-bar-sub">Erst ab 3 Tagen Streak verfügbar (aktuell: ${state.streak})</div>
-      </div>
-    </div>`;
-  } else if (state.stars === 0 && state.gameSecondsLeft <= 0) {
-    gBar.innerHTML = `<div class="games-bar-inner locked">
-      <div>
-        <div class="games-bar-title">🔒 Spiele</div>
-        <div class="games-bar-sub">Du hast gerade keine Sterne! Übe mehr, um Sterne zu verdienen.</div>
-      </div>
-    </div>`;
-  } else {
-    const totalMin = state.gameSecondsLeft > 0
-      ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
-      : state.stars * 10;
-    const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
-    gBar.innerHTML = `<div class="games-bar-inner ready">
-      <div>
-        <div class="games-bar-title">🎮 Spiele</div>
-        <div class="games-bar-sub">${starsDisplay} · ${totalMin} min verfügbar</div>
-      </div>
-      <button class="games-bar-btn" onclick="enterInvaderScreen()">Los! →</button>
-    </div>`;
-  }
+  renderGamesBar();
 
   // Streak-Schutz via Diamanten-Auto-Spend (#18). Pure Logik lebt in
   // computeStreakProtection (getestet in tests/unit/streak-protection.test.js);
@@ -4060,12 +4238,16 @@ document.getElementById('c').addEventListener('touchstart',e=>{
 // buildSettingsUI() und invShowMenu() werden von enterInvaderScreen() aufgerufen
 
 // Timer pausiert wenn Tab/App in den Hintergrund geht; SW-Update-Check beim Aufwachen (max. 1×/h)
+// Lumo bekommt zusätzlich jnr:pause (Vertrag jumpnrun/core/host.js), damit der
+// Spiel-Loop beim App-Wechsel nicht im Hintergrund weiterläuft.
 let _lastSwCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (invaderTimerInterval) { clearInterval(invaderTimerInterval); invaderTimerInterval = null; }
+    stopStarTimer();
+    if (currentGame === 'jnr') sendToGameFrame({ type: 'jnr:pause' });
   } else {
     if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
+    else if (currentGame === 'jnr') startLumoTimer();
     if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });
