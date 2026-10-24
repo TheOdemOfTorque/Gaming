@@ -87,6 +87,28 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(secondsLeft).toBe(0);
   });
 
+  test('Querformat: Schließen-Button des Hosts überlappt Lumos eigenes HUD nicht', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600 });
+    await page.setViewportSize({ width: 844, height: 390 }); // iPhone 13 Querformat
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+
+    const frame = page.frameLocator('#game-frame');
+    await frame.getByRole('button', { name: /1-1/ }).click();
+    const missionText = frame.getByText('Sammle alle Funken');
+    await expect(missionText).toBeVisible();
+
+    const closeBox = await page.locator('#game-overlay-close').boundingBox();
+    const missionBox = await missionText.boundingBox();
+    const overlap = !(
+      closeBox.x + closeBox.width <= missionBox.x ||
+      missionBox.x + missionBox.width <= closeBox.x ||
+      closeBox.y + closeBox.height <= missionBox.y ||
+      missionBox.y + missionBox.height <= closeBox.y
+    );
+    expect(overlap).toBe(false);
+  });
+
   test('Space Invader bleibt unverändert spielbar (Regression)', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 600 });
     await page.locator('.game-card[data-game="invader"] button').click();

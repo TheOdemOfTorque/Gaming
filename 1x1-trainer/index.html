@@ -459,11 +459,13 @@
     .game-overlay { display: none; position: fixed; inset: 0; z-index: 300; background: #0d0d2b; }
     .game-overlay.active { display: flex; flex-direction: column; }
     .game-overlay-bar {
-      position: fixed; top: 0; left: 0; right: 0; z-index: 310;
+      /* Eigene Flex-Reihe statt position:fixed über dem iframe — sonst
+         überlappt der Button das HUD der Spiele selbst (z.B. Lumos
+         Missionstext oben links im Querformat auf dem iPhone). */
+      flex: 0 0 auto; z-index: 310;
       display: flex; justify-content: space-between; align-items: center;
       padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
                10px calc(14px + env(safe-area-inset-left));
-      pointer-events: none;
     }
     .game-overlay-bar > * { pointer-events: all; }
     #game-overlay-close {
