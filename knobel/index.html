@@ -557,9 +557,11 @@ h1 { margin: 0; font-size: 26px; }
     var best = S.bestSek[cur.modus][cur.stufe];
     var neuerRekord = !best || cur.sek < best;
     if (neuerRekord) S.bestSek[cur.modus][cur.stufe] = cur.sek;
+    cur.naechsteStufe = cur.stufe;
     if (!cur.tagesraetsel && cur.stufe === S.stufe[cur.modus]) {
       var nx = L.nextKnobelStufe(cur.stufe, S.serie[cur.modus], cur.tipps === 0);
       S.stufe[cur.modus] = nx.stufe; S.serie[cur.modus] = nx.serie;
+      cur.naechsteStufe = nx.stufe;
     }
     if (cur.tagesraetsel) S.tagesraetsel = { datum: datum, modus: cur.modus, geloest: true };
     S.laufend = null;
@@ -683,8 +685,9 @@ h1 { margin: 0; font-size: 26px; }
   $('mute').onclick = toggleMute;
   $('mute-menu').onclick = toggleMute;
   $('s-next').onclick = function () {
-    var m = cur.modus;
-    startGame(m, S.stufe[m], newSeed());
+    var m = cur.modus, stufe = cur.naechsteStufe;
+    gewaehlt[m] = stufe;
+    startGame(m, stufe, newSeed());
   };
   $('s-menu').onclick = function () { $('solved').classList.remove('on'); show('menu'); };
 

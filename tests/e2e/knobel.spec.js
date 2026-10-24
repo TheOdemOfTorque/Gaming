@@ -103,4 +103,15 @@ test.describe('Knobelwerkstatt', () => {
     expect(msgs).toHaveLength(1);
     expect(msgs[0]).toMatchObject({ type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 80, seed: 1 });
   });
+
+  test('Weiter nach dem Loesen bleibt auf der gespielten Stufe, nicht der Empfehlung', async ({ page }) => {
+    // Debug-Start simuliert eine manuell gewaehlte Stufe (4), waehrend die
+    // Empfehlung im frischen Speicher bei Stufe 1 steht.
+    await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=4&seed=1');
+    await expect(page.locator('#board.mauer')).toBeVisible();
+    await loeseAktuelles(page);
+    await expect(page.locator('#solved')).toBeVisible();
+    await page.locator('#s-next').click();
+    await expect(page.locator('#title')).toContainText('Stufe 4');
+  });
 });
