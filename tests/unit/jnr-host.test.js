@@ -24,6 +24,16 @@ describe('parseHostMessage', () => {
     expect(m.jnr.xpAwarded['1-1']).toBe(true);
     expect(m.jnr.options).toEqual({ steuerung: 'einfach', mathe: 'aus', farbhilfe: false, musik: false });
   });
+  test('init mit jnr aber ohne separates options-Feld behält die Optionen aus jnr', () => {
+    const m = H.parseHostMessage({
+      type: 'jnr:init', level: '1-2',
+      jnr: {
+        levels: { '1-1': { medals: 2, bestTimeMs: 5, bestFunken: 3 } },
+        options: { steuerung: 'einfach', mathe: 'aus', farbhilfe: false, musik: false }
+      }
+    });
+    expect(m.jnr.options).toEqual({ steuerung: 'einfach', mathe: 'aus', farbhilfe: false, musik: false });
+  });
   test('init ohne Daten ist gültig (Standardwerte)', () => {
     const m = H.parseHostMessage({ type: 'jnr:init' });
     expect(m.kind).toBe('init');

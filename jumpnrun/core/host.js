@@ -36,7 +36,8 @@
     if (data.type === 'jnr:pause') return { kind: 'pause' };
     if (data.type === 'jnr:timeup') return { kind: 'timeup' };
     if (data.type === 'jnr:init') {
-      var merged = Object.assign({}, data.jnr && typeof data.jnr === 'object' ? data.jnr : {}, { options: data.options });
+      var merged = Object.assign({}, data.jnr && typeof data.jnr === 'object' ? data.jnr : {});
+      if (data.options && typeof data.options === 'object') merged.options = data.options;
       return {
         kind: 'init',
         level: typeof data.level === 'string' && /^\d+-\d+$/.test(data.level) ? data.level : null,
