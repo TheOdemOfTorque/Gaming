@@ -1,4 +1,4 @@
-const CACHE = 'knobel-v5'; // bei jedem Release hochzählen
+const CACHE = 'knobel-v6'; // bei jedem Release hochzählen
 const ASSETS = ['./', './index.html', './knobel-logic.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

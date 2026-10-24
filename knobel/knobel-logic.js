@@ -597,6 +597,16 @@
   }
   function istGueltigeStufe(v) { return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5; }
   function istGueltigeXp(v) { return typeof v === 'number' && Number.isFinite(v) && v >= 0; }
+  function istPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+  function istGueltigeEingabe(modus, stufe, e) {
+    var P = STUFEN[modus] && STUFEN[modus][stufe];
+    if (!P || !Array.isArray(e) || e.length !== P.n) return false;
+    for (var r = 0; r < P.n; r++) {
+      var breite = modus === 'mauer' ? P.n - r : P.n;
+      if (!Array.isArray(e[r]) || e[r].length !== breite) return false;
+    }
+    return true;
+  }
 
   function knobelMigration(state) {
     var d = defaultKnobelState();
@@ -612,10 +622,12 @@
     });
     ['mauer', 'kaefige'].forEach(function (m) {
       if (!istGueltigeStufe(out.stufe[m])) out.stufe[m] = d.stufe[m];
+      if (!istPlainObject(out.bestSek[m])) out.bestSek[m] = {};
     });
     if (!istGueltigeXp(out.tagesXp.xp)) out.tagesXp.xp = 0;
     var lf = out.laufend;
-    if (lf && (typeof lf !== 'object' || (lf.modus !== 'mauer' && lf.modus !== 'kaefige') || !istGueltigeStufe(lf.stufe))) {
+    if (lf && (typeof lf !== 'object' || (lf.modus !== 'mauer' && lf.modus !== 'kaefige') ||
+        !istGueltigeStufe(lf.stufe) || !istGueltigeEingabe(lf.modus, lf.stufe, lf.eingabe))) {
       out.laufend = null;
     }
     out.v = KNOBEL_STATE_VERSION;

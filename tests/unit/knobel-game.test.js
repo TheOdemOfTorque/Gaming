@@ -119,8 +119,21 @@ describe('Standalone-Speicher', () => {
     expect(mitFoo.laufend).toBeNull();
     const mitBadStufe = K.knobelMigration({ laufend: { modus: 'mauer', stufe: 99, seed: 1 } });
     expect(mitBadStufe.laufend).toBeNull();
-    const gueltig = { modus: 'mauer', stufe: 2, seed: 5, genVersion: K.GEN_VERSION, eingabe: [], notizen: {}, hinweise: {}, tipps: 0, sek: 0, tagesraetsel: false };
+    const gueltig = {
+      modus: 'mauer', stufe: 2, seed: 5, genVersion: K.GEN_VERSION,
+      eingabe: [[null, null, null, null], [null, null, null], [null, null], [null]],
+      notizen: {}, hinweise: {}, tipps: 0, sek: 0, tagesraetsel: false
+    };
     expect(K.knobelMigration({ laufend: gueltig }).laufend).toEqual(gueltig);
+  });
+  test('knobelMigration verwirft ein laufendes Raetsel mit falsch geformter Eingabe (Absturzschutz Resume)', () => {
+    var basis = { modus: 'mauer', stufe: 2, seed: 5, genVersion: K.GEN_VERSION, notizen: {}, hinweise: {}, tipps: 0, sek: 0, tagesraetsel: false };
+    expect(K.knobelMigration({ laufend: Object.assign({ eingabe: [] }, basis) }).laufend).toBeNull();
+    expect(K.knobelMigration({ laufend: Object.assign({ eingabe: [[1, 2]] }, basis) }).laufend).toBeNull();
+  });
+  test('knobelMigration faengt eine kaputte verschachtelte bestSek ab (Absturzschutz onSolved)', () => {
+    expect(K.knobelMigration({ bestSek: { mauer: null } }).bestSek).toEqual({ mauer: {}, kaefige: {} });
+    expect(K.knobelMigration({ bestSek: { kaefige: 'x' } }).bestSek).toEqual({ mauer: {}, kaefige: {} });
   });
   test('knobelMigration faengt eine kaputte tagesXp.xp ab', () => {
     expect(K.knobelMigration({ tagesXp: { datum: '2026-10-24', xp: 'abc' } }).tagesXp).toEqual({ datum: '2026-10-24', xp: 0 });
