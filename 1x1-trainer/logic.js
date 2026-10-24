@@ -441,6 +441,14 @@ function tickStarTime(state) {
 // heute: 'YYYY-MM-DD' (oder jedes andere Tagesformat, solange konsistent).
 // computeKnobelXPFn: computeKnobelXP(opt, tagesXpBisher) -> { xp, gedeckelt, basis }
 function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
+  // Dieselbe Nachricht (z.B. durch doppeltes postMessage) nicht zweimal
+  // gutschreiben — Signatur des zuletzt verarbeiteten Ergebnisses merken.
+  const signatur = JSON.stringify([msg.mode, msg.stufe, msg.tipps, msg.xp, msg.seed]);
+  const letzte = state.knobel.letzteNachricht;
+  if (letzte && letzte.datum === heute && letzte.signatur === signatur) {
+    return { state: Object.assign({}, state), creditedXp: 0 };
+  }
+
   const bisher = state.knobel.tagesXp.datum === heute ? state.knobel.tagesXp.xp : 0;
   // tagesraetsel ist im Ergebnis nicht bekannt -> Obergrenze mit dem
   // großzügigsten Fall (Tagesrätsel-Bonus) berechnen und darauf kappen.
@@ -451,7 +459,7 @@ function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
   return {
     state: Object.assign({}, state, {
       xp: (state.xp || 0) + credit,
-      knobel: { tagesXp: { datum: heute, xp: bisher + credit }, stufe: stufe },
+      knobel: { tagesXp: { datum: heute, xp: bisher + credit }, stufe: stufe, letzteNachricht: { datum: heute, signatur: signatur } },
     }),
     creditedXp: credit,
   };

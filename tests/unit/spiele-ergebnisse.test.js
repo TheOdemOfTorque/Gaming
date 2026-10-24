@@ -47,6 +47,16 @@ describe('applyKnobelResult', () => {
     applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP);
     expect(state.xp).toBe(10);
   });
+
+  test('dieselbe Ergebnis-Nachricht doppelt gesendet gibt die XP nur einmal gut', () => {
+    const state = stateWithKnobelJnr({ xp: 0 });
+    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 2, tipps: 0, xp: 40, seed: 7 };
+    let next = applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP).state;
+    expect(next.xp).toBe(40);
+    // exakt dieselbe Nachricht kommt ein zweites Mal an (z.B. doppeltes postMessage)
+    next = applyKnobelResult(next, msg, '2026-10-25', computeKnobelXP).state;
+    expect(next.xp).toBe(40);
+  });
 });
 
 describe('applyJnrResult', () => {
