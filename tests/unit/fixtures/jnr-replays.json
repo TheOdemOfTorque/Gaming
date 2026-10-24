@@ -1,0 +1,53 @@
+{
+ "_kommentar": "Aufgezeichnete Eingabeverläufe (Anzahl Schritte, Tasten L/R/J, - = nichts). Entstanden mit einem Bot; neu aufzeichnen, wenn sich Physik oder Level absichtlich ändern.",
+ "replays": {
+  "1-1": [
+   [324, "R"],
+   [22, "RJ"],
+   [82, "R"],
+   [22, "RJ"],
+   [70, "R"],
+   [22, "RJ"],
+   [63, "R"],
+   [22, "RJ"],
+   [93, "R"],
+   [22, "RJ"],
+   [25, "R"],
+   [22, "RJ"],
+   [27, "R"],
+   [22, "RJ"],
+   [163, "R"]
+  ],
+  "1-2": [
+   [174, "R"],
+   [22, "RJ"],
+   [62, "R"],
+   [22, "RJ"],
+   [52, "R"],
+   [22, "RJ"],
+   [48, "R"],
+   [22, "RJ"],
+   [85, "R"],
+   [22, "RJ"],
+   [42, "R"],
+   [22, "RJ"],
+   [31, "R"],
+   [22, "RJ"],
+   [115, "R"],
+   [22, "RJ"],
+   [42, "R"],
+   [22, "RJ"],
+   [25, "R"],
+   [22, "RJ"],
+   [37, "R"],
+   [22, "RJ"],
+   [39, "R"],
+   [22, "RJ"],
+   [95, "R"],
+   [22, "RJ"],
+   [63, "R"],
+   [22, "RJ"],
+   [131, "R"]
+  ]
+ }
+}
