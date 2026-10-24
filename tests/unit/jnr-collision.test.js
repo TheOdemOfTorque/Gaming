@@ -72,7 +72,7 @@ describe('moveX', () => {
 describe('moveY', () => {
   test('Fallen landet bündig auf dem Boden', () => {
     const L = lv(['....', '....', '####']);
-    const r = C.moveY(L, { x: 5, y: 10, w: 10, h: 12 }, 9);
+    const r = C.moveY(L, { x: 5, y: 10, w: 10, h: 12 }, 12);
     expect(r.y).toBe(32 - 12);
     expect(r.hitDown).toBe(true);
     expect(r.hitUp).toBe(false);
@@ -96,9 +96,9 @@ describe('moveY', () => {
   });
   test('Lücke von 2 Kacheln: Box steht auf der Kante und fällt durch, wenn ganz in der Lücke', () => {
     const L = lv(['......', '......', '##..##']);
-    const inGap = C.moveY(L, { x: 34, y: 10, w: 10, h: 12 }, 8);
+    const inGap = C.moveY(L, { x: 34, y: 10, w: 10, h: 12 }, 12);
     expect(inGap.hitDown).toBe(false);
-    const onEdge = C.moveY(L, { x: 28, y: 10, w: 10, h: 12 }, 8); // ragt noch auf Kachel 1
+    const onEdge = C.moveY(L, { x: 28, y: 10, w: 10, h: 12 }, 12); // ragt noch auf Kachel 1
     expect(onEdge.hitDown).toBe(true);
   });
 });
