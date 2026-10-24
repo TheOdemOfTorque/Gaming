@@ -106,6 +106,27 @@ describe('Standalone-Speicher', () => {
     expect(K.tagesXpFuer({ datum: '2026-10-23', xp: 500 }, '2026-10-24')).toBe(0);
     expect(K.tagesXpFuer({ datum: '2026-10-24', xp: 500 }, '2026-10-24')).toBe(500);
   });
+  test('knobelMigration faengt kaputte Stufenwerte ab (Absturzschutz)', () => {
+    expect(K.knobelMigration({ stufe: { mauer: 99, kaefige: 1 } }).stufe).toEqual({ mauer: 1, kaefige: 1 });
+    expect(K.knobelMigration({ stufe: { mauer: 0 } }).stufe.mauer).toBe(1);
+    expect(K.knobelMigration({ stufe: { mauer: '3' } }).stufe.mauer).toBe(1);
+    expect(K.knobelMigration({ stufe: { mauer: null } }).stufe.mauer).toBe(1);
+    expect(K.knobelMigration({ stufe: { mauer: 3.7 } }).stufe.mauer).toBe(1);
+    expect(K.knobelMigration({ stufe: { mauer: 3 } }).stufe.mauer).toBe(3);
+  });
+  test('knobelMigration verwirft ein laufendes Raetsel mit unbekanntem Modus oder Stufe', () => {
+    const mitFoo = K.knobelMigration({ laufend: { modus: 'foo', stufe: 1, seed: 1 } });
+    expect(mitFoo.laufend).toBeNull();
+    const mitBadStufe = K.knobelMigration({ laufend: { modus: 'mauer', stufe: 99, seed: 1 } });
+    expect(mitBadStufe.laufend).toBeNull();
+    const gueltig = { modus: 'mauer', stufe: 2, seed: 5, genVersion: K.GEN_VERSION, eingabe: [], notizen: {}, hinweise: {}, tipps: 0, sek: 0, tagesraetsel: false };
+    expect(K.knobelMigration({ laufend: gueltig }).laufend).toEqual(gueltig);
+  });
+  test('knobelMigration faengt eine kaputte tagesXp.xp ab', () => {
+    expect(K.knobelMigration({ tagesXp: { datum: '2026-10-24', xp: 'abc' } }).tagesXp).toEqual({ datum: '2026-10-24', xp: 0 });
+    expect(K.knobelMigration({ tagesXp: { datum: '2026-10-24', xp: -5 } }).tagesXp.xp).toBe(0);
+    expect(K.knobelMigration({ tagesXp: { datum: '2026-10-24', xp: 120 } }).tagesXp.xp).toBe(120);
+  });
 });
 
 describe('checkSolution / findHint (Mauer)', () => {

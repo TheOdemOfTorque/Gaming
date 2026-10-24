@@ -595,6 +595,9 @@
       stumm: false
     };
   }
+  function istGueltigeStufe(v) { return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5; }
+  function istGueltigeXp(v) { return typeof v === 'number' && Number.isFinite(v) && v >= 0; }
+
   function knobelMigration(state) {
     var d = defaultKnobelState();
     if (!state || typeof state !== 'object' || Array.isArray(state)) return d;
@@ -607,6 +610,14 @@
         out[k] = sv === undefined ? dv : sv;
       }
     });
+    ['mauer', 'kaefige'].forEach(function (m) {
+      if (!istGueltigeStufe(out.stufe[m])) out.stufe[m] = d.stufe[m];
+    });
+    if (!istGueltigeXp(out.tagesXp.xp)) out.tagesXp.xp = 0;
+    var lf = out.laufend;
+    if (lf && (typeof lf !== 'object' || (lf.modus !== 'mauer' && lf.modus !== 'kaefige') || !istGueltigeStufe(lf.stufe))) {
+      out.laufend = null;
+    }
     out.v = KNOBEL_STATE_VERSION;
     return out;
   }
