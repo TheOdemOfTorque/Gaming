@@ -18,7 +18,9 @@ test('Seite lädt, Canvas ist sichtbar und gezeichnet', async ({ page }) => {
   const canvas = page.locator('#c');
   await expect(canvas).toBeVisible();
   const box = await canvas.boundingBox();
-  expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+  // Die Welt fuellt die Bildschirmbreite (Viewport-Fix), Resthoehe unter 144/dpr CSS-px.
+  expect(box.width).toBeGreaterThanOrEqual(844 - 1);
+  expect(390 - box.height).toBeLessThan(144 / 3);
   // Es müssen mehrere verschiedene Farben im Bild sein (nicht leer)
   await page.waitForTimeout(300);
   const colors = await page.evaluate(() => {

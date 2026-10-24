@@ -156,6 +156,7 @@
   </div>
 </div>
 
+<script src="core/viewport.js"></script>
 <script src="core/collision.js"></script>
 <script src="core/physics.js"></script>
 <script src="core/level.js"></script>
@@ -169,7 +170,7 @@
 (function () {
   'use strict';
   var J = window.JNR, T = 16, VW = 256, VH = 144;
-  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host;
+  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport;
   var $ = function (id) { return document.getElementById(id); };
   var embedded = H.isEmbedded(window);
   var STORE = 'henry_jnr';
@@ -305,13 +306,15 @@
   window.addEventListener('keyup', function (e) { var k = KEYMAP[e.code]; if (k) keys[k] = false; });
   window.addEventListener('blur', function () { keys.l = keys.r = keys.j = false; });
 
-  // ---------- Layout (ganzzahlige Skalierung, Pixel-Look) ----------
+  // ---------- Layout (ganzzahlige Skalierung, Pixel-Look, Welt fuellt den Bildschirm) ----------
   function layout() {
     var dpr = window.devicePixelRatio || 1, W = window.innerWidth, Hh = window.innerHeight;
-    var k = Math.max(1, Math.floor(Math.min(W * dpr / VW, Hh * dpr / VH)));
-    var cw = VW * k / dpr, ch = VH * k / dpr;
-    canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
-    canvas.style.left = (W - cw) / 2 + 'px'; canvas.style.top = (Hh - ch) / 2 + 'px';
+    var l = VP.computeLayout(W, Hh, dpr);
+    VW = l.VW;
+    canvas.width = VW; canvas.height = VH;
+    ctx.imageSmoothingEnabled = false; // Canvas-Resize setzt den Kontext zurueck
+    canvas.style.width = l.cw + 'px'; canvas.style.height = l.ch + 'px';
+    canvas.style.left = l.left + 'px'; canvas.style.top = l.top + 'px';
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', layout);
@@ -494,11 +497,13 @@
   function drawBackground(camX, t) {
     var bands = [['#0d0d2b', 0, 56], ['#12123a', 56, 40], ['#1a1a4d', 96, 30], ['#241f5e', 126, 18]];
     bands.forEach(function (b) { ctx.fillStyle = b[0]; ctx.fillRect(0, b[1], VW, b[2]); });
-    // Mond
-    ellipse(206, 26, 9, 9, '#fde68a'); ellipse(209, 24, 8, 8, '#0d0d2b');
-    // Sterne
-    for (var i = 0; i < 46; i++) {
-      var sx = ((hash(i, 1) % 256) - camX * 0.08 + 1024) % 256, sy = hash(i, 2) % 90;
+    // Mond (proportional zur Weltbreite positioniert)
+    var moonX = Math.round(VW * (206 / 256));
+    ellipse(moonX, 26, 9, 9, '#fde68a'); ellipse(moonX + 3, 24, 8, 8, '#0d0d2b');
+    // Sterne (Dichte und Streuung an die Weltbreite angepasst)
+    var starN = Math.round(46 * VW / 256);
+    for (var i = 0; i < starN; i++) {
+      var sx = ((hash(i, 1) % VW) - camX * 0.08 + VW * 4) % VW, sy = hash(i, 2) % 90;
       var tw = ((t >> 4) + i) % 5 === 0;
       ctx.fillStyle = tw ? '#ffffff' : '#8f8bd6'; ctx.fillRect(Math.floor(sx), sy, 1, 1);
     }
@@ -515,8 +520,9 @@
       ctx.fillRect(x, Math.round(y2), 2, VH);
     }
     // Glühwürmchen
-    for (i = 0; i < 12; i++) {
-      var fx = ((hash(i, 7) % 300) - camX * 0.6 + 3000) % 300 - 20 + Math.sin(t / 40 + i) * 6;
+    var fireflyW = Math.round(300 * VW / 256), fireflyN = Math.round(12 * VW / 256);
+    for (i = 0; i < fireflyN; i++) {
+      var fx = ((hash(i, 7) % fireflyW) - camX * 0.6 + fireflyW * 10) % fireflyW - 20 + Math.sin(t / 40 + i) * 6;
       var fy = 70 + (hash(i, 9) % 60) + Math.cos(t / 33 + i * 2) * 5;
       if (((t >> 3) + i) % 6 < 4) { ctx.fillStyle = 'rgba(253,230,138,.9)'; ctx.fillRect(Math.round(fx), Math.round(fy), 1, 1); }
     }
@@ -525,7 +531,7 @@
   function solid(tx, ty) { return tx >= 0 && tx < level.w && ty >= 0 && ty < level.h && level.solid[ty * level.w + tx] === 1; }
 
   function drawTiles(camX) {
-    var t0 = Math.floor(camX / T), t1 = t0 + 17;
+    var t0 = Math.floor(camX / T), t1 = t0 + Math.ceil(VW / T) + 1;
     for (var ty = 0; ty < level.h; ty++) {
       for (var tx = t0; tx <= t1; tx++) {
         if (!solid(tx, ty)) continue;
