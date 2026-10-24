@@ -123,6 +123,22 @@ h1 { margin: 0; font-size: 26px; }
   * { transition: none !important; animation: none !important; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Querformat auf dem Telefon: Das Raetsel selbst ist ein Hochformat-Layout.
+   Reicht die kurze Geraeteseite nicht fuer ein spielbares Raetsel (Telefon
+   quer), zeigt ein freundlicher Hinweis die Drehung an, statt ein zu kleines
+   oder ueberlappendes Layout zu riskieren. Das Menue (nur eine scrollbare
+   Liste) bleibt davon unberuehrt, ebenso Tablets und Desktop. */
+#rotate-hint { display: none; }
+@media (orientation: landscape) and (max-height: 519.98px) {
+  #game.on { visibility: hidden; }
+  #game.on ~ #rotate-hint { display: flex; }
+}
+#rotate-hint { position: fixed; inset: 0; z-index: 50; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; padding: calc(env(safe-area-inset-top) + 24px) 32px calc(env(safe-area-inset-bottom) + 24px);
+  text-align: center; background: var(--bg); color: var(--text); }
+#rotate-hint .icon { font-size: 48px; }
+#rotate-hint p { margin: 0; font-size: 17px; max-width: 320px; }
 </style>
 </head>
 <body>
@@ -182,6 +198,11 @@ h1 { margin: 0; font-size: 26px; }
     </div>
   </div>
 </section>
+
+<div id="rotate-hint" role="status" aria-live="polite">
+  <div class="icon" aria-hidden="true">📱 ↻</div>
+  <p>Dreh dein Handy hochkant, dann passt die Knobelwerkstatt auf den Bildschirm.</p>
+</div>
 
 <script src="knobel-logic.js"></script>
 <script>

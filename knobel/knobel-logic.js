@@ -47,7 +47,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  var GEN_VERSION = 1;
+  var GEN_VERSION = 2;
 
   // ===== RNG =====
   function mulberry32(seed) {
@@ -377,67 +377,76 @@
     return op;
   }
 
-  function partitionCages(n, P, rng, loesung) {
-    var cageOfCell = {}, kaefige = [];
-    shuffle(rng, range(n * n)).forEach(function (pos) {
-      var r0 = Math.floor(pos / n), c0 = pos % n;
-      if (cageOfCell[r0 + ',' + c0] !== undefined) return;
-      var ziel = pick(rng, P.groessen), zellen = [[r0, c0]];
-      cageOfCell[r0 + ',' + c0] = kaefige.length;
-      while (zellen.length < ziel) {
-        var opts = [];
-        zellen.forEach(function (z) {
-          [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
-            var r = z[0] + d[0], c = z[1] + d[1];
-            if (r >= 0 && c >= 0 && r < n && c < n && cageOfCell[r + ',' + c] === undefined) opts.push([r, c]);
-          });
-        });
-        if (!opts.length) break;
-        var nz = pick(rng, opts);
-        cageOfCell[nz[0] + ',' + nz[1]] = kaefige.length;
-        zellen.push(nz);
-      }
-      var vals = zellen.map(function (z) { return loesung[z[0]][z[1]]; });
-      var op = waehleOp(rng, P, null, vals);
-      kaefige.push({ zellen: zellen, op: op, ziel: cageZiel(op, vals) });
-    });
+  // Baut die Kaefige nicht blind und repariert danach, sondern waechst
+  // umgekehrt aus lauter Hinweisfeldern (immer eindeutig): Zellen werden
+  // nacheinander zu Nachbar-Kaefigen verschmolzen, aber nur, wenn das
+  // Raetsel danach weiterhin eindeutig loesbar bleibt (gut-Pruefung). So
+  // bleiben moeglichst wenige Zellen als Hinweis stehen, statt nachtraeglich
+  // Hinweise einstreuen zu muessen, bis die Mehrdeutigkeit verschwindet.
+  function allSingles(n, loesung) {
+    var kaefige = [];
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) kaefige.push({ zellen: [[r, c]], op: '=', ziel: loesung[r][c] });
     return kaefige;
   }
 
-  // Repariert ein mehrdeutiges Raetsel: eine Zelle eines Mehrzell-Kaefigs wird
-  // zum Hinweisfeld, der Rest-Kaefig bekommt sein Ziel neu.
-  function repairCages(p, rng) {
-    var multi = p.kaefige.map(function (k, i) { return i; }).filter(function (i) { return p.kaefige[i].zellen.length > 1; });
-    if (!multi.length) return false;
-    var i = pick(rng, multi), k = p.kaefige[i];
-    var kandidaten = shuffle(rng, k.zellen.map(function (z, j) { return j; })).filter(function (j) {
-      return zellenZusammenhaengend(k.zellen.filter(function (_, x) { return x !== j; }));
+  function ohneZellen(kaefige, zellen) {
+    return kaefige.filter(function (k) {
+      return !k.zellen.some(function (z) { return zellen.some(function (z2) { return z2[0] === z[0] && z2[1] === z[1]; }); });
     });
-    var j = kandidaten[0], z = k.zellen[j];
-    var rest = k.zellen.filter(function (_, x) { return x !== j; });
-    var wert = function (c) { return p.loesung[c[0]][c[1]]; };
-    p.kaefige.push({ zellen: [z], op: '=', ziel: wert(z) });
-    var restVals = rest.map(wert);
-    var op = rest.length === 1 ? '=' : (k.op === '÷' || k.op === '−' ? '+' : k.op);
-    p.kaefige[i] = { zellen: rest, op: op, ziel: cageZiel(op, restVals) };
-    return true;
+  }
+
+  function growCages(p, P, rng, gut) {
+    var n = p.n, frei = {}, r, c;
+    for (r = 0; r < n; r++) for (c = 0; c < n; c++) frei[r + ',' + c] = true;
+    shuffle(rng, range(n * n)).forEach(function (pos) {
+      var r0 = Math.floor(pos / n), c0 = pos % n;
+      if (!frei[r0 + ',' + c0]) return;
+      var ziel = pick(rng, P.groessen), zellen = [[r0, c0]];
+      for (;;) {
+        if (zellen.length >= ziel) break;
+        var opts = [];
+        zellen.forEach(function (z) {
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+            var nr = z[0] + d[0], nc = z[1] + d[1];
+            if (nr >= 0 && nc >= 0 && nr < n && nc < n && frei[nr + ',' + nc] &&
+                !zellen.some(function (z2) { return z2[0] === nr && z2[1] === nc; }) &&
+                !opts.some(function (o) { return o[0] === nr && o[1] === nc; })) opts.push([nr, nc]);
+          });
+        });
+        if (!opts.length) break;
+        var gewachsen = false;
+        var kandidaten = shuffle(rng, opts);
+        for (var i = 0; i < kandidaten.length; i++) {
+          var probe = zellen.concat([kandidaten[i]]);
+          var vals = probe.map(function (z) { return p.loesung[z[0]][z[1]]; });
+          var op = waehleOp(rng, P, null, vals);
+          var neu = { zellen: probe, op: op, ziel: cageZiel(op, vals) };
+          var kandidatP = { modus: p.modus, stufe: p.stufe, n: n, loesung: p.loesung, kaefige: ohneZellen(p.kaefige, probe).concat([neu]) };
+          if (gut(kandidatP)) {
+            p.kaefige = kandidatP.kaefige;
+            zellen = probe;
+            gewachsen = true;
+            break;
+          }
+        }
+        if (!gewachsen) break;
+      }
+      zellen.forEach(function (z) { delete frei[z[0] + ',' + z[1]]; });
+    });
   }
 
   function generateCages(stufe, rng) {
     var P = STUFEN.kaefige[stufe], n = P.n;
     function gut(p) { return P.verzweigung ? solveCages(p, 2) === 1 : logicSolveCages(p).geloest; }
+    var p;
     for (var versuch = 0; versuch < 8; versuch++) {
       var loesung = latinSquare(n, rng);
-      var p = { modus: 'kaefige', stufe: stufe, n: n, loesung: loesung, kaefige: partitionCages(n, P, rng, loesung) };
-      for (var rep = 0; rep < 60; rep++) {
-        if (gut(p)) return p;
-        if (!repairCages(p, rng)) break;
-      }
+      p = { modus: 'kaefige', stufe: stufe, n: n, loesung: loesung, kaefige: allSingles(n, loesung) };
+      growCages(p, P, rng, gut);
       if (gut(p)) return p;
     }
-    // Notausgang: lauter Hinweisfelder (immer eindeutig)
-    p.kaefige = [];
-    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) p.kaefige.push({ zellen: [[r, c]], op: '=', ziel: p.loesung[r][c] });
+    // Notausgang, in der Praxis nie erreicht: lauter Hinweisfelder bleiben
+    // immer eindeutig loesbar, growCages faellt darauf von selbst zurueck.
     return p;
   }
 

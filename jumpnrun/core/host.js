@@ -16,7 +16,9 @@
 //                xpAwarded: { "1-1": true }, funkenTotal, lastLevel }
 //        options optional: { steuerung: 'standard'|'einfach', mathe: 'ziel'|'aus', farbhilfe, musik }
 //     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel)
-//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus, Hinweis)
+//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus, Hinweis),
+//                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
+//                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
 //
 //   Im eingebetteten Modus schreibt das Spiel NICHT in localStorage. Standalone speichert es unter
 //   `henry_jnr` (siehe rewards.js, Form wie state.jnr in der Spec).

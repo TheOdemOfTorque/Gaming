@@ -18,7 +18,9 @@ test('Seite lädt, Canvas ist sichtbar und gezeichnet', async ({ page }) => {
   const canvas = page.locator('#c');
   await expect(canvas).toBeVisible();
   const box = await canvas.boundingBox();
-  expect(box.width / box.height).toBeCloseTo(16 / 9, 1);
+  // Die Welt fuellt die Bildschirmbreite (Viewport-Fix), Resthoehe unter 144/dpr CSS-px.
+  expect(box.width).toBeGreaterThanOrEqual(844 - 1);
+  expect(390 - box.height).toBeLessThan(144 / 3);
   // Es müssen mehrere verschiedene Farben im Bild sein (nicht leer)
   await page.waitForTimeout(300);
   const colors = await page.evaluate(() => {
@@ -97,6 +99,41 @@ test('Hochformat zeigt den Dreh-Hinweis', async ({ page }) => {
   await page.goto(URL1);
   await expect(page.locator('#portrait-hint')).toBeVisible();
   await expect(page.locator('#portrait-hint')).toContainText('Dreh dein iPhone');
+});
+
+test('Direktstart im Hochformat pausiert sofort hinter dem Dreh-Hinweis', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(URL1);
+  await expect(page.locator('#portrait-hint')).toBeVisible();
+  const a = await state(page);
+  expect(a.mode).toBe('pause');
+  await page.waitForTimeout(300);
+  const b = await state(page);
+  expect(b.t).toBe(a.t);
+});
+
+test('Eingebettetes Spiel erholt sich nach jnr:timeup durch ein erneutes jnr:init', async ({ page }) => {
+  await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><body><iframe id="f" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  await page.goto('/jumpnrun-harness.html');
+  const frameState = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+  const send = msg => page.evaluate(m => {
+    document.getElementById('f').contentWindow.postMessage(m, location.origin);
+  }, msg);
+
+  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await page.waitForTimeout(200);
+  expect((await frameState()).mode).toBe('play');
+
+  await send({ type: 'jnr:timeup' });
+  await page.waitForTimeout(100);
+  expect((await frameState()).mode).toBe('ended');
+
+  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await page.waitForTimeout(200);
+  expect((await frameState()).mode).toBe('play');
 });
 
 test('Pause stoppt die Simulation', async ({ page }) => {
