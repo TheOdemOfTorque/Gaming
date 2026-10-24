@@ -63,11 +63,11 @@ h1 { margin: 0; font-size: 26px; }
 #status { min-height: 22px; text-align: center; font-size: 15px; }
 #status.bad { color: #ff9a9a; }
 #status.good { color: var(--ok); }
-#area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; }
+#area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; overflow-y: auto; }
 
 /* Zahlenmauer */
 #board.mauer { display: grid; gap: 6px 0; width: 100%; }
-.stone { position: relative; height: 52px; margin: 0 3px; border-radius: 10px; background: var(--card-hi);
+.stone { position: relative; height: var(--sh, 52px); margin: 0 3px; border-radius: 10px; background: var(--card-hi);
   border: 2px solid transparent; font-size: 22px; font-weight: 600; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 3px 0 rgba(0,0,0,.35); }
 .stone.fest { background: rgba(108,99,255,.28); color: #fff; }
@@ -649,9 +649,19 @@ h1 { margin: 0; font-size: 26px; }
 
   // ===== Layout =====
   function fit() {
-    if (!cur || cur.modus !== 'kaefige') return;
-    var a = $('area'), size = Math.floor(Math.min(a.clientWidth, a.clientHeight));
-    $('board').style.setProperty('--bs', Math.max(120, size) + 'px');
+    if (!cur) return;
+    var a = $('area');
+    if (cur.modus === 'kaefige') {
+      var size = Math.floor(Math.min(a.clientWidth, a.clientHeight));
+      $('board').style.setProperty('--bs', Math.max(120, size) + 'px');
+    } else {
+      // Zahlenmauer: Steinhoehe an die verfuegbare Hoehe anpassen, sonst
+      // reisst eine fixe Hoehe im Querformat die Werkzeugleiste unter sich.
+      var n = cur.puzzle.n, gap = 6;
+      var avail = a.clientHeight - gap * (n - 1);
+      var sh = Math.max(30, Math.min(52, Math.floor(avail / n)));
+      $('board').style.setProperty('--sh', sh + 'px');
+    }
   }
   window.addEventListener('resize', fit);
 

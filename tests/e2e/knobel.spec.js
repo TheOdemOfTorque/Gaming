@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect, devices } = require('@playwright/test');
 
 // Loest das aktuelle Raetsel ueber die Oberflaeche (Debug-Seed liefert die Loesung ueber window.__knobel).
 async function loeseAktuelles(page) {
@@ -113,5 +113,23 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#solved')).toBeVisible();
     await page.locator('#s-next').click();
     await expect(page.locator('#title')).toContainText('Stufe 4');
+  });
+
+  test.describe('Querformat (echtes Geraete-Profil, dynamische Toolbar-Hoehe)', () => {
+    const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
+    test.use(geraet);
+
+    test('Zahlenmauer ueberlappt im Querformat nicht die Werkzeugleiste (Stufe 5, groesste Mauer)', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=5&seed=1');
+      await expect(page.locator('#board.mauer')).toBeVisible();
+      // Reale Pruefung: liegt in der Bildschirmmitte von "Pruefen" wirklich
+      // der Knopf, oder faengt ein darueberliegender Stein den Klick ab?
+      const getroffen = await page.locator('#t-check').evaluate(btn => {
+        const r = btn.getBoundingClientRect();
+        const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return btn.contains(el);
+      });
+      expect(getroffen).toBe(true);
+    });
   });
 });
