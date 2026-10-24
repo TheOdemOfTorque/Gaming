@@ -64,7 +64,7 @@ describe('logicSolveCages', () => {
 
 describe('generateCages', () => {
   for (let stufe = 1; stufe <= 5; stufe++) {
-    const ANZ = stufe === 5 ? 60 : 100;
+    const ANZ = 200;
     test(`Stufe ${stufe}: ${ANZ} Seeds gueltig, eindeutig, Latin, Kaefige lueckenlos`, () => {
       const P = K.STUFEN.kaefige[stufe];
       for (let seed = 1; seed <= ANZ; seed++) {
@@ -103,5 +103,43 @@ describe('generateCages', () => {
     const t0 = Date.now();
     for (let s = 1; s <= 10; s++) K.generateCages(5, K.mulberry32(s));
     expect((Date.now() - t0) / 10).toBeLessThan(500);
+  });
+
+  test('Laufzeit je einzelnes Raetsel (alle Stufen) unter 300 ms (Ziel: iPhone-Laufzeit)', () => {
+    for (let stufe = 1; stufe <= 5; stufe++) {
+      for (let seed = 1; seed <= 50; seed++) {
+        const t0 = Date.now();
+        K.generateCages(stufe, K.mulberry32(seed));
+        expect(Date.now() - t0).toBeLessThan(300);
+      }
+    }
+  });
+
+  test('Hinweisanteil: Stufe 5 hat hoechstens rund ein Viertel vorgegebene Zellen', () => {
+    const P = K.STUFEN.kaefige[5];
+    for (let seed = 1; seed <= 200; seed++) {
+      const p = K.generateCages(5, K.mulberry32(seed));
+      const anteil = p.kaefige.filter(k => k.op === '=').length / (p.n * p.n);
+      expect(anteil).toBeLessThanOrEqual(0.3);
+    }
+  });
+
+  test('Schwierigkeitskurve: Hinweisanteil nimmt von Stufe 1 zu Stufe 4/5 deutlich ab', () => {
+    const ANZ = 200;
+    const anteil = s => {
+      let summe = 0;
+      for (let seed = 1; seed <= ANZ; seed++) {
+        const p = K.generateCages(s, K.mulberry32(seed));
+        summe += p.kaefige.filter(k => k.op === '=').length / (p.n * p.n);
+      }
+      return summe / ANZ;
+    };
+    const a1 = anteil(1), a4 = anteil(4), a5 = anteil(5);
+    expect(a4).toBeLessThan(a1);
+    expect(a5).toBeLessThan(a1);
+    // Stufe 4 und 5 sind beide klar leichter zu erraten als frueher (vgl. Bericht):
+    // deutlich weniger als die Haelfte der Zellen vorgegeben.
+    expect(a4).toBeLessThan(0.2);
+    expect(a5).toBeLessThan(0.2);
   });
 });
