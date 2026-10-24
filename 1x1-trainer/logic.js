@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 11;
+var STATE_VERSION = 12;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 
@@ -183,6 +183,17 @@ var STATE_MIGRATIONS = [
   (s) => {
     if (s.diamonds === undefined) {
       s.diamonds = Math.min(s.streakFreezeTotal || 0, DIAMOND_CAP);
+    }
+    return s;
+  },
+  // v11 → v12: state.knobel (Tagescap-Spiegel + empfohlene Stufen) und
+  // state.jnr (Spiegel von JNR.rewards.defaultJnr() — literal statt Laufzeit-
+  // Abhängigkeit, damit logic.js dependency-frei bleibt).
+  (s) => {
+    if (!s.knobel) s.knobel = { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } };
+    if (!s.jnr) {
+      s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
+                options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } };
     }
     return s;
   },
@@ -413,6 +424,47 @@ function tickStarTime(state) {
   return { state: Object.assign({}, state, { gameSecondsLeft: left }), abgelaufen: left === 0 };
 }
 
+// ── SPIEL-ERGEBNISSE (Knobelwerkstatt + Lumo) ───────────────────────────────
+// Beide Funktionen bekommen die XP-Rechenfunktion des jeweiligen Spiels
+// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. xpFor/mergeResult
+// aus jumpnrun/core/rewards.js), damit logic.js dependency-frei bleibt.
+// index.html lädt die echten Module zusätzlich per <script>; Jest requirt sie
+// direkt. Tests: tests/unit/spiele-ergebnisse.test.js
+
+// msg: { type:'knobel:result', mode:'mauer'|'kaefige', stufe, tipps, xp, seed }
+// heute: 'YYYY-MM-DD' (oder jedes andere Tagesformat, solange konsistent).
+// computeKnobelXPFn: computeKnobelXP(opt, tagesXpBisher) -> { xp, gedeckelt, basis }
+function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
+  const bisher = state.knobel.tagesXp.datum === heute ? state.knobel.tagesXp.xp : 0;
+  // tagesraetsel ist im Ergebnis nicht bekannt -> Obergrenze mit dem
+  // großzügigsten Fall (Tagesrätsel-Bonus) berechnen und darauf kappen.
+  const obergrenze = computeKnobelXPFn({ stufe: msg.stufe, tipps: msg.tipps, tagesraetsel: true }, bisher).xp;
+  const credit = Math.max(0, Math.min(msg.xp || 0, obergrenze));
+  const stufe = Object.assign({}, state.knobel.stufe);
+  if (msg.mode) stufe[msg.mode] = msg.stufe;
+  return {
+    state: Object.assign({}, state, {
+      xp: (state.xp || 0) + credit,
+      knobel: { tagesXp: { datum: heute, xp: bisher + credit }, stufe: stufe },
+    }),
+    creditedXp: credit,
+  };
+}
+
+// msg: { type:'jnr:result', level, medaillen, funken, xp }
+// mergeResultFn: rewards.mergeResult(jnr, msg) -> neues jnr (idempotent)
+// xpForFn: rewards.xpFor(level, medaillen, bereitsErhalten) -> plausible Obergrenze
+function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
+  const bereitsErhalten = !!(state.jnr.xpAwarded && state.jnr.xpAwarded[msg.level]);
+  const obergrenze = xpForFn(msg.level, msg.medaillen, bereitsErhalten);
+  const credit = Math.max(0, Math.min(msg.xp || 0, obergrenze));
+  const jnr = mergeResultFn(state.jnr, msg);
+  return {
+    state: Object.assign({}, state, { xp: (state.xp || 0) + credit, jnr: jnr }),
+    creditedXp: credit,
+  };
+}
+
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
 // qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
 // Wird gecappt bei maxReihe (Großes 1×1 = 20).
@@ -567,6 +619,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime,
+                     applyKnobelResult, applyJnrResult,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

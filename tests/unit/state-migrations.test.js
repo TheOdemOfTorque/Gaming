@@ -1,4 +1,5 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
+const { defaultJnr } = require('../../jumpnrun/core/rewards.js');
 
 describe('migrateState', () => {
   test('leerer State {} bekommt komplettes v11-Schema', () => {
@@ -31,6 +32,9 @@ describe('migrateState', () => {
     expect(result.changelogSeenVersion).toBe('2.9');
     // v11: diamonds — leerer State bekommt 0 (kein streakFreezeTotal in {})
     expect(result.diamonds).toBe(0);
+    // v12: state.knobel + state.jnr für die neuen Spiele
+    expect(result.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(result.jnr).toEqual(defaultJnr());
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
@@ -268,5 +272,25 @@ describe('STATE_MIGRATIONS', () => {
     const v10 = { _version: 10, streakFreezeTotal: 5, diamonds: 1 };
     const result = STATE_MIGRATIONS[10](v10);
     expect(result.diamonds).toBe(1);
+  });
+
+  test('Migration 11 (v11->v12) legt state.knobel und state.jnr an', () => {
+    const v11 = { _version: 11 };
+    const result = STATE_MIGRATIONS[11](v11);
+    expect(result.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(result.jnr).toEqual(defaultJnr());
+  });
+
+  test('Migration 11 (v11->v12) lässt existierende knobel/jnr-Felder unangetastet', () => {
+    const v11 = {
+      _version: 11,
+      knobel: { tagesXp: { datum: '2026-10-20', xp: 400 }, stufe: { mauer: 3, kaefige: 2 } },
+      jnr: Object.assign(defaultJnr(), { funkenTotal: 77, lastLevel: '1-2' }),
+    };
+    const result = STATE_MIGRATIONS[11](v11);
+    expect(result.knobel.tagesXp.xp).toBe(400);
+    expect(result.knobel.stufe.mauer).toBe(3);
+    expect(result.jnr.funkenTotal).toBe(77);
+    expect(result.jnr.lastLevel).toBe('1-2');
   });
 });
