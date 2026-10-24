@@ -48,6 +48,14 @@ describe('applyKnobelResult', () => {
     expect(state.xp).toBe(10);
   });
 
+  test('nicht-numerische gemeldete XP (z.B. gefälschte Nachricht) zerstört den XP-Zähler nicht mit NaN', () => {
+    const state = stateWithKnobelJnr({ xp: 50 });
+    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 'pwned', seed: 9 };
+    const { state: next } = applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP);
+    expect(Number.isFinite(next.xp)).toBe(true);
+    expect(next.xp).toBe(50);
+  });
+
   test('dieselbe Ergebnis-Nachricht doppelt gesendet gibt die XP nur einmal gut', () => {
     const state = stateWithKnobelJnr({ xp: 0 });
     const msg = { type: 'knobel:result', mode: 'mauer', stufe: 2, tipps: 0, xp: 40, seed: 7 };
@@ -106,5 +114,13 @@ describe('applyJnrResult', () => {
     applyJnrResult(state, msg, mergeResult, xpFor);
     expect(state.xp).toBe(0);
     expect(state.jnr.levels).toEqual({});
+  });
+
+  test('nicht-numerische gemeldete XP (z.B. gefälschte Nachricht) zerstört den XP-Zähler nicht mit NaN', () => {
+    const state = stateWithKnobelJnr({ xp: 50 });
+    const msg = { type: 'jnr:result', level: '1-1', medaillen: 1, funken: 5, xp: 'pwned' };
+    const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
+    expect(Number.isFinite(next.xp)).toBe(true);
+    expect(next.xp).toBe(50);
   });
 });

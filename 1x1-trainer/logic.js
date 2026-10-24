@@ -453,7 +453,10 @@ function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
   // tagesraetsel ist im Ergebnis nicht bekannt -> Obergrenze mit dem
   // großzügigsten Fall (Tagesrätsel-Bonus) berechnen und darauf kappen.
   const obergrenze = computeKnobelXPFn({ stufe: msg.stufe, tipps: msg.tipps, tagesraetsel: true }, bisher).xp;
-  const credit = Math.max(0, Math.min(msg.xp || 0, obergrenze));
+  // Nicht-numerische/absurde xp (gefälschte Nachricht) darf den Zähler nicht
+  // mit NaN zerstören — Math.min/-max geben bei nicht-numerischen Operanden NaN.
+  const gemeldeteXp = typeof msg.xp === 'number' && isFinite(msg.xp) ? msg.xp : 0;
+  const credit = Math.max(0, Math.min(gemeldeteXp, obergrenze));
   const stufe = Object.assign({}, state.knobel.stufe);
   if (msg.mode) stufe[msg.mode] = msg.stufe;
   return {
@@ -471,7 +474,10 @@ function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
 function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
   const bereitsErhalten = !!(state.jnr.xpAwarded && state.jnr.xpAwarded[msg.level]);
   const obergrenze = xpForFn(msg.level, msg.medaillen, bereitsErhalten);
-  const credit = Math.max(0, Math.min(msg.xp || 0, obergrenze));
+  // Nicht-numerische/absurde xp (gefälschte Nachricht) darf den Zähler nicht
+  // mit NaN zerstören — Math.min/-max geben bei nicht-numerischen Operanden NaN.
+  const gemeldeteXp = typeof msg.xp === 'number' && isFinite(msg.xp) ? msg.xp : 0;
+  const credit = Math.max(0, Math.min(gemeldeteXp, obergrenze));
   const jnr = mergeResultFn(state.jnr, msg);
   return {
     state: Object.assign({}, state, { xp: (state.xp || 0) + credit, jnr: jnr }),
