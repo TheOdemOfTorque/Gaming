@@ -163,6 +163,7 @@
 <script src="core/mathgen.js"></script>
 <script src="core/rewards.js"></script>
 <script src="core/game.js"></script>
+<script src="core/camera.js"></script>
 <script src="core/host.js"></script>
 <script src="data/levels.js"></script>
 <script>
@@ -170,7 +171,7 @@
 (function () {
   'use strict';
   var J = window.JNR, T = 16, VW = 256, VH = 144;
-  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport;
+  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport, CAM = J.camera;
   var $ = function (id) { return document.getElementById(id); };
   var embedded = H.isEmbedded(window);
   var STORE = 'henry_jnr';
@@ -365,7 +366,7 @@
     var o = LV.gameOptions(meta, jnr.options);
     if (dbgSeed != null && !isNaN(dbgSeed)) o.seed = dbgSeed;
     game = GM.createGame(level, o);
-    cam = Math.max(0, Math.min(level.w * T - VW, game.player.x - 80));
+    cam = CAM.computeCameraTarget(game.player.x, J.physics.W, game.player.facing, VW);
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     particles.forEach(function (q) { q.life = 0; });
     shake = 0; squash = 0; acc = 0;
@@ -682,7 +683,7 @@
       else if (e.type === 'landung') { sfx.landung(); squash = 6; spawn(p.x + 5, p.y + 12, 4, '#8f89ff', 0.6, 0.3); }
       else if (e.type === 'funke') { sfx.funke(e.kette); var c = game.crystals[e.index]; spawn(c.tx * T + 8, c.ty * T + 8, 6, '#fde68a', 1.1, 0.2); updateHud(); }
       else if (e.type === 'falsch') { sfx.falsch(); var w = game.crystals[e.index]; spawn(w.tx * T + 8, w.ty * T + 8, 8, '#7c3aed', 1.2, 0.3); shake = 6; updateHud(); }
-      else if (e.type === 'treffer') { sfx.falsch(); spawn(e.x + 5, e.y + 6, 8, '#c7c9ee', 1.2, 0.3); shake = 8; updateHud(); cam = Math.max(0, Math.min(level.w * T - VW, p.x - 80)); }
+      else if (e.type === 'treffer') { sfx.falsch(); spawn(e.x + 5, e.y + 6, 8, '#c7c9ee', 1.2, 0.3); shake = 8; updateHud(); cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW); }
       else if (e.type === 'feder') { sfx.feder(); spawn(p.x + 5, p.y + 12, 6, '#f472b6', 0.9, 0.2); }
       else if (e.type === 'checkpoint') { sfx.checkpoint(); spawn(level.checkpoints[e.index].tx * T + 8, level.checkpoints[e.index].ty * T + 2, 8, '#F59E0B', 1, 0.3); }
       else if (e.type === 'ziel') { win(); }
@@ -705,8 +706,7 @@
       }
       if (steps === 5) acc = 0;
       var p = game.player;
-      var target = p.x + 5 + p.facing * 26 - VW / 2;
-      target = Math.max(0, Math.min(level.w * T - VW, target));
+      var target = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
       cam += (target - cam) * 0.12;
     }
     render();
