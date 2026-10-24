@@ -95,6 +95,14 @@ describe('Gefahren, Checkpoints, Ziel', () => {
     expect(ev.map(e => e.type)).toContain('treffer');
     expect(g.player.x).toBe(PIT.start.x);
   });
+  test('treffer-Ereignis trägt die Position des Unfallorts, nicht die des Respawns', () => {
+    const PIT = parseLevel(['..........', '.S.......G', '###...####']);
+    const g = G.createGame(PIT, { mode: 'aus' });
+    const ev = play(g, RIGHT, gm => gm.fehltreffer === 1, 400);
+    const treffer = ev.find(e => e.type === 'treffer');
+    expect(treffer.x).toBeGreaterThan(PIT.start.x);
+    expect(g.player.x).toBe(PIT.start.x); // zu diesem Zeitpunkt schon respawnt
+  });
   test('Federpilz wirft hoch', () => {
     const L = parseLevel(['.....', '.S~.G', '#####']);
     const g = G.createGame(L, { mode: 'aus' });

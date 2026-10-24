@@ -42,9 +42,10 @@
   }
 
   function hurt(g) {
+    var p = g.player;
     g.fehltreffer++;
     g.funken = Math.max(0, g.funken - 1);
-    g.events.push({ type: 'treffer' });
+    g.events.push({ type: 'treffer', x: p.x, y: p.y });
     respawn(g);
   }
 
