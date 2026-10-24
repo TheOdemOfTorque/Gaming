@@ -462,7 +462,7 @@ h1 { margin: 0; font-size: 26px; }
     afterMove(r, c);
   }
 
-  function afterMove(r, c) {
+  function afterMove(r, c, leerNachricht) {
     var res = L.checkSolution(cur.modus, cur.puzzle, cur.eingabe);
     cur.conflicts = {};
     res.konflikte.forEach(function (z) { cur.conflicts[key(z[0], z[1])] = true; });
@@ -474,7 +474,7 @@ h1 { margin: 0; font-size: 26px; }
     } else if (res.vollstaendig) {
       say('Alles ausgefüllt, aber noch nicht ganz richtig. Tippe auf Prüfen.');
     } else {
-      say('');
+      say(leerNachricht || '');
     }
     renderAll();
     persistRun();
@@ -517,9 +517,8 @@ h1 { margin: 0; font-size: 26px; }
     cur.tipps++;
     clearMarks();
     cur.sel = [h.r, h.c];
-    say('Tipp: Das Feld ist jetzt verraten. Jeder Tipp senkt die XP.');
     snd.part();
-    afterMove(h.r, h.c);
+    afterMove(h.r, h.c, 'Tipp: Das Feld ist jetzt verraten. Jeder Tipp senkt die XP.');
   }
 
   function moveSel(dr, dc) {

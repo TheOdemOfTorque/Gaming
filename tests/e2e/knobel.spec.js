@@ -115,6 +115,13 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#title')).toContainText('Stufe 4');
   });
 
+  test('Tipp zeigt eine Rueckmeldung an, die nicht sofort wieder verschwindet', async ({ page }) => {
+    await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=1&seed=1');
+    await expect(page.locator('#board.mauer')).toBeVisible();
+    await page.locator('#t-hint').click();
+    await expect(page.locator('#status')).toContainText('Tipp');
+  });
+
   test.describe('Querformat (echtes Geraete-Profil, dynamische Toolbar-Hoehe)', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
