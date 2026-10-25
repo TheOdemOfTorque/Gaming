@@ -363,8 +363,10 @@ function computeStreakProtection(state, todayStr) {
   if ((state.streak || 0) < 1) return noop;
   if (state.lastPlayDate === todayStr) return noop;
 
-  const dayMs = 86400000;
-  const yesterdayStr = new Date(Date.now() - dayMs).toDateString();
+  // Kalendertag statt "jetzt minus 24 h": an Zeitumstellungstagen (25 h) laege das sonst noch auf heute.
+  const y = new Date(todayStr);
+  y.setDate(y.getDate() - 1);
+  const yesterdayStr = y.toDateString();
   if (state.lastPlayDate === yesterdayStr) return noop;
 
   // Lücke: heute ≠ gestern relativ zum lastPlayDate.
