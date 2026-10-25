@@ -18,8 +18,8 @@
     },
     {
       id: '1-2', name: 'Zahlenwiese', welt: 1, weltName: 'Dämmerwiese',
-      mathe: true, reihe: 2, // Federpilz, Dornen, Zielzahl: 2er-Reihe
-      gen: { minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18 }
+      mathe: true, reihe: 2, // Federpilz, Dornen, Rechenwichte, Zielzahl: 2er-Reihe
+      gen: { minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18, gegner: true }
     }
   ];
 

@@ -3,16 +3,24 @@
 // Reine Funktion: gleicher seed -> exakt dieselbe Abfolge und Zeilen. Start- und Ziel-Abschnitt
 // sind immer dieselben zwei Abschnitte aus dem Schwierigkeit-1-Pool (ruhiger Einstieg/Ausstieg,
 // keine Ueberraschung direkt am Leuchtturm); der Rest wird gemischt.
+//
+// Rechenwichte (opts.gegner, siehe core/gegner.js): hoechstens einer je 2 bis 3 Abschnitte, nie im
+// Start-, ersten Mittel- oder Ziel-Abschnitt, nur wo core/level.js strecke() eine Laufstrecke von
+// mindestens MIN_STRECKE Kacheln findet (flach, Abstand zu Gefahren, Landestellen und Laternen).
+// Die Platzierung zieht aus einem eigenen Zufallsstrom: Abschnittsfolge und Kristalle bleiben je
+// Seed genau wie ohne Wichte.
 (function (root, factory) {
   var deps = (typeof module === 'object' && module.exports)
-    ? { sections: require('../data/sections.js'), mathgen: require('./mathgen.js') }
-    : { sections: root.JNR.sections, mathgen: root.JNR.mathgen };
-  var api = factory(deps.sections, deps.mathgen);
+    ? { sections: require('../data/sections.js'), mathgen: require('./mathgen.js'), level: require('./level.js') }
+    : { sections: root.JNR.sections, mathgen: root.JNR.mathgen, level: root.JNR.level };
+  var api = factory(deps.sections, deps.mathgen, deps.level);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.JNR = root.JNR || {}; root.JNR.levelgen = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (SEC, M) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (SEC, M, LV) {
   var START_ID = 'd1-lauf-a';
   var GOAL_ID = 'd1-lauf-c';
+  var GEGNER_AB = 2;        // erster Abschnitt (Index), der einen Wicht haben darf
+  var GEGNER_SALZ = 0x2F6B1D3A;
 
   function byId(id) {
     for (var i = 0; i < SEC.SECTIONS.length; i++) if (SEC.SECTIONS[i].id === id) return SEC.SECTIONS[i];
@@ -57,17 +65,43 @@
     grid[6][0] = 'S';
     grid[6][w - 1] = 'G';
 
-    var offset = 0;
+    var offset = 0, offsets = [];
     chosen.forEach(function (sec, idx) {
+      offsets.push(offset);
       if (idx > 0) grid[6][offset] = 'C';
       offset += sec.rows[0].length;
     });
 
+    var gegner = opts.gegner ? placeEnemies(grid, chosen, offsets, seed) : [];
+
     return {
       seed: seed,
       sections: chosen.map(function (s) { return s.id; }),
-      rows: grid.map(function (r) { return r.join(''); })
+      rows: grid.map(function (r) { return r.join(''); }),
+      gegner: gegner
     };
+  }
+
+  // Setzt 'w' auf freie Bodenkacheln (Zeile 6, kein Kristall). Gibt [{ tx, ty, abschnitt }] zurueck.
+  function placeEnemies(grid, chosen, offsets, seed) {
+    var level = LV.parseLevel(grid.map(function (r) { return r.join(''); }));
+    var rnd = M.mulberry32(((seed == null ? 1 : seed) ^ GEGNER_SALZ) >>> 0);
+    var ty = 6, out = [], next = GEGNER_AB;
+    for (var idx = GEGNER_AB; idx < chosen.length - 1; idx++) {
+      if (idx < next) continue;
+      var x0 = offsets[idx], x1 = x0 + chosen[idx].rows[0].length - 1, cands = [];
+      for (var x = x0; x <= x1; x++) {
+        if (grid[ty][x] !== '.') continue;
+        var st = LV.strecke(level, x, ty);
+        if (st && st.bis - st.von + 1 >= LV.MIN_STRECKE) cands.push(x);
+      }
+      if (!cands.length) continue;
+      var tx = cands[Math.floor(rnd() * cands.length)];
+      grid[ty][tx] = 'w';
+      out.push({ tx: tx, ty: ty, abschnitt: idx });
+      next = idx + 2 + Math.floor(rnd() * 2);
+    }
+    return out;
   }
 
   return { generate: generate, START_ID: START_ID, GOAL_ID: GOAL_ID };

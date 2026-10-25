@@ -85,11 +85,37 @@ describe('Greedy-Bot mit Energie und Leben', () => {
     expect(r.game.leben).toBe(3);
   });
 
+  test('solve zaehlt die Schadensquellen des echten Laufs (nicht der Vorausschau)', () => {
+    // Decke direkt ueber Lumo: der falsche Kristall laesst sich nicht ueberspringen
+    const L = parseLevel(['##########', 'S....o...G', '##########']);
+    const r = SOLVER.solve(L, { crystals: [{ tx: 5, ty: 1, value: 5, good: false }] });
+    expect(r.won).toBe(true);
+    expect(r.schaden).toEqual({ kristall: 1 });
+    const P = parseLevel(['.................', 'S...............G', '###..........####']);
+    const q = SOLVER.solve(P, { mode: 'aus' }, 5000);
+    expect(q.schaden).toEqual({});
+    expect(q.game.leben).toBe(0);
+  });
+
   test('ein verlorener Lauf bricht die Suche sofort ab', () => {
     const PIT = parseLevel(['.................', 'S...............G', '###..........####']);
     const r = SOLVER.solve(PIT, { mode: 'aus' }, 5000);
     expect(r.won).toBe(false);
     expect(r.game.status).toBe('lost');
     expect(r.frames).toBeLessThan(5000);
+  });
+});
+
+describe('Greedy-Bot mit Rechenwichten', () => {
+  test.each([
+    ['flach', ['......................', 'S..........w.........G', '######################']],
+    ['zwei Wichte', ['..................................', 'S..........w...........w.........G', '##################################']],
+  ])('%s: weicht dem Wicht aus oder stampft, ohne Energie an ihn zu verlieren', (name, rows) => {
+    const L = parseLevel(rows);
+    const r = SOLVER.solve(L, { mode: 'aus' });
+    expect(r.won).toBe(true);
+    // ohne falsche Zahlen und Dornen kann ein Fehltreffer nur vom Wicht kommen
+    expect(r.game.fehltreffer).toBe(0);
+    expect(r.game.energie).toBe(3);
   });
 });
