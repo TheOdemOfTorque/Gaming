@@ -408,17 +408,24 @@ function computeStreakProtection(state, todayStr) {
 // ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
 // Defaults, Marco noch zu bestätigen (siehe Vault-Plan Spiele-Integration):
 // Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
-// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sperren.
+// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sterne und
+// Streak-Mindestwert, im Trainer aber erst nach einer gezählten Runde am selben
+// Kalendertag spielbar (nachRundeHeute). Die Adresse /knobel/ bleibt offen.
 const GAME_RULES = {
   invader: { kostetSternZeit: true,  minStreak: 3 },
   jnr:      { kostetSternZeit: true,  minStreak: 3 },
-  knobel:   { kostetSternZeit: false, minStreak: 0 },
+  knobel:   { kostetSternZeit: false, minStreak: 0, nachRundeHeute: true },
 };
 
 // Tests: tests/unit/spiele-zugang.test.js
-function getGameAccess(state, gameId) {
+// heute: new Date().toDateString() (gleiches Format wie lastPlayDate, das endGame
+// beim Streak setzt). Kalendertag-Vergleich, keine 24-h-Rechnung.
+function getGameAccess(state, gameId, heute) {
   const rule = GAME_RULES[gameId];
   if (!rule) return { spielbar: false, grund: 'unbekannt' };
+  if (rule.nachRundeHeute && state.lastPlayDate !== (heute || new Date().toDateString())) {
+    return { spielbar: false, grund: 'keine_runde' };
+  }
   if ((state.streak || 0) < rule.minStreak) return { spielbar: false, grund: 'streak' };
   if (rule.kostetSternZeit && (state.stars || 0) === 0 && (state.gameSecondsLeft || 0) <= 0) {
     return { spielbar: false, grund: 'keine_sterne' };

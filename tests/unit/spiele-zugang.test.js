@@ -10,8 +10,8 @@ describe('GAME_RULES', () => {
     expect(GAME_RULES.jnr).toEqual({ kostetSternZeit: true, minStreak: 3 });
   });
 
-  test('knobel kostet keine Stern-Zeit und hat keine Streak-Sperre', () => {
-    expect(GAME_RULES.knobel).toEqual({ kostetSternZeit: false, minStreak: 0 });
+  test('knobel kostet keine Stern-Zeit, hat keine Streak-Sperre, braucht aber eine Runde am selben Tag', () => {
+    expect(GAME_RULES.knobel).toEqual({ kostetSternZeit: false, minStreak: 0, nachRundeHeute: true });
   });
 });
 
@@ -45,9 +45,41 @@ describe('getGameAccess', () => {
     expect(getGameAccess(state, 'jnr')).toEqual({ spielbar: false, grund: 'streak' });
   });
 
-  test('knobel ist immer spielbar, auch ohne Streak und Sterne', () => {
-    const state = baseState({ streak: 0, stars: 0, gameSecondsLeft: 0 });
-    expect(getGameAccess(state, 'knobel')).toEqual({ spielbar: true, grund: null });
+  // heute = new Date().toDateString()-Format, wie lastPlayDate (Streak-Logik in endGame)
+  test('knobel: ohne Runde heute gesperrt (lastPlayDate leer)', () => {
+    const state = baseState({ lastPlayDate: null });
+    expect(getGameAccess(state, 'knobel', 'Sun Oct 25 2026')).toEqual({ spielbar: false, grund: 'keine_runde' });
+  });
+
+  test('knobel: Runde gestern reicht nicht', () => {
+    const state = baseState({ streak: 4, lastPlayDate: 'Sat Oct 24 2026' });
+    expect(getGameAccess(state, 'knobel', 'Sun Oct 25 2026')).toEqual({ spielbar: false, grund: 'keine_runde' });
+  });
+
+  test('knobel: Runde heute schaltet frei, auch ohne Sterne und Streak-Mindestwert', () => {
+    const state = baseState({ streak: 1, stars: 0, gameSecondsLeft: 0, lastPlayDate: 'Sun Oct 25 2026' });
+    expect(getGameAccess(state, 'knobel', 'Sun Oct 25 2026')).toEqual({ spielbar: true, grund: null });
+  });
+
+  test('knobel: Kalendertag statt 24 h, Zeitumstellungstag (25 h) und Tageswechsel', () => {
+    // Letzte Runde am 24.10. spät abends; am 25.10. (25-h-Tag) um 00:30 sind es < 24 h, aber ein neuer Kalendertag.
+    const state = baseState({ lastPlayDate: new Date(2026, 9, 24, 23, 50).toDateString() });
+    const heute = new Date(2026, 9, 25, 0, 30).toDateString();
+    expect(getGameAccess(state, 'knobel', heute)).toEqual({ spielbar: false, grund: 'keine_runde' });
+    // Runde um 00:10 am 25.10., Abfrage um 23:50 am selben Kalendertag (mehr als 24 h gibt es dort nie, aber 23 h 40 min Abstand).
+    const s2 = baseState({ lastPlayDate: new Date(2026, 9, 25, 0, 10).toDateString() });
+    expect(getGameAccess(s2, 'knobel', new Date(2026, 9, 25, 23, 50).toDateString()).spielbar).toBe(true);
+  });
+
+  test('knobel: ohne heute-Argument wird der aktuelle Kalendertag genommen', () => {
+    expect(getGameAccess(baseState({ lastPlayDate: new Date().toDateString() }), 'knobel').spielbar).toBe(true);
+    expect(getGameAccess(baseState({ lastPlayDate: 'Mon Jan 01 2001' }), 'knobel').spielbar).toBe(false);
+  });
+
+  test('invader/jnr ignorieren lastPlayDate (Regeln unverändert)', () => {
+    const state = baseState({ streak: 3, stars: 1, lastPlayDate: null });
+    expect(getGameAccess(state, 'invader', 'Sun Oct 25 2026').spielbar).toBe(true);
+    expect(getGameAccess(state, 'jnr', 'Sun Oct 25 2026').spielbar).toBe(true);
   });
 });
 

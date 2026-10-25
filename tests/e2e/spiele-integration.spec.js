@@ -11,6 +11,7 @@ async function seedState(page, over) {
   const base = migrateState(defaultState());
   const seeded = Object.assign({}, base, {
     name: 'TestKind', streak: 5, stars: 0, gameSecondsLeft: 3,
+    lastPlayDate: new Date().toDateString(), // Runde heute gespielt -> Knobelwerkstatt frei
     changelogSeenVersion: '2.11',
   }, over);
   await page.evaluate((state) => {
@@ -21,6 +22,22 @@ async function seedState(page, over) {
 }
 
 test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
+  test('Knobelwerkstatt ist ohne Runde am selben Tag gesperrt, auch per openGame', async ({ page }) => {
+    await seedState(page, { lastPlayDate: 'Sat Oct 24 2026' });
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
+    await expect(card.locator('button')).toBeDisabled();
+    await page.evaluate(() => openGame('knobel'));
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+  });
+
+  test('Knobelwerkstatt nach Runde heute: Untertitel "heute frei", keine Stern-Zeit', async ({ page }) => {
+    await seedState(page, {});
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await expect(card.locator('.game-card-sub')).toHaveText('heute frei');
+    await expect(card.locator('button')).toBeEnabled();
+  });
+
   test('Knobelwerkstatt im iframe: Ergebnis kommt an, XP steigt, kostet keine Stern-Zeit', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 0 });
     await page.locator('.game-card[data-game="knobel"] button').click();
