@@ -1,85 +1,86 @@
 const { parseLevel } = require('../../jumpnrun/core/level.js');
 const G = require('../../jumpnrun/core/game.js');
 const R = require('../../jumpnrun/core/rewards.js');
+const SOLVER = require('../../jumpnrun/core/solver.js');
 const D = require('../../jumpnrun/data/levels.js');
-const fixture = require('./fixtures/jnr-replays.json');
 
-const KEYS = k => ({ left: k.includes('L'), right: k.includes('R'), jump: k.includes('J') });
+const SEEDS_PROPERTY = 200;
 
-function playReplay(runs, game, maxExtra = 0) {
-  let frames = 0;
-  for (const [n, k] of runs) {
-    for (let i = 0; i < n; i++) { G.tick(game, KEYS(k)); frames++; }
-  }
-  for (let i = 0; i < maxExtra; i++) G.tick(game, KEYS('-'));
-  return frames;
-}
-
-describe('Leveldaten Welt 1', () => {
-  test('es gibt 2 Level in Welt 1 mit eindeutigen IDs', () => {
+describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
+  test('es gibt 2 Stufen in Welt 1 mit eindeutigen IDs', () => {
     expect(D.ORDER).toEqual(['1-1', '1-2']);
     expect(new Set(D.ORDER).size).toBe(2);
-    D.LEVELS.forEach(l => expect(l.welt).toBe(1));
+    D.STAGES.forEach(l => expect(l.welt).toBe(1));
   });
-  test.each(D.LEVELS.map(l => [l.id, l]))('%s ist ein gültiges Raster', (id, l) => {
-    const L = parseLevel(l.rows);
-    expect(L.h).toBe(9); // Bildhöhe: 9 Kacheln
-    expect(L.w).toBeGreaterThanOrEqual(100);
-    expect(L.checkpoints.length).toBeGreaterThanOrEqual(2);
-    expect(L.checkpoints.length).toBeLessThanOrEqual(4);
-    expect(L.crystalSlots.length).toBeGreaterThanOrEqual(12);
-    R.parseLevelId(l.id);
-  });
-  test('Level 1 hat keine Gefahren und keine Mathe', () => {
-    const l = D.byId('1-1');
-    const L = parseLevel(l.rows);
-    expect(L.spikes).toHaveLength(0);
-    expect(l.mathe).toBe(false);
-  });
-  test('Mathe-Level haben eine gültige Reihe', () => {
-    D.LEVELS.filter(l => l.mathe).forEach(l => expect(Number.isInteger(l.reihe) && l.reihe >= 2).toBe(true));
-  });
-  test('gameOptions: Mathe-Modus aus der Einstellung überschreibt das Level', () => {
-    const l = D.byId('1-2');
-    expect(D.gameOptions(l, { mathe: 'ziel' }).mode).toBe('ziel');
-    expect(D.gameOptions(l, { mathe: 'aus' }).mode).toBe('aus');
-    expect(D.gameOptions(D.byId('1-1'), { mathe: 'ziel' }).mode).toBe('aus');
-  });
-});
 
-describe('Lösbarkeit per Replay (Geist-Lauf)', () => {
-  const defaults = R.defaultJnr().options;
-  test.each(D.ORDER)('Level %s: der aufgezeichnete Lauf erreicht das Ziel', (id) => {
+  test('Stufe 1-1 hat keine Mathe-Pflicht, Stufe 1-2 eine gueltige Reihe', () => {
+    expect(D.byId('1-1').mathe).toBe(false);
+    const l2 = D.byId('1-2');
+    expect(l2.mathe).toBe(true);
+    expect(Number.isInteger(l2.reihe) && l2.reihe >= 2).toBe(true);
+  });
+
+  test('gameOptions: Mathe-Modus aus der Einstellung ueberschreibt die Stufe', () => {
+    const l2 = D.byId('1-2');
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1).mode).toBe('ziel');
+    expect(D.gameOptions(l2, { mathe: 'aus' }, 1).mode).toBe('aus');
+    expect(D.gameOptions(D.byId('1-1'), { mathe: 'ziel' }, 1).mode).toBe('aus');
+  });
+
+  describe.each(D.ORDER)('Stufe %s: generateFor', (id) => {
     const meta = D.byId(id);
-    const game = G.createGame(parseLevel(meta.rows), D.gameOptions(meta, defaults));
-    const frames = playReplay(fixture.replays[id], game);
-    expect(game.status).toBe('won');
-    expect(game.t).toBeLessThanOrEqual(frames);
-    expect(frames).toBeGreaterThan(600);   // mindestens ~10 s Spielzeit
-    expect(frames).toBeLessThan(60 * 180); // höchstens 3 Minuten
-    const medals = R.calcMedals(G.stats(game));
-    expect(medals.geschafft).toBe(true);
+
+    test('ist fuer jeden Seed ein gueltiges Raster mit Gesamtlaenge ca. 200-300 Kacheln', () => {
+      for (let seed = 1; seed <= 30; seed++) {
+        const gen = D.generateFor(id, seed);
+        const L = parseLevel(gen.rows);
+        expect(L.h).toBe(9);
+        expect(L.w).toBeGreaterThanOrEqual(200);
+        expect(L.w).toBeLessThanOrEqual(320); // "ca. 200-300", Toleranz nach oben siehe BERICHT
+        expect(L.checkpoints.length).toBe(gen.sections.length - 1);
+      }
+    });
+
+    test('gleicher Seed -> dieselbe Abfolge, verschiedene Seeds -> unterschiedliche Abfolgen', () => {
+      const a = D.generateFor(id, 123);
+      const b = D.generateFor(id, 123);
+      expect(a.rows).toEqual(b.rows);
+      expect(a.sections).toEqual(b.sections);
+      const seqs = new Set();
+      for (let seed = 1; seed <= 20; seed++) seqs.add(D.generateFor(id, seed).sections.join(','));
+      expect(seqs.size).toBeGreaterThan(1);
+    });
+
+    test(`ist fuer ${SEEDS_PROPERTY} Seeds per Greedy-Bot nachweislich loesbar`, () => {
+      const options = R.defaultJnr().options;
+      for (let seed = 1; seed <= SEEDS_PROPERTY; seed++) {
+        const gen = D.generateFor(id, seed);
+        const level = parseLevel(gen.rows);
+        const opts = D.gameOptions(meta, options, seed);
+        const r = SOLVER.solve(level, opts);
+        if (!r.won) throw new Error('Stufe ' + id + ', seed ' + seed + ' nicht loesbar: ' + gen.sections.join(' > '));
+      }
+    });
   });
-  test.each(D.ORDER)('Level %s: ohne den ersten Sprung scheitert derselbe Lauf (Test schlägt an)', (id) => {
-    const meta = D.byId(id);
-    const game = G.createGame(parseLevel(meta.rows), D.gameOptions(meta, defaults));
-    const broken = fixture.replays[id].map(([n, k]) => [n, k.replace('J', '')]);
-    playReplay(broken, game);
-    expect(game.status).toBe('play');
-  });
-  test('Level 1-1 mit allen Medaillen-Bedingungen: ohne Fehltreffer geschafft', () => {
-    const meta = D.byId('1-1');
-    const game = G.createGame(parseLevel(meta.rows), D.gameOptions(meta, defaults));
-    playReplay(fixture.replays['1-1'], game);
-    expect(game.fehltreffer).toBe(0);
-    expect(R.calcMedals(G.stats(game)).anzahl).toBe(3);
-  });
-  test('Replay ist deterministisch', () => {
-    const meta = D.byId('1-2');
-    const a = G.createGame(parseLevel(meta.rows), D.gameOptions(meta, defaults));
-    const b = G.createGame(parseLevel(meta.rows), D.gameOptions(meta, defaults));
-    playReplay(fixture.replays['1-2'], a); playReplay(fixture.replays['1-2'], b);
-    expect(a.player).toEqual(b.player);
-    expect(a.t).toBe(b.t);
+
+  test('Gegenprobe: ein unloesbarer Abschnitt im Pool laesst den Eigenschafts-Test anschlagen', () => {
+    const SEC = require('../../jumpnrun/data/sections.js');
+    const LG = require('../../jumpnrun/core/levelgen.js');
+    const badPool = SEC.SECTIONS.concat([{
+      id: 'test-unloesbar', schwierigkeit: 1, mechanik: ['lauf'],
+      rows: [
+        '..................', '..................', '..................', '..................',
+        '..................', '..................', '..................',
+        '##..............##', '##..............##'
+      ]
+    }]);
+    let sawFailure = false;
+    for (let seed = 1; seed <= 200 && !sawFailure; seed++) {
+      const gen = LG.generate({ minDifficulty: 1, maxDifficulty: 1, minSections: 14, maxSections: 18, pool: badPool }, seed);
+      const level = parseLevel(gen.rows);
+      const r = SOLVER.solve(level, { mode: 'aus' });
+      if (!r.won) sawFailure = true;
+    }
+    expect(sawFailure).toBe(true);
   });
 });

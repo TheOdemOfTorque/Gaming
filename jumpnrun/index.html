@@ -165,6 +165,8 @@
 <script src="core/game.js"></script>
 <script src="core/camera.js"></script>
 <script src="core/host.js"></script>
+<script src="data/sections.js"></script>
+<script src="core/levelgen.js"></script>
 <script src="data/levels.js"></script>
 <script>
 // Integrations-Vertrag (Trainer <-> Spiel): siehe Kommentarblock in core/host.js.
@@ -334,7 +336,7 @@
   function medalStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
   function buildMenu() {
     var box = $('levellist'); box.innerHTML = '';
-    LV.LEVELS.forEach(function (l) {
+    LV.STAGES.forEach(function (l) {
       var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
       var b = document.createElement('button');
       b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
@@ -362,9 +364,11 @@
   // ---------- Level starten ----------
   function startLevel(id) {
     meta = LV.byId(id); if (!meta) return showMenu();
-    level = J.level.parseLevel(meta.rows);
-    var o = LV.gameOptions(meta, jnr.options);
-    if (dbgSeed != null && !isNaN(dbgSeed)) o.seed = dbgSeed;
+    // Jeder Start bekommt einen neuen Seed (auch "Nochmal"/"Level neu starten"); ?jnrSeed= erzwingt einen festen.
+    var seed = (dbgSeed != null && !isNaN(dbgSeed)) ? dbgSeed : (Date.now() >>> 0);
+    var gen = LV.generateFor(id, seed);
+    level = J.level.parseLevel(gen.rows);
+    var o = LV.gameOptions(meta, jnr.options, seed);
     game = GM.createGame(level, o);
     cam = CAM.computeCameraTarget(game.player.x, J.physics.W, game.player.facing, VW);
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
