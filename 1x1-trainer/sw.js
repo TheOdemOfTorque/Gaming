@@ -1,4 +1,4 @@
-const CACHE = '1x1-trainer-v26'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
+const CACHE = '1x1-trainer-v27'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
 const ASSETS = [
   './',
   './index.html',
@@ -25,6 +25,12 @@ const ASSETS = [
   '../jumpnrun/core/physics.js',
   '../jumpnrun/core/rewards.js',
   '../jumpnrun/data/levels.js',
+  '../jumpnrun/data/sections.js',
+  '../jumpnrun/core/levelgen.js',
+  '../jumpnrun/core/viewport.js',
+  '../jumpnrun/core/camera.js',
+  '../knobel/fonts/AtkinsonHyperlegible-Regular.woff2',
+  '../knobel/fonts/AtkinsonHyperlegible-Bold.woff2',
 ];
 
 self.addEventListener('install', e => {
