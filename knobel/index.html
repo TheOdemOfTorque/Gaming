@@ -11,8 +11,37 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Knobelwerkstatt</title>
 <style>
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/AtkinsonHyperlegible-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/AtkinsonHyperlegible-Bold.woff2') format('woff2');
+}
 :root {
-  --bg: #0d0d2b;
+  /* Rechenfarben (Spec "Knobelwerkstatt UI-Design"): je Rechenart eine feste
+     Farbe, ueberall gleich verwendet (Kaefigrand, Zeichen-Chip, Streifen, Fuge). */
+  --nacht: #12112b;      /* Grundflaeche */
+  --tafel: #1d1b45;      /* Brett, Streifen */
+  --feld: #26245a;       /* Felder, Steine, Tasten */
+  --kreide: #f3f1ff;     /* Zahlen */
+  --leise: #a9a5d6;      /* Ein-Feld-Kaefig "=", Nebentext */
+  --plus: #34d1b0;       /* + zusammenzaehlen */
+  --mal: #f5a524;        /* x malnehmen */
+  --minus: #ff7a9a;      /* - abziehen */
+  --geteilt: #6db3ff;    /* / teilen */
+  --gut: #7be08a;        /* erfuellt, immer mit Haekchen */
+  --fehler: #ff5d6c;     /* Widerspruch, immer mit Text */
+  --wahl: #ffffff;       /* gewaehltes Feld/Stein */
+
+  --bg: var(--nacht);
   --card: rgba(255,255,255,0.07);
   --card-hi: rgba(255,255,255,0.12);
   --line: rgba(255,255,255,0.18);
@@ -21,12 +50,12 @@
   --gold: #F59E0B;
   --ok: #10B981;
   --err: #EF4444;
-  --text: #f1f1ff;
-  --muted: #b4b4d6;
+  --text: var(--kreide);
+  --muted: var(--leise);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-variant-numeric: tabular-nums; overscroll-behavior: none; }
 body { height: 100vh; height: 100dvh; overflow: hidden; }
 button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; border: 0; }
