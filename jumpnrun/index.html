@@ -90,6 +90,8 @@
     font-size: 15px; line-height: 1.4; text-align: center; transition: opacity .6s;
   }
   #tipp.aus { opacity: 0; }
+  /* Hochformat: die Welt liegt mittig, der Hinweis gehoert darueber und nicht auf den Boden */
+  @media (orientation: portrait) { #tipp { top: 30%; } }
   @media (min-width: 1000px) and (min-height: 560px) {
     #vital { padding: 8px 16px; gap: 16px; }
     #leben { font-size: 34px; }
@@ -659,7 +661,8 @@
     t.classList.add('hidden');
     if (tippFertig) return;
     t.innerHTML = 'Oben links: <b style="color:#fb7185">♥ Leben</b> und <b style="color:#fde68a">● Energie</b>. ' +
-      (game && game.enemies.length ? 'Falsche Zahlen, Dornen und Rechenwichte von der Seite kosten 1 Energie, die Schlucht ein ganzes Leben.'
+      (game && game.enemies.length ? 'Falsche Zahlen, Dornen und Rechenwichte von der Seite kosten 1 Energie, die Schlucht ein ganzes Leben. ' +
+        'Spring von oben auf einen Rechenwicht, dann zeigt er die richtige Rechnung.'
         : 'Falsche Zahlen und Dornen kosten 1 Energie, die Schlucht ein ganzes Leben.');
     tippTimer = setTimeout(function () {
       t.classList.remove('hidden', 'aus');
@@ -676,7 +679,7 @@
     '<p><b>Laufen und Springen:</b> Links/rechts laufen, ▲ oder Leertaste springt. Lange drücken springt höher.</p>' +
     '<p><b>Zahlen sammeln:</b> Vor jeder Zahlen-Stufe wählst du eine Reihe. Sammle nur ihre Ergebnisse, jede richtige Zahl gibt einen Funken ✦. Oben in der Mitte steht, wie viele du schon hast.</p>' +
     '<p><b>Energie <span style="color:#fde68a">●●●</span>:</b> Lumo hat 3 Lichtpunkte. Eine falsche Zahl, Dornen oder ein Rechenwicht von der Seite kosten einen Lichtpunkt und schubsen Lumo zurück. Danach blinkt Lumo kurz und kann nicht getroffen werden.</p>' +
-    '<p><b>Rechenwicht:</b> Der kleine grüne Wicht trägt eine Tafel mit einer falschen Rechnung. Spring von oben auf ihn: Die Tafel dreht sich um, zeigt die richtige Rechnung und du bekommst einen Funken ✦. Läufst du von der Seite in ihn hinein, kostet das einen Lichtpunkt. Du kannst auch einfach über ihn springen.</p>' +
+    '<p><b>Rechenwicht:</b> Der kleine türkise Wicht trägt eine Tafel mit einer falschen Rechnung. Spring von oben auf ihn: Die Tafel dreht sich um, zeigt die richtige Rechnung und du bekommst einen Funken ✦. Läufst du von der Seite in ihn hinein, kostet das einen Lichtpunkt. Du kannst auch einfach über ihn springen.</p>' +
     '<p><b>Leben <span style="color:#fb7185">♥♥♥</span>:</b> Sind alle Lichtpunkte aus, ist ein Leben weg. Lumo startet dann an der letzten Laterne mit voller Energie. Ein Sturz in die Schlucht kostet sofort ein Leben.</p>' +
     '<p><b>Laternen:</b> Lauf an einer Laterne vorbei, dann leuchtet sie und du startest dort neu.</p>' +
     '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
@@ -997,8 +1000,9 @@
     });
   }
 
-  // Rechenwicht: kleines rundes Wesen (Moosgruen, grosse Augen), das mit beiden Armen eine Tafel
-  // ueber dem Kopf haelt. Trefferbox 12 x 16 (core/gegner.js): Koerper unten, Tafel oben.
+  // Rechenwicht: kleines tropfenfoermiges Wesen (Tuerkis, grosse Augen), das mit beiden Armen eine Tafel
+  // ueber dem Kopf haelt. Box 12 x 16 (core/gegner.js), die Tafel sitzt an gegner.tafelBox und zaehlt
+  // in ganzer Breite zur Stampfzone.
   // Nach dem Stampfen dreht sich die Tafel (schmal werden, umklappen) und zeigt die richtige Rechnung.
   var WICHT_DREH = 12; // Schritte fuer das Umdrehen der Tafel
   function drawTafel(cx, top, text, sx, aufgedeckt) {
@@ -1023,7 +1027,7 @@
         var zeigtRichtig = dreh >= 0.5;
         var lift = Math.round(phase * 0.25);
         if (e.timer < 16) ctx.globalAlpha = e.timer / 16;
-        drawTafel(cx, e.y - 8 - lift, J.mathgen.rechnungText(e.rechnung, zeigtRichtig), sx, zeigtRichtig);
+        drawTafel(cx, GE.tafelBox(e).y + 1 - lift, J.mathgen.rechnungText(e.rechnung, zeigtRichtig), sx, zeigtRichtig);
         ctx.globalAlpha = 1;
         return;
       }
@@ -1044,7 +1048,7 @@
       var bob = step;
       ctx.fillStyle = '#0f766e';
       ctx.fillRect(bx - 6, by - 12 + bob, 1, 5 - bob); ctx.fillRect(bx + 5, by - 12 + bob, 1, 5 - bob);
-      drawTafel(cx, e.y - 8 + bob, J.mathgen.rechnungText(e.rechnung, false), 1, false);
+      drawTafel(cx, GE.tafelBox(e).y + 1 + bob, J.mathgen.rechnungText(e.rechnung, false), 1, false);
     });
   }
 
@@ -1178,17 +1182,12 @@
       var p = game.player; p.x = tx * T; p.y = ty * T; p.vx = 0; p.vy = 0;
       cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
     },
-    // Rechenwichte lesen (Tafeltexte wie gezeichnet) und Lumo relativ zu Wicht i absetzen (Tests, Screenshots)
+    // Nur fuer Tests und Screenshots: Rechenwichte lesen (Position, Laufstrecke in px, Zustand und die
+    // Tafeltexte, wie sie gezeichnet werden). debugAmWicht setzt Lumo relativ zu Wicht i ab.
     enemies: function () {
       return game ? game.enemies.map(function (e) {
-        return { x: e.x, y: e.y, state: e.state, falsch: J.mathgen.rechnungText(e.rechnung, false), richtig: J.mathgen.rechnungText(e.rechnung, true) };
+        return { x: e.x, y: e.y, minX: e.minX, maxX: e.maxX, dir: e.dir, state: e.state, falsch: J.mathgen.rechnungText(e.rechnung, false), richtig: J.mathgen.rechnungText(e.rechnung, true) };
       }) : [];
-    },
-    // Kristalle im Umkreis von r Kacheln um Wicht i entfernen (Tests, Screenshots: kein Zufallstreffer)
-    debugFreiUmWicht: function (i, r) {
-      var e = game && game.enemies[i]; if (!e) return;
-      var tx = Math.floor((e.x + J.gegner.EW / 2) / T);
-      game.crystals = game.crystals.filter(function (c) { return Math.abs(c.tx - tx) > r; });
     },
     debugAmWicht: function (i, dx, dy) {
       var e = game && game.enemies[i]; if (!e) return;

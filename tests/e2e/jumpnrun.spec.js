@@ -449,14 +449,30 @@ test.describe('Lumo: Rechenwicht', () => {
     await expect(page.locator('#msg-body')).toContainText('von der Seite');
   });
 
+  test('Start-Hinweis in Stufe 1-2 nennt den Rechenwicht und das Draufspringen', async ({ page }) => {
+    await page.goto(URLW);
+    await expect(page.locator('#tipp')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#tipp')).toContainText('Rechenwicht');
+    await expect(page.locator('#tipp')).toContainText('von oben');
+  });
+
+  test('Zahlen aus: Stufe 1-2 ohne Rechenwichte', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrSeed=1');
+    await page.locator('#opt-mathe').uncheck();
+    await page.evaluate(() => window.__jnr.start('1-2'));
+    const s = await state(page);
+    expect(s).toMatchObject({ mode: 'play', level: '1-2', reihe: null });
+    expect(await page.evaluate(() => window.__jnr.enemies())).toEqual([]);
+  });
+
   test('Stufe 1-2: Wichte tragen eine falsche Rechnung aus der gewählten Reihe', async ({ page }) => {
     await page.goto(URLW);
     const list = await page.evaluate(() => window.__jnr.enemies());
     expect(list.length).toBeGreaterThan(0);
     list.forEach(e => {
       expect(e.state).toBe('da');
-      expect(e.falsch).toMatch(/^\d+×7=\d+$/);
-      expect(e.richtig).toMatch(/^\d+×7=\d+$/);
+      expect(e.falsch).toMatch(/^7×\d+=\d+$/);
+      expect(e.richtig).toMatch(/^7×\d+=\d+$/);
       expect(e.falsch).not.toBe(e.richtig);
     });
     expect((await state(page)).level).toBe('1-2');
@@ -467,7 +483,7 @@ test.describe('Lumo: Rechenwicht', () => {
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(URLW);
     await page.waitForTimeout(200);
-    const i = await page.evaluate(() => { const i = 0; window.__jnr.debugFreiUmWicht(i, 4); window.__jnr.debugAmWicht(i, 1, -16); return i; });
+    const i = await page.evaluate(() => { window.__jnr.debugAmWicht(0, 1, -16); return 0; });
     await expect.poll(() => page.evaluate(k => window.__jnr.enemies()[k].state, i)).toBe('aufgedeckt');
     const s = await state(page);
     expect(s.funken).toBe(1);
@@ -481,7 +497,9 @@ test.describe('Lumo: Rechenwicht', () => {
   test('Von der Seite: 1 Energie weg, Wicht bleibt', async ({ page }) => {
     await page.goto(URLW);
     await page.waitForTimeout(200);
-    const i = await page.evaluate(() => { const i = 0; window.__jnr.debugFreiUmWicht(i, 4); window.__jnr.debugAmWicht(i, -6, 4); return i; });
+    const i = await page.evaluate(() => { // von der Seite, auf der der Wicht noch Laufstrecke hat (dort liegt nie ein Kristall)
+      const e = window.__jnr.enemies()[0];
+      window.__jnr.debugAmWicht(0, e.x - e.minX > 20 ? -6 : 8, 4); return 0; });
     await expect(page.locator('#energie i.leer')).toHaveCount(1);
     const s = await state(page);
     expect(s.energie).toBe(2);
