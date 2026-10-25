@@ -148,3 +148,87 @@ test('Pause stoppt die Simulation', async ({ page }) => {
   const b = await state(page);
   expect(b.t).toBe(a.t);
 });
+
+// ---------- Reihenwahl + Ziel-Chip (Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 2) ----------
+const URL2 = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1';
+
+test('Mathe-Stufe zeigt erst die Reihenwahl 2 bis 10, ohne Trainer ohne Empfehlung', async ({ page }) => {
+  await page.goto(URL2);
+  await expect(page.locator('#reihenwahl')).toBeVisible();
+  expect((await state(page)).mode).toBe('reihenwahl');
+  const reihen = await page.locator('#rw-grid .rw').evaluateAll(bs => bs.map(b => b.getAttribute('data-reihe')));
+  expect(reihen).toEqual(['2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  await expect(page.locator('#rw-grid .emp')).toHaveCount(0);
+  await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '2');
+  // grosse Touch-Ziele
+  const box = await page.locator('#rw-grid .rw[data-reihe="7"]').boundingBox();
+  expect(box.height).toBeGreaterThanOrEqual(48);
+  expect(box.width).toBeGreaterThanOrEqual(48);
+});
+
+test('Tippen auf eine Reihe startet die Stufe: grosse Zielansage, dann Chip mit Zähler', async ({ page }) => {
+  await page.goto(URL2);
+  await page.locator('#rw-grid .rw[data-reihe="7"]').click();
+  await expect(page.locator('#reihenwahl')).toBeHidden();
+  const s = await state(page);
+  expect(s.mode).toBe('play');
+  expect(s.reihe).toBe(7);
+  await expect(page.locator('#ziel-intro')).toBeVisible();
+  await expect(page.locator('#ziel-intro')).toHaveText('Sammle die 7er-Reihe');
+  await expect(page.locator('#ziel .z-reihe')).toHaveText('7er-Reihe');
+  await expect(page.locator('#ziel .z-zahl')).toHaveText(/^0 \/ \d+$/);
+  await expect(page.locator('#ziel-intro')).toBeHidden({ timeout: 3500 });
+  await expect(page.locator('#ziel')).toBeVisible();
+  // Chip sitzt oben mittig
+  const vw = page.viewportSize().width;
+  const zb = await page.locator('#ziel').boundingBox();
+  expect(Math.abs(zb.x + zb.width / 2 - vw / 2)).toBeLessThan(4);
+  expect(zb.y).toBeLessThan(40);
+});
+
+test('Reihenwahl per Tastatur: Pfeile wählen, Enter startet, Esc geht zurück', async ({ page }) => {
+  await page.goto(URL2);
+  await expect(page.locator('#reihenwahl')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '7');
+  await expect(page.locator('#rw-grid .rw[data-reihe="7"]')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#menu')).toBeVisible();
+
+  await page.goto(URL2);
+  await page.keyboard.press('Digit9');
+  await page.keyboard.press('Enter');
+  const s = await state(page);
+  expect(s.mode).toBe('play');
+  expect(s.reihe).toBe(9);
+});
+
+test('Stufe 1-1 und Zahlen-Modus aus kommen ohne Reihenwahl aus', async ({ page }) => {
+  await page.goto(URL1);
+  expect((await state(page)).mode).toBe('play');
+  await expect(page.locator('#reihenwahl')).toBeHidden();
+});
+
+test('Eingebettet: Lernstand aus jnr:init markiert die schwächsten Reihen und wählt die schwächste vor', async ({ page }) => {
+  await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><body><iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  await expect(frame.locator('#menu')).toBeVisible();
+  await page.evaluate(() => {
+    document.getElementById('f').contentWindow.postMessage({
+      type: 'jnr:init', level: '1-2', jnr: { levels: { '1-1': { medals: 2, bestTimeMs: 1, bestFunken: 1 } } },
+      lernstand: { 2: 0.9, 7: 0.3, 9: 0.45, 5: 1 }
+    }, location.origin);
+  });
+  await expect(frame.locator('#reihenwahl')).toBeVisible();
+  const emp = await frame.locator('#rw-grid .rw:has(.emp)').evaluateAll(bs => bs.map(b => b.getAttribute('data-reihe')));
+  expect(emp).toEqual(['7', '9']);
+  await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '7');
+  await frame.locator('#rw-los').click();
+  await expect(frame.locator('#ziel .z-reihe')).toHaveText('7er-Reihe');
+});
