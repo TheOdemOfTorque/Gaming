@@ -190,6 +190,22 @@ h1 { margin: 0; font-size: 26px; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+/* Regelkarte und Tutorial: gleiche Bausteine wie das Spiel (Kaefig, Chip,
+   Streifen), als Vollbild-Dialog ueber dem Brett. */
+#hilfe, #tutorial { position: fixed; inset: 0; background: rgba(13,13,43,.95); display: none;
+  flex-direction: column; align-items: center; justify-content: center; padding: 24px; z-index: 40; overflow-y: auto; }
+#hilfe.on, #tutorial.on { display: flex; }
+.hilfe-knopf { font-weight: 700; }
+.karte { width: min(360px, 100%); display: flex; flex-direction: column; gap: 16px; }
+.karte .regel { font-size: 16px; line-height: 1.35; color: var(--kreide); }
+.karte .btns { display: flex; flex-direction: column; gap: 10px; }
+.beispiel { background: var(--tafel); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.beispiel .mini-brett { display: grid; gap: 0; width: 160px; background: var(--tafel); border-radius: 10px; }
+.beispiel .mini-pad { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.beispiel .mini-pad button { min-width: 48px; min-height: 48px; border-radius: 10px; background: var(--feld);
+  color: var(--kreide); font-size: 20px; font-weight: 700; }
+.beispiel .zeile-glueht { outline: 3px solid var(--gut); outline-offset: 2px; }
+
 /* Querformat auf dem Telefon: Das Raetsel selbst ist ein Hochformat-Layout.
    Reicht die kurze Geraeteseite nicht fuer ein spielbares Raetsel (Telefon
    quer), zeigt ein freundlicher Hinweis die Drehung an, statt ein zu kleines
@@ -246,6 +262,7 @@ h1 { margin: 0; font-size: 26px; }
     <button class="iconbtn" id="back" aria-label="Zurück zum Menü">Menü</button>
     <div class="title" id="title"></div>
     <button class="iconbtn" id="mute" aria-pressed="false">Ton an</button>
+    <button class="iconbtn hilfe-knopf" id="hilfe-knopf" aria-label="Hilfe">?</button>
   </div>
   <div id="rule"></div>
   <div id="status" role="status" aria-live="polite"></div>
@@ -275,6 +292,28 @@ h1 { margin: 0; font-size: 26px; }
     </div>
   </div>
 </section>
+
+<div id="hilfe" role="dialog" aria-modal="true" aria-label="Regelkarte">
+  <div class="karte">
+    <p class="regel" id="hilfe-regel"></p>
+    <div class="beispiel" id="hilfe-beispiel"></div>
+    <div class="btns">
+      <button class="primary" id="hilfe-tutorial">Tutorial nochmal spielen</button>
+      <button class="secondary" id="hilfe-schliessen">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div id="tutorial" role="dialog" aria-modal="true" aria-label="Tutorial">
+  <div class="karte">
+    <p class="regel" id="tut-text"></p>
+    <div class="beispiel" id="tut-beispiel"></div>
+    <div class="btns">
+      <button class="primary" id="tut-weiter" hidden>Weiter</button>
+      <button class="secondary" id="tut-ueberspringen">Überspringen</button>
+    </div>
+  </div>
+</div>
 
 <div id="rotate-hint" role="status" aria-live="polite">
   <div class="icon" aria-hidden="true">📱 ↻</div>
@@ -650,11 +689,26 @@ h1 { margin: 0; font-size: 26px; }
 
   // Rechenstreifen: schreibt die Aufgabe des gewaehlten Kaefigs/Steins als
   // Rechnung mit Luecken aus (Spec "Knobelwerkstatt UI-Design", Zustandstabelle).
+  // Baut die ".gl"-Rechnung aus einem rechnungFuer()-Ergebnis als DOM-Fragment.
+  // Gemeinsamer Baustein von Spielstreifen, Regelkarte und Tutorial.
+  function buildRechnungGl(r) {
+    var gl = document.createElement('div');
+    gl.className = 'gl';
+    r.glieder.forEach(function (g, i) {
+      if (i > 0) gl.appendChild(textSpan(r.op, 'o'));
+      gl.appendChild(g === null ? slotSpan(i === r.lueckeIndex) : textSpan(g));
+    });
+    gl.appendChild(textSpan('=', 'o'));
+    gl.appendChild(r.ergebnisIstLuecke ? slotSpan(true) : textSpan(r.ergebnis, 'ziel'));
+    if (r.erfuellt) gl.appendChild(textSpan('✓', 'ok2'));
+    return gl;
+  }
+
   function renderStreifen() {
-    var wrap = $('streifen'), gl = $('streifen-gl'), wort = $('streifen-wort');
+    var wrap = $('streifen'), glHost = $('streifen-gl'), wort = $('streifen-wort');
     if (!cur || cur.solved) { wrap.hidden = true; return; }
     wrap.hidden = false;
-    gl.innerHTML = '';
+    glHost.innerHTML = '';
     if (!cur.sel) {
       wrap.style.removeProperty('--c');
       wort.textContent = cur.modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.';
@@ -664,13 +718,7 @@ h1 { margin: 0; font-size: 26px; }
     }
     var ar = aktuelleRechnung(), r = ar.rechnung;
     wrap.style.setProperty('--c', FARBE_OP[r.op] || 'var(--leise)');
-    r.glieder.forEach(function (g, i) {
-      if (i > 0) gl.appendChild(textSpan(r.op, 'o'));
-      gl.appendChild(g === null ? slotSpan(i === r.lueckeIndex) : textSpan(g));
-    });
-    gl.appendChild(textSpan('=', 'o'));
-    gl.appendChild(r.ergebnisIstLuecke ? slotSpan(true) : textSpan(r.ergebnis, 'ziel'));
-    if (r.erfuellt) gl.appendChild(textSpan('✓', 'ok2'));
+    glHost.appendChild(buildRechnungGl(r));
     wort.textContent = ar.satz;
     wort.className = 'wort' + (ar.fehlerhaft ? ' fehler' : '');
     // Einziger Bewegungsmoment: kurz in --gut aufleuchten, wenn diese Aufgabe
@@ -696,6 +744,258 @@ h1 { margin: 0; font-size: 26px; }
     if (!k || k.op === '=') return '';
     var namen = { '+': 'plus', '×': 'mal', '−': 'minus', '÷': 'geteilt' };
     return ', Käfig ' + k.ziel + ' ' + namen[k.op];
+  }
+
+  // ===== Regelkarte ("?"): Kurzregel + gezeichnetes Mini-Beispiel aus =====
+  // denselben Bausteinen (Käfig/Streifen) wie das Spiel selbst.
+  var REGELTEXT = {
+    mauer: 'Jeder Stein ist das Ergebnis der beiden Steine direkt darunter.',
+    kaefige: 'In jeder Zeile und Spalte steht 1 bis n genau einmal. Die Zahlen in einem Käfig ergeben zusammen gerechnet seine Zielzahl.'
+  };
+  function buildBeispielStreifen(host, aufgabe, werte, modus) {
+    var wrap = document.createElement('div');
+    wrap.className = 'streifen';
+    var r = L.rechnungFuer(aufgabe, werte);
+    wrap.style.setProperty('--c', FARBE_OP[r.op] || 'var(--leise)');
+    wrap.appendChild(buildRechnungGl(r));
+    wrap.appendChild(textSpan(L.satzFuer(r, { modus: modus }), 'wort'));
+    host.appendChild(wrap);
+    return r;
+  }
+  function buildMiniKaefigBeispiel(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    brett.style.aspectRatio = '2 / 1';
+    brett.style.setProperty('--bs', '160px');
+    brett.style.setProperty('--n', '2');
+    [2, 3].forEach(function (wert, i) {
+      var cell = document.createElement('div');
+      cell.className = 'cell k op-mal' + (i === 0 ? ' bt bl bb' : ' bt br bb');
+      cell.style.minHeight = '68px';
+      if (i === 0) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.appendChild(textSpan('×', 'op-sym'));
+        chip.appendChild(document.createTextNode('6'));
+        cell.appendChild(chip);
+      }
+      cell.appendChild(document.createTextNode(wert));
+      brett.appendChild(cell);
+    });
+    host.appendChild(brett);
+    buildBeispielStreifen(host, { op: '×', ziel: 6 }, [2, 3], 'kaefig');
+  }
+  function buildMiniMauerBeispiel(host) {
+    buildBeispielStreifen(host, { op: 'mul' }, [2, 3, 6], 'mauer');
+  }
+  function openHelp() {
+    if (!cur) return;
+    $('hilfe-regel').textContent = REGELTEXT[cur.modus];
+    var host = $('hilfe-beispiel');
+    host.innerHTML = '';
+    if (cur.modus === 'kaefige') buildMiniKaefigBeispiel(host); else buildMiniMauerBeispiel(host);
+    $('hilfe').classList.add('on');
+  }
+  function closeHelp() { $('hilfe').classList.remove('on'); }
+
+  // ===== Mitmach-Tutorial =====
+  // Wortlaut und Reihenfolge exakt nach Spec "Knobelwerkstatt UI-Design".
+  // Interaktive Schritte sind eindeutig loesbar: tests/unit/knobel-tutorial.test.js
+  // beweist das mit dem bestehenden zaehlenden Loeser (solveCages/solvePyramid).
+  var TUTORIAL = {
+    kaefige: [
+      { typ: 'zeile', text: 'In jeder Zeile steht 1, 2 und 3 genau einmal. Genauso in jeder Spalte.' },
+      { typ: 'kaefig-statisch', text: 'Ein Käfig hat einen farbigen Rand. Das Zeichen sagt, wie gerechnet wird.' },
+      { typ: 'kaefig-interaktiv', text: 'Welche zwei Zahlen ergeben malgenommen 6?', op: '×', ziel: 6, bereich: [1, 2, 3] },
+      { typ: 'streifen-statisch', text: 'Bei − und ÷ steht die größere Zahl vorne.', op: '−', ziel: 2, glieder: [3, 1] },
+      { typ: 'gift', text: 'Ein Käfig mit = verrät dir die Zahl. Jetzt löst du den Rest ganz allein!' }
+    ],
+    mauer: [
+      { typ: 'mauer-interaktiv', text: 'Jeder Stein ist das Ergebnis der beiden Steine direkt darunter. Rechne aus: 2 mal 3.', op: 'mul', bekannt: [2, 3, null], index: 2, bereich: [4, 5, 6, 7] },
+      { typ: 'mauer-interaktiv', text: 'Fehlt ein unterer Stein, findest du ihn genauso. 3 mal welche Zahl ergibt 12?', op: 'mul', bekannt: [3, null, 12], index: 1, bereich: [2, 3, 4, 5] }
+    ]
+  };
+  var tut = null;
+
+  function startTutorial(modus, erzwungen) {
+    tut = { modus: modus, index: 0, erzwungen: !!erzwungen };
+    renderTutorialSchritt();
+    $('tutorial').classList.add('on');
+  }
+  function endTutorial() {
+    $('tutorial').classList.remove('on');
+    var weiter = tut && !tut.erzwungen ? tut.pendingStart : null;
+    if (tut) { UI.tutorialGesehen[tut.modus] = true; saveUI(); }
+    tut = null;
+    if (weiter) startNew(weiter.modus, weiter.stufe);
+  }
+  function renderTutorialSchritt() {
+    var liste = TUTORIAL[tut.modus], schritt = liste[tut.index];
+    $('tut-text').textContent = schritt.text;
+    var host = $('tut-beispiel');
+    host.innerHTML = '';
+    var weiterBtn = $('tut-weiter');
+    weiterBtn.hidden = true;
+    if (schritt.typ === 'zeile') { buildTutorialZeile(host); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'kaefig-statisch') { buildMiniKaefigBeispiel(host); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'streifen-statisch') { buildBeispielStreifen(host, { op: schritt.op, ziel: schritt.ziel }, schritt.glieder, 'kaefig'); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'kaefig-interaktiv') buildTutorialKaefigInteraktiv(host, schritt);
+    else if (schritt.typ === 'mauer-interaktiv') buildTutorialMauerInteraktiv(host, schritt);
+    else if (schritt.typ === 'gift') { buildMiniKaefigGift(host); weiterBtn.hidden = false; }
+  }
+  function tutorialWeiter() {
+    var liste = TUTORIAL[tut.modus];
+    if (tut.index + 1 < liste.length) { tut.index++; renderTutorialSchritt(); }
+    else endTutorial();
+  }
+  function buildTutorialZeile(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    brett.style.aspectRatio = '1';
+    brett.style.setProperty('--bs', '180px');
+    brett.style.setProperty('--n', '3');
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell k op-eins';
+      if (r === 1) { cell.classList.add('zeile-glueht'); cell.appendChild(document.createTextNode(c + 1)); }
+      brett.appendChild(cell);
+    }
+    host.appendChild(brett);
+  }
+  function buildMiniKaefigGift(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = '1fr';
+    brett.style.aspectRatio = '1.4 / 1';
+    brett.style.setProperty('--bs', '120px');
+    brett.style.setProperty('--n', '1');
+    var cell = document.createElement('div');
+    cell.className = 'cell k op-eins bt bl br bb';
+    cell.style.minHeight = '68px';
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.appendChild(textSpan('=', 'op-sym'));
+    chip.appendChild(document.createTextNode('3'));
+    cell.appendChild(chip);
+    cell.appendChild(document.createTextNode('3'));
+    brett.appendChild(cell);
+    host.appendChild(brett);
+  }
+  function entferneText(el) {
+    Array.from(el.childNodes).forEach(function (n) { if (n.nodeType === 3) el.removeChild(n); });
+  }
+  function buildTutorialKaefigInteraktiv(host, schritt) {
+    var werte = [null, null], sel = 0;
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    brett.style.aspectRatio = '2 / 1';
+    brett.style.setProperty('--bs', '160px');
+    brett.style.setProperty('--n', '2');
+    var zellen = [];
+    for (var i = 0; i < 2; i++) {
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cell k op-mal' + (i === 0 ? ' bt bl bb' : ' bt br bb');
+      cell.style.minHeight = '68px';
+      if (i === 0) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.appendChild(textSpan('×', 'op-sym'));
+        chip.appendChild(document.createTextNode(String(schritt.ziel)));
+        cell.appendChild(chip);
+      }
+      cell.onclick = (function (idx) { return function () { sel = idx; zeichnen(); }; })(i);
+      brett.appendChild(cell);
+      zellen.push(cell);
+    }
+    host.appendChild(brett);
+    var streifenHost = document.createElement('div');
+    host.appendChild(streifenHost);
+    var pad = document.createElement('div');
+    pad.className = 'mini-pad';
+    schritt.bereich.forEach(function (ziffer) {
+      var bt = document.createElement('button');
+      bt.type = 'button';
+      bt.textContent = ziffer;
+      bt.onclick = function () {
+        werte[sel] = ziffer;
+        if (sel < werte.length - 1) sel++;
+        zeichnen();
+        pruefen();
+      };
+      pad.appendChild(bt);
+    });
+    host.appendChild(pad);
+    function zeichnen() {
+      zellen.forEach(function (c, i) {
+        entferneText(c);
+        if (werte[i] !== null) c.appendChild(document.createTextNode(werte[i]));
+        c.classList.toggle('sel', i === sel);
+      });
+      streifenHost.innerHTML = '';
+      buildBeispielStreifen(streifenHost, { op: schritt.op, ziel: schritt.ziel }, werte, 'kaefig');
+    }
+    function pruefen() {
+      if (werte[0] === null || werte[1] === null) return;
+      if (L.cageOk({ op: schritt.op, ziel: schritt.ziel }, werte)) { $('tut-weiter').hidden = false; }
+      else setTimeout(function () { werte[0] = null; werte[1] = null; sel = 0; zeichnen(); }, 500);
+    }
+    zeichnen();
+  }
+  function buildTutorialMauerInteraktiv(host, schritt) {
+    var werte = schritt.bekannt.slice();
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:10px;';
+    wrap.style.setProperty('--sh', '56px');
+    var top = document.createElement('button');
+    top.type = 'button';
+    top.className = 'stone' + (schritt.index === 2 ? '' : ' fest') + (schritt.op === 'mul' ? ' op-mal' : ' op-plus');
+    top.style.cssText = 'width:72px;position:relative;';
+    var kreis = document.createElement('span');
+    kreis.className = 'stone-op';
+    kreis.setAttribute('aria-hidden', 'true');
+    kreis.textContent = schritt.op === 'mul' ? '×' : '+';
+    top.appendChild(kreis);
+    var unten = document.createElement('div');
+    unten.style.cssText = 'display:flex;gap:16px;';
+    var sA = document.createElement('button'); sA.type = 'button'; sA.className = 'stone' + (schritt.index === 0 ? '' : ' fest'); sA.style.width = '72px';
+    var sB = document.createElement('button'); sB.type = 'button'; sB.className = 'stone' + (schritt.index === 1 ? '' : ' fest'); sB.style.width = '72px';
+    unten.appendChild(sA); unten.appendChild(sB);
+    wrap.appendChild(top); wrap.appendChild(unten);
+    host.appendChild(wrap);
+    var streifenHost = document.createElement('div');
+    host.appendChild(streifenHost);
+    var pad = document.createElement('div');
+    pad.className = 'mini-pad';
+    schritt.bereich.forEach(function (ziffer) {
+      var bt = document.createElement('button');
+      bt.type = 'button';
+      bt.textContent = ziffer;
+      bt.onclick = function () { werte[schritt.index] = ziffer; zeichnen(); pruefen(); };
+      pad.appendChild(bt);
+    });
+    host.appendChild(pad);
+    function zeichnen() {
+      [[top, 2], [sA, 0], [sB, 1]].forEach(function (paar) {
+        entferneText(paar[0]);
+        if (werte[paar[1]] !== null) paar[0].appendChild(document.createTextNode(werte[paar[1]]));
+        paar[0].classList.toggle('sel', paar[1] === schritt.index);
+      });
+      streifenHost.innerHTML = '';
+      buildBeispielStreifen(streifenHost, { op: schritt.op }, werte, 'mauer');
+    }
+    function pruefen() {
+      var erwartet = schritt.op === 'mul' ? werte[0] * werte[1] : werte[0] + werte[1];
+      var richtig = schritt.index === 2 ? werte[2] === erwartet
+        : (schritt.op === 'mul' ? werte[schritt.index === 0 ? 1 : 0] * werte[schritt.index] === werte[2]
+          : werte[schritt.index === 0 ? 1 : 0] + werte[schritt.index] === werte[2]);
+      if (richtig) { $('tut-weiter').hidden = false; }
+      else setTimeout(function () { werte[schritt.index] = schritt.bekannt[schritt.index]; zeichnen(); }, 500);
+    }
+    zeichnen();
   }
 
   // ===== Eingabe =====
@@ -959,8 +1259,16 @@ h1 { margin: 0; font-size: 26px; }
     if (t.classList.contains('lvl')) { gewaehlt[t.dataset.modus] = +t.dataset.stufe; renderMenu(); }
     else if (t.classList.contains('key')) pressKey(t.dataset.k === 'del' ? 'del' : +t.dataset.k);
   });
-  $('start-mauer').onclick = function () { startNew('mauer', gewaehlt.mauer); };
-  $('start-kaefige').onclick = function () { startNew('kaefige', gewaehlt.kaefige); };
+  function tutorialOderStart(modus, stufe) {
+    if (!UI.tutorialGesehen[modus]) {
+      startTutorial(modus, false);
+      tut.pendingStart = { modus: modus, stufe: stufe };
+    } else {
+      startNew(modus, stufe);
+    }
+  }
+  $('start-mauer').onclick = function () { tutorialOderStart('mauer', gewaehlt.mauer); };
+  $('start-kaefige').onclick = function () { tutorialOderStart('kaefige', gewaehlt.kaefige); };
   $('resume').onclick = resume;
   $('daily').onclick = function () {
     var datum = heute();
@@ -987,6 +1295,11 @@ h1 { margin: 0; font-size: 26px; }
     startGame(m, stufe, newSeed());
   };
   $('s-menu').onclick = function () { $('solved').classList.remove('on'); show('menu'); };
+  $('hilfe-knopf').onclick = openHelp;
+  $('hilfe-schliessen').onclick = closeHelp;
+  $('hilfe-tutorial').onclick = function () { closeHelp(); startTutorial(cur.modus, true); };
+  $('tut-weiter').onclick = tutorialWeiter;
+  $('tut-ueberspringen').onclick = endTutorial;
 
   document.addEventListener('keydown', function (ev) {
     if (!cur || !$('game').classList.contains('on')) return;
@@ -999,6 +1312,7 @@ h1 { margin: 0; font-size: 26px; }
       pressKey(d);
     } else if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); pressKey('del'); }
     else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') { ev.preventDefault(); $('t-notes').click(); }
+    else if (ev.key === '?') { ev.preventDefault(); openHelp(); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSel(-1, 0); }
     else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSel(1, 0); }
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSel(0, -1); }

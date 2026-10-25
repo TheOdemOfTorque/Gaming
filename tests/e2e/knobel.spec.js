@@ -29,6 +29,9 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('h1')).toHaveText('Knobelwerkstatt');
     await expect(page.locator('#xpinfo')).toContainText('600');
     await page.locator('#start-mauer').click();
+    // Erster Start dieses Modus: Mitmach-Tutorial geht dem Raetsel voraus.
+    await expect(page.locator('#tutorial')).toBeVisible();
+    await page.locator('#tut-ueberspringen').click();
     await expect(page.locator('#board.mauer')).toBeVisible();
     expect(await page.locator('#board .stone').count()).toBeGreaterThan(5);
     await expect(page.locator('#pad .key')).toHaveCount(11);
@@ -226,6 +229,89 @@ test.describe('Knobelwerkstatt', () => {
         });
       }
     }
+  });
+
+  test.describe('Regelkarte ("?") und Mitmach-Tutorial (Akzeptanzkriterium 1)', () => {
+    test('"?"-Knopf oeffnet die Regelkarte mit Mini-Beispiel und Tutorial-Knopf', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=1&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      await page.locator('#hilfe-knopf').click();
+      await expect(page.locator('#hilfe')).toBeVisible();
+      await expect(page.locator('#hilfe-beispiel .chip')).toBeVisible();
+      await expect(page.locator('#hilfe-beispiel .streifen')).toBeVisible();
+      await page.locator('#hilfe-schliessen').click();
+      await expect(page.locator('#hilfe')).toBeHidden();
+    });
+
+    test('"?"-Taste oeffnet die Regelkarte ebenso (defaultPrevented)', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=1&seed=1');
+      await expect(page.locator('#board.mauer .stone').first()).toBeVisible();
+      await page.keyboard.press('?');
+      await expect(page.locator('#hilfe')).toBeVisible();
+    });
+
+    test('Erster Start der Rechenkaefige zeigt das Tutorial mit allen 5 Schritten im Spec-Wortlaut', async ({ page }) => {
+      await page.goto('/knobel/index.html');
+      await page.locator('#start-kaefige').click();
+      await expect(page.locator('#tutorial')).toBeVisible();
+      await expect(page.locator('#tut-text')).toHaveText('In jeder Zeile steht 1, 2 und 3 genau einmal. Genauso in jeder Spalte.');
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tut-text')).toHaveText('Ein Käfig hat einen farbigen Rand. Das Zeichen sagt, wie gerechnet wird.');
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tut-text')).toHaveText('Welche zwei Zahlen ergeben malgenommen 6?');
+      // interaktiv: "Weiter" ist erst nach der richtigen Eingabe sichtbar
+      await expect(page.locator('#tut-weiter')).toBeHidden();
+      await page.locator('#tut-beispiel .mini-brett .cell').first().click();
+      await page.locator('#tut-beispiel .mini-pad button', { hasText: '2' }).click();
+      await page.locator('#tut-beispiel .mini-pad button', { hasText: '3' }).click();
+      await expect(page.locator('#tut-weiter')).toBeVisible();
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tut-text')).toHaveText('Bei − und ÷ steht die größere Zahl vorne.');
+      await expect(page.locator('#tut-beispiel .gl')).toContainText('3');
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tut-text')).toContainText('Ein Käfig mit = verrät dir die Zahl.');
+      await page.locator('#tut-weiter').click();
+      // Nach dem letzten Schritt startet automatisch das echte Mini-Raetsel.
+      await expect(page.locator('#tutorial')).toBeHidden();
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      const gesehen = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_knobel_ui')));
+      expect(gesehen.tutorialGesehen.kaefige).toBe(true);
+    });
+
+    test('Zweiter Start der Rechenkaefige zeigt das Tutorial nicht mehr', async ({ page }) => {
+      await page.goto('/knobel/index.html');
+      await page.evaluate(() => localStorage.setItem('henry_knobel_ui', JSON.stringify({ dubletteWarnung: true, tutorialGesehen: { mauer: false, kaefige: true } })));
+      await page.reload();
+      await page.locator('#start-kaefige').click();
+      await expect(page.locator('#tutorial')).toBeHidden();
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+    });
+
+    test('Ueberspringen beendet das Tutorial sofort und merkt es sich', async ({ page }) => {
+      await page.goto('/knobel/index.html');
+      await page.locator('#start-mauer').click();
+      await expect(page.locator('#tutorial')).toBeVisible();
+      await page.locator('#tut-ueberspringen').click();
+      await expect(page.locator('#tutorial')).toBeHidden();
+      await expect(page.locator('#board.mauer .stone').first()).toBeVisible();
+      const gesehen = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_knobel_ui')));
+      expect(gesehen.tutorialGesehen.mauer).toBe(true);
+    });
+
+    test('Mauer-Tutorial: beide Schritte sind interaktiv und eindeutig loesbar', async ({ page }) => {
+      await page.goto('/knobel/index.html');
+      await page.locator('#start-mauer').click();
+      await expect(page.locator('#tut-text')).toContainText('Rechne aus: 2 mal 3.');
+      await expect(page.locator('#tut-weiter')).toBeHidden();
+      await page.locator('#tut-beispiel .mini-pad button', { hasText: '6' }).click();
+      await expect(page.locator('#tut-weiter')).toBeVisible();
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tut-text')).toContainText('3 mal welche Zahl ergibt 12?');
+      await page.locator('#tut-beispiel .mini-pad button', { hasText: '4' }).click();
+      await expect(page.locator('#tut-weiter')).toBeVisible();
+      await page.locator('#tut-weiter').click();
+      await expect(page.locator('#tutorial')).toBeHidden();
+    });
   });
 
   test.describe('Rechenstreifen', () => {
