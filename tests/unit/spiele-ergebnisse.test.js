@@ -1,4 +1,4 @@
-const { applyKnobelResult, applyJnrResult, migrateState } = require('../../1x1-trainer/logic.js');
+const { applyKnobelResult, applyJnrResult, applyJnrTutorial, migrateState } = require('../../1x1-trainer/logic.js');
 const { computeKnobelXP } = require('../../knobel/knobel-logic.js');
 const { mergeResult, xpFor } = require('../../jumpnrun/core/rewards.js');
 
@@ -122,5 +122,48 @@ describe('applyJnrResult', () => {
     const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
     expect(Number.isFinite(next.xp)).toBe(true);
     expect(next.xp).toBe(50);
+  });
+});
+
+describe('applyJnrTutorial (Nachricht jnr:tutorial, Vertrag jumpnrun/core/host.js)', () => {
+  test('merkt sich, dass das Lumo-Tutorial gesehen wurde, und lässt den Rest von jnr stehen', () => {
+    const state = stateWithKnobelJnr({ xp: 12 });
+    state.jnr.levels['1-1'] = { medals: 2, bestTimeMs: 1, bestFunken: 3 };
+    const next = applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: true });
+    expect(next.jnr.tutorialGesehen).toBe(true);
+    expect(next.jnr.levels['1-1'].medals).toBe(2);
+    expect(next.xp).toBe(12); // das Tutorial bringt keine XP
+  });
+  test('verändert den Eingabe-State nicht', () => {
+    const state = stateWithKnobelJnr({});
+    applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: true });
+    expect(state.jnr.tutorialGesehen).toBe(false);
+  });
+  test('ohne gesehen: true bleibt alles, wie es ist', () => {
+    const state = stateWithKnobelJnr({});
+    expect(applyJnrTutorial(state, { type: 'jnr:tutorial' })).toBe(state);
+    expect(applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: 'ja' })).toBe(state);
+  });
+  test('das Flag übersteht ein späteres jnr:result', () => {
+    let state = applyJnrTutorial(stateWithKnobelJnr({}), { type: 'jnr:tutorial', gesehen: true });
+    state = applyJnrResult(state, { type: 'jnr:result', level: '1-1', medaillen: 1, funken: 1, xp: 30 }, mergeResult, xpFor).state;
+    expect(state.jnr.tutorialGesehen).toBe(true);
+  });
+});
+
+describe('Lumo-Tutorial über die ganze Kette (Trainer-State -> jnr:init -> Lumo)', () => {
+  const H = require('../../jumpnrun/core/host.js');
+  const TU = require('../../jumpnrun/core/tutorial.js');
+  test('v13-Spielstand ohne tutorialGesehen: Tutorial kommt; nach jnr:tutorial nicht mehr', () => {
+    const alt = migrateState({ _version: 13, jnr: { v: 1, levels: { '1-1': { medals: 1, bestTimeMs: 9, bestFunken: 2 } }, lastLevel: '1-1', funkenTotal: 2, xpAwarded: { '1-1': true },
+      options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } } });
+    expect(alt.jnr.tutorialGesehen).toBeUndefined(); // Migration fasst bestehende jnr nicht an
+    const init1 = H.parseHostMessage({ type: 'jnr:init', jnr: alt.jnr });
+    expect(init1.jnr.tutorialGesehen).toBe(false); // Default aus sanitizeJnr
+    expect(TU.sollAutomatischStarten(init1.jnr, false)).toBe(true);
+    const neu = applyJnrTutorial(alt, H.buildTutorialMessage());
+    const init2 = H.parseHostMessage({ type: 'jnr:init', jnr: neu.jnr });
+    expect(TU.sollAutomatischStarten(init2.jnr, false)).toBe(false);
+    expect(init2.jnr.levels['1-1'].medals).toBe(1);
   });
 });

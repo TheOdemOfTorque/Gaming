@@ -48,6 +48,7 @@ describe('defaultState', () => {
     expect(s.jnr).toEqual({
       v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
       options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+      tutorialGesehen: false,
     });
   });
 });

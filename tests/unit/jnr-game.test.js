@@ -268,3 +268,44 @@ describe('cloneGame', () => {
     expect(c.level).toBe(g.level); // Level ist unveränderlich und wird geteilt
   });
 });
+
+describe('Übungsmodus (uebung: true, für das Tutorial)', () => {
+  const PIT = parseLevel(['..........', '.S.......G', '###...####']);
+  const FLAT = parseLevel(['..........', '.S.......G', '##########']);
+
+  test('Sturz in die Schlucht kostet kein Leben: zurück zum Startpunkt, Ereignis zurueck', () => {
+    const g = G.createGame(PIT, { mode: 'aus', uebung: true });
+    const ev = play(g, RIGHT, gm => gm.events.some(e => e.type === 'zurueck'), 400);
+    expect(ev.find(e => e.type === 'zurueck')).toMatchObject({ grund: 'abgrund' });
+    expect(ev.some(e => e.type === 'leben')).toBe(false);
+    expect(g.leben).toBe(G.LEBEN);
+    expect(g.player.x).toBe(PIT.start.x);
+    expect(g.status).toBe('play');
+  });
+
+  test('Energie 0 kostet kein Leben: Energie wieder voll, Rückstoß wie sonst, kein Respawn', () => {
+    const g = G.createGame(FLAT, { mode: 'aus', uebung: true });
+    play(g, RIGHT, gm => gm.player.x > FLAT.start.x + 30, 200);
+    const x = g.player.x;
+    for (let i = 0; i < 3; i++) { g.unverwundbar = 0; G.damage(g, 'gegner', -1); }
+    expect(g.leben).toBe(G.LEBEN);
+    expect(g.energie).toBe(G.ENERGIE);
+    expect(g.player.x).toBe(x);
+    expect(g.player.vx).toBeLessThan(0);
+    expect(g.events.some(e => e.type === 'zurueck' && e.grund === 'energie')).toBe(true);
+    expect(g.status).toBe('play');
+  });
+
+  test('ein Treffer zeigt den normalen Energieverlust (Schaden-Ereignis, 1 Lichtpunkt weniger)', () => {
+    const g = G.createGame(FLAT, { mode: 'aus', uebung: true });
+    G.damage(g, 'kristall', -1);
+    expect(g.energie).toBe(G.ENERGIE - 1);
+    expect(g.events.find(e => e.type === 'schaden')).toMatchObject({ quelle: 'kristall' });
+  });
+
+  test('ohne uebung bleibt alles wie bisher (Leben weg)', () => {
+    const g = G.createGame(PIT, { mode: 'aus' });
+    play(g, RIGHT, gm => gm.leben === 2, 400);
+    expect(g.leben).toBe(2);
+  });
+});

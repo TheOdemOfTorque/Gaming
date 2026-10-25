@@ -89,3 +89,17 @@ describe('isEmbedded', () => {
     expect(H.isEmbedded({ parent: {} })).toBe(true);
   });
 });
+
+describe('Tutorial-Vertrag', () => {
+  test('buildTutorialMessage hat genau die Vertragsfelder', () => {
+    expect(H.buildTutorialMessage()).toEqual({ type: 'jnr:tutorial', gesehen: true });
+  });
+  test('jnr:init reicht tutorialGesehen aus dem Fortschritt durch', () => {
+    expect(H.parseHostMessage({ type: 'jnr:init', jnr: { tutorialGesehen: true } }).jnr.tutorialGesehen).toBe(true);
+    expect(H.parseHostMessage({ type: 'jnr:init', jnr: {} }).jnr.tutorialGesehen).toBe(false);
+    expect(H.parseHostMessage({ type: 'jnr:init' }).jnr.tutorialGesehen).toBe(false);
+  });
+  test('das Spiel versteht jnr:tutorial nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
+    expect(H.parseHostMessage({ type: 'jnr:tutorial', gesehen: true })).toBeNull();
+  });
+});

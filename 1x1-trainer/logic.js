@@ -79,7 +79,8 @@ function defaultState() {
            // für einen Neuinstall also nie laufen lassen.
            knobel: { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } },
            jnr: { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
-                  options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } } };
+                  options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+                  tutorialGesehen: false } };
 }
 
 var STATE_MIGRATIONS = [
@@ -198,8 +199,12 @@ var STATE_MIGRATIONS = [
   (s) => {
     if (!s.knobel) s.knobel = { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } };
     if (!s.jnr) {
+      // tutorialGesehen: Lumos Mitmach-Tutorial (jnr:tutorial). Nur fuer neu angelegte jnr; ein bestehendes
+      // jnr ohne das Feld (v12/v13-Staende) bleibt unangetastet. Den Default false liefert dann
+      // JNR.rewards.sanitizeJnr beim Lesen von jnr:init im Spiel.
       s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
-                options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } };
+                options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+                tutorialGesehen: false };
     }
     return s;
   },
@@ -503,6 +508,14 @@ function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
   };
 }
 
+// msg: { type:'jnr:tutorial', gesehen:true } (Vertrag jumpnrun/core/host.js): Lumos Mitmach-Tutorial
+// ist durch oder uebersprungen. Setzt state.jnr.tutorialGesehen, keine XP. Gibt ohne gesehen:true
+// denselben State zurueck, mutiert nichts.
+function applyJnrTutorial(state, msg) {
+  if (!msg || msg.gesehen !== true) return state;
+  return Object.assign({}, state, { jnr: Object.assign({}, state.jnr, { tutorialGesehen: true }) });
+}
+
 // Lernstand je Reihe fuer Lumo (Feld `lernstand` in jnr:init, Vertrag jumpnrun/core/host.js).
 // Wert je Reihe 2..10 = Mittel ueber die Faktoren 1..10 von min(consecutiveCorrect, 6) / 6,
 // also derselbe Leitner-Massstab wie im Statistik-Screen (6 richtige in Folge = gemeistert).
@@ -683,7 +696,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime,
-                     applyKnobelResult, applyJnrResult, computeLernstand,
+                     applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

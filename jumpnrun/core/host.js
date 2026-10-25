@@ -10,11 +10,21 @@
 //       funken     >= 0   Funkenstand am Levelende (Spielwährung, nur Kosmetik)
 //       xp         >= 0   XP-Vorschlag: nur beim ersten Abschluss des Levels > 0 (Trainer rechnet gut)
 //
+//   Spiel -> Trainer, sobald das Mitmach-Tutorial (core/tutorial.js) zu Ende gespielt ODER uebersprungen ist:
+//     parent.postMessage({ type: 'jnr:tutorial', gesehen: true }, location.origin)
+//       Der Trainer setzt daraufhin state.jnr.tutorialGesehen = true (applyJnrTutorial in 1x1-trainer/logic.js)
+//       und schickt es beim naechsten jnr:init im Feld jnr wieder mit. Das Tutorial selbst meldet nie
+//       jnr:result, gibt keine XP und kostet keine Leben. Fallback fuer einen Trainer, der die Nachricht
+//       (noch) nicht kennt: Lumo merkt sich das Flag zusaetzlich in sessionStorage (`henry_jnr_tutorial`),
+//       damit es in derselben Browser-Sitzung nicht bei jedem Oeffnen wieder startet.
+//
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
 //     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
 //        jnr     optional: Fortschritt { levels: { "1-1": { medals, bestTimeMs, bestFunken } },
-//                xpAwarded: { "1-1": true }, funkenTotal, lastLevel }
+//                xpAwarded: { "1-1": true }, funkenTotal, lastLevel, tutorialGesehen }
+//                tutorialGesehen fehlt oder ist nicht true: Lumo startet vor dem ersten Level, das das Kind
+//                im Menue waehlt, das Tutorial (ein Direktstart ueber `level` laesst es aus)
 //        options optional: { steuerung: 'standard'|'einfach', mathe: 'ziel'|'aus', farbhilfe, musik }
 //        lernstand optional: { "2": 0.9, "7": 0.3, ... } Lernstand je Reihe (Schluessel "2".."10",
 //                Werte 0..1, nur bereits geuebte Reihen; der Trainer rechnet ihn mit computeLernstand
@@ -39,6 +49,8 @@
   function buildResultMessage(r) {
     return { type: 'jnr:result', level: r.level, medaillen: r.medaillen, funken: r.funken, xp: r.xp };
   }
+
+  function buildTutorialMessage() { return { type: 'jnr:tutorial', gesehen: true }; }
 
   function sanitizeLernstand(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -75,5 +87,5 @@
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

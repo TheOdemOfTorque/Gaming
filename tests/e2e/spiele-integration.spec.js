@@ -154,7 +154,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   });
 
   test('Querformat: Schließen-Button des Hosts überlappt Lumos eigenes HUD nicht', async ({ page }) => {
-    await seedState(page, { gameSecondsLeft: 600 });
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
     await page.setViewportSize({ width: 844, height: 390 }); // iPhone 13 Querformat
     await page.locator('.game-card[data-game="jnr"] button').click();
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
@@ -180,7 +181,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     const questionStats = { 3: {}, 8: { 1: qs(1, 1, 2), 2: qs(0, 0, 1), 3: qs(0, 1, 1) } };
     for (let f = 1; f <= 10; f++) questionStats[3][f] = qs(5, 5, 0);
     const base = migrateState(defaultState());
-    const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } } });
+    const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } }, tutorialGesehen: true });
     await seedState(page, { gameSecondsLeft: 600, questionStats, jnr });
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('.game-card[data-game="jnr"] button').click();
@@ -192,6 +193,28 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '8');
     await frame.locator('#rw-los').click();
     await expect(frame.locator('#ziel .z-reihe')).toHaveText('8er-Reihe');
+  });
+
+  test('Lumo-Tutorial: erster Start zeigt es, Überspringen merkt sich der Trainer, beim nächsten Öffnen kommt es nicht mehr', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600 });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    let frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-1"]').click();
+    await expect(frame.locator('#tut-box')).toBeVisible();
+    await frame.locator('#tut-skip').click();
+    await expect(frame.locator('#tut-box')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => state.jnr.tutorialGesehen)).toBe(true);
+    const gespeichert = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_einmaleins')).jnr.tutorialGesehen);
+    expect(gespeichert).toBe(true);
+    expect(await page.evaluate(() => state.xp)).toBe(0); // das Tutorial bringt keine XP
+
+    await page.locator('#game-overlay-close').click();
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-1"]').click();
+    await expect(frame.getByText('Sammle alle Funken')).toBeVisible();
+    await expect(frame.locator('#tut-box')).toBeHidden();
   });
 
   test('Space Invader bleibt unverändert spielbar (Regression)', async ({ page }) => {

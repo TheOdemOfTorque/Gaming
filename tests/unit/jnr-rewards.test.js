@@ -117,3 +117,19 @@ describe('verlorener Lauf (alle Leben weg)', () => {
     expect(R.shouldReport({ ...base, reached: true, lost: true })).toBe(false);
   });
 });
+
+describe('Tutorial-Flag (tutorialGesehen)', () => {
+  test('Standard: noch nicht gesehen', () => {
+    expect(R.defaultJnr().tutorialGesehen).toBe(false);
+  });
+  test('sanitizeJnr übernimmt nur ein echtes true', () => {
+    expect(R.sanitizeJnr({ tutorialGesehen: true }).tutorialGesehen).toBe(true);
+    expect(R.sanitizeJnr({ tutorialGesehen: 'ja' }).tutorialGesehen).toBe(false);
+    expect(R.sanitizeJnr({ tutorialGesehen: 1 }).tutorialGesehen).toBe(false);
+    expect(R.sanitizeJnr({}).tutorialGesehen).toBe(false);
+  });
+  test('mergeResult (Trainer bei jnr:result) verliert das Flag nicht', () => {
+    const j = R.mergeResult({ tutorialGesehen: true }, { level: '1-1', medaillen: 1, funken: 2, xp: 30, timeMs: 5 });
+    expect(j.tutorialGesehen).toBe(true);
+  });
+});
