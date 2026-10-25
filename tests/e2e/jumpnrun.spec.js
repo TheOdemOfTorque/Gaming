@@ -436,3 +436,56 @@ test('Spielzeit-Ende während der Reihenwahl blendet die Auswahl aus', async ({ 
   await expect(frame.locator('#reihenwahl')).toBeHidden();
   await expect(frame.locator('#msg')).toContainText('Spielzeit vorbei');
 });
+
+// ---------- Rechenwicht (Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 3 und 5) ----------
+test.describe('Lumo: Rechenwicht', () => {
+  const URLW = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1&jnrReihe=7';
+
+  test('Hilfe erklärt den Rechenwicht (draufspringen, Seite kostet Energie)', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await page.click('#btn-hilfe');
+    await expect(page.locator('#msg-body')).toContainText('Rechenwicht');
+    await expect(page.locator('#msg-body')).toContainText('von oben');
+    await expect(page.locator('#msg-body')).toContainText('von der Seite');
+  });
+
+  test('Stufe 1-2: Wichte tragen eine falsche Rechnung aus der gewählten Reihe', async ({ page }) => {
+    await page.goto(URLW);
+    const list = await page.evaluate(() => window.__jnr.enemies());
+    expect(list.length).toBeGreaterThan(0);
+    list.forEach(e => {
+      expect(e.state).toBe('da');
+      expect(e.falsch).toMatch(/^\d+×7=\d+$/);
+      expect(e.richtig).toMatch(/^\d+×7=\d+$/);
+      expect(e.falsch).not.toBe(e.richtig);
+    });
+    expect((await state(page)).level).toBe('1-2');
+  });
+
+  test('Draufspringen: Tafel deckt auf, Funke, keine Energie verloren', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(URLW);
+    await page.waitForTimeout(200);
+    const i = await page.evaluate(() => { const i = 0; window.__jnr.debugFreiUmWicht(i, 4); window.__jnr.debugAmWicht(i, 1, -16); return i; });
+    await expect.poll(() => page.evaluate(k => window.__jnr.enemies()[k].state, i)).toBe('aufgedeckt');
+    const s = await state(page);
+    expect(s.funken).toBe(1);
+    expect(s.energie).toBe(3);
+    expect(s.fehltreffer).toBe(0);
+    await expect(page.locator('#funken')).toHaveText('✦ 1');
+    await expect.poll(() => page.evaluate(k => window.__jnr.enemies()[k].state, i), { timeout: 4000 }).toBe('weg');
+    expect(errors).toEqual([]);
+  });
+
+  test('Von der Seite: 1 Energie weg, Wicht bleibt', async ({ page }) => {
+    await page.goto(URLW);
+    await page.waitForTimeout(200);
+    const i = await page.evaluate(() => { const i = 0; window.__jnr.debugFreiUmWicht(i, 4); window.__jnr.debugAmWicht(i, -6, 4); return i; });
+    await expect(page.locator('#energie i.leer')).toHaveCount(1);
+    const s = await state(page);
+    expect(s.energie).toBe(2);
+    expect(s.fehltreffer).toBe(1);
+    expect(await page.evaluate(k => window.__jnr.enemies()[k].state, i)).toBe('da');
+  });
+});

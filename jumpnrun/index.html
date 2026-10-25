@@ -362,6 +362,7 @@
     },
     falsch: function () { tone(230, 150, 0.22, 'sine', 0.4); },
     feder: function () { tone(220, 880, 0.2, 'triangle', 0.5); },
+    stampf: function () { tone(180, 520, 0.1, 'square', 0.25); [2, 4].forEach(function (n, i) { tone(PENTA[n], PENTA[n], 0.14, 'sine', 0.45, 0.08 + i * 0.08); }); },
     checkpoint: function () { [0, 2, 4].forEach(function (n, i) { tone(PENTA[n], PENTA[n], 0.14, 'sine', 0.4, i * 0.09); }); },
     ziel: function () { [0, 1, 2, 3, 4, 3, 4].forEach(function (n, i) { tone(PENTA[n] * 1.0, PENTA[n], 0.2, 'triangle', 0.45, i * 0.11); }); },
     pause: function () { tone(520, 520, 0.08, 'sine', 0.3); tone(390, 390, 0.1, 'sine', 0.3, 0.08); },
@@ -658,7 +659,8 @@
     t.classList.add('hidden');
     if (tippFertig) return;
     t.innerHTML = 'Oben links: <b style="color:#fb7185">♥ Leben</b> und <b style="color:#fde68a">● Energie</b>. ' +
-      'Falsche Zahlen und Dornen kosten 1 Energie, die Schlucht ein ganzes Leben.';
+      (game && game.enemies.length ? 'Falsche Zahlen, Dornen und Rechenwichte von der Seite kosten 1 Energie, die Schlucht ein ganzes Leben.'
+        : 'Falsche Zahlen und Dornen kosten 1 Energie, die Schlucht ein ganzes Leben.');
     tippTimer = setTimeout(function () {
       t.classList.remove('hidden', 'aus');
       tippTimer = setTimeout(function () {
@@ -673,7 +675,8 @@
   var HILFE = '<div class="help">' +
     '<p><b>Laufen und Springen:</b> Links/rechts laufen, ▲ oder Leertaste springt. Lange drücken springt höher.</p>' +
     '<p><b>Zahlen sammeln:</b> Vor jeder Zahlen-Stufe wählst du eine Reihe. Sammle nur ihre Ergebnisse, jede richtige Zahl gibt einen Funken ✦. Oben in der Mitte steht, wie viele du schon hast.</p>' +
-    '<p><b>Energie <span style="color:#fde68a">●●●</span>:</b> Lumo hat 3 Lichtpunkte. Eine falsche Zahl oder Dornen kosten einen Lichtpunkt und schubsen Lumo zurück. Danach blinkt Lumo kurz und kann nicht getroffen werden.</p>' +
+    '<p><b>Energie <span style="color:#fde68a">●●●</span>:</b> Lumo hat 3 Lichtpunkte. Eine falsche Zahl, Dornen oder ein Rechenwicht von der Seite kosten einen Lichtpunkt und schubsen Lumo zurück. Danach blinkt Lumo kurz und kann nicht getroffen werden.</p>' +
+    '<p><b>Rechenwicht:</b> Der kleine grüne Wicht trägt eine Tafel mit einer falschen Rechnung. Spring von oben auf ihn: Die Tafel dreht sich um, zeigt die richtige Rechnung und du bekommst einen Funken ✦. Läufst du von der Seite in ihn hinein, kostet das einen Lichtpunkt. Du kannst auch einfach über ihn springen.</p>' +
     '<p><b>Leben <span style="color:#fb7185">♥♥♥</span>:</b> Sind alle Lichtpunkte aus, ist ein Leben weg. Lumo startet dann an der letzten Laterne mit voller Energie. Ein Sturz in die Schlucht kostet sofort ein Leben.</p>' +
     '<p><b>Laternen:</b> Lauf an einer Laterne vorbei, dann leuchtet sie und du startest dort neu.</p>' +
     '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
@@ -835,8 +838,20 @@
     6: ['111', '100', '100', '111', '101', '101', '111'],
     7: ['111', '001', '001', '010', '010', '010', '010'],
     8: ['111', '101', '101', '111', '101', '101', '111'],
-    9: ['111', '101', '101', '111', '001', '001', '111']
+    9: ['111', '101', '101', '111', '001', '001', '111'],
+    // Rechenzeichen fuer die Tafel des Rechenwichts
+    '×': ['000', '000', '101', '010', '101', '000', '000'],
+    '=': ['000', '000', '111', '000', '111', '000', '000']
   };
+  // Tafeltext in der schmalen Schrift, z. B. '8×7=54' (4 px je Zeichen)
+  function tafelBreite(str) { return str.length * 4 - 1; }
+  function drawTafelText(str, x0, y0, col) {
+    ctx.fillStyle = col;
+    for (var i = 0; i < str.length; i++) {
+      var g = FONT_SCHMAL[str[i]];
+      for (var r = 0; r < 7; r++) for (var c = 0; c < 3; c++) if (g[r][c] === '1') ctx.fillRect(x0 + i * 4 + c, y0 + r, 1, 1);
+    }
+  }
   function drawNumber(str, cx, cy, col, outline) {
     var a = J.mathgen.anzeigeSchrift(str), schmal = a.schrift === 'schmal';
     var font = schmal ? FONT_SCHMAL : FONT, gw = schmal ? 3 : 5, step = gw + 1;
@@ -982,6 +997,57 @@
     });
   }
 
+  // Rechenwicht: kleines rundes Wesen (Moosgruen, grosse Augen), das mit beiden Armen eine Tafel
+  // ueber dem Kopf haelt. Trefferbox 12 x 16 (core/gegner.js): Koerper unten, Tafel oben.
+  // Nach dem Stampfen dreht sich die Tafel (schmal werden, umklappen) und zeigt die richtige Rechnung.
+  var WICHT_DREH = 12; // Schritte fuer das Umdrehen der Tafel
+  function drawTafel(cx, top, text, sx, aufgedeckt) {
+    var w = tafelBreite(text) + 4, h = 11, hw = Math.max(1, Math.round(w * sx / 2));
+    var x0 = Math.round(cx) - hw;
+    ctx.fillStyle = '#7c4a1e'; ctx.fillRect(x0 - 1, top - 1, hw * 2 + 2, h + 2);        // Holzrahmen
+    ctx.fillStyle = aufgedeckt ? '#14532d' : '#1f3b33'; ctx.fillRect(x0, top, hw * 2, h); // Schiefer
+    if (sx > 0.95) drawTafelText(text, Math.round(cx) - Math.round(tafelBreite(text) / 2), top + 2, aufgedeckt ? '#86efac' : '#f1f5f9');
+  }
+  // oben: false zeichnet laufende Wichte (unter Lumo), true die aufgedeckten Tafeln (ueber Lumo,
+  // sonst verdeckt der abprallende Lumo genau die richtige Rechnung).
+  function drawWichte(camX, t, oben) {
+    var GE = J.gegner;
+    game.enemies.forEach(function (e, idx) {
+      if (e.state === 'weg' || (e.state === 'aufgedeckt') !== oben) return;
+      var cx = e.x + GE.EW / 2 - camX, bottom = e.y + GE.EH;
+      if (cx < -40 || cx > VW + 40) return;
+      if (e.state === 'aufgedeckt') {
+        var phase = GE.AUFGEDECKT - e.timer;
+        var dreh = Math.min(1, phase / WICHT_DREH);
+        var sx = Math.abs(Math.cos(dreh * Math.PI)); // 1 -> 0 -> 1: Tafel klappt um
+        var zeigtRichtig = dreh >= 0.5;
+        var lift = Math.round(phase * 0.25);
+        if (e.timer < 16) ctx.globalAlpha = e.timer / 16;
+        drawTafel(cx, e.y - 8 - lift, J.mathgen.rechnungText(e.rechnung, zeigtRichtig), sx, zeigtRichtig);
+        ctx.globalAlpha = 1;
+        return;
+      }
+      var step = (Math.floor(t / 6) + idx) & 1;
+      var bx = Math.round(cx), by = bottom;
+      // Fuesse (abwechselnd)
+      ctx.fillStyle = '#134e4a';
+      ctx.fillRect(bx - 4, by - 2 + step, 3, 2 - step); ctx.fillRect(bx + 1, by - 2 + (1 - step), 3, 2 - (1 - step));
+      // Koerper: Tropfenform, oben schmaler
+      ellipse(bx, by - 6, 6, 4, '#0f766e');
+      ellipse(bx, by - 7, 5, 3, '#2dd4bf');
+      ctx.fillStyle = '#99f6e4'; ctx.fillRect(bx - 3, by - 9, 2, 1);
+      // Augen schauen in Laufrichtung
+      var ex = e.dir > 0 ? 1 : 0;
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(bx - 4, by - 8, 3, 3); ctx.fillRect(bx + 1, by - 8, 3, 3);
+      ctx.fillStyle = '#1e1b4b'; ctx.fillRect(bx - 4 + ex + (e.dir > 0 ? 1 : 0), by - 7, 1, 2); ctx.fillRect(bx + 1 + ex + (e.dir > 0 ? 1 : 0), by - 7, 1, 2);
+      // Arme hoch zur Tafel
+      var bob = step;
+      ctx.fillStyle = '#0f766e';
+      ctx.fillRect(bx - 6, by - 12 + bob, 1, 5 - bob); ctx.fillRect(bx + 5, by - 12 + bob, 1, 5 - bob);
+      drawTafel(cx, e.y - 8 + bob, J.mathgen.rechnungText(e.rechnung, false), 1, false);
+    });
+  }
+
   function drawLumo(camX, t) {
     // Unverwundbar: Lumo blinkt (jeder zweite 4er-Takt unsichtbar)
     if (game.unverwundbar > 0 && game.status === 'play' && ((t >> 2) & 1)) return;
@@ -1033,7 +1099,7 @@
     var sx = shake > 0 ? (shake % 2 ? 1 : -1) : 0;
     ctx.save(); ctx.translate(sx, 0);
     var camX = Math.round(cam);
-    drawBackground(camX, t); drawTiles(camX); drawEntities(camX, t); drawLumo(camX, t); drawParticles(camX);
+    drawBackground(camX, t); drawTiles(camX); drawEntities(camX, t); drawWichte(camX, t, false); drawLumo(camX, t); drawWichte(camX, t, true); drawParticles(camX);
     ctx.restore();
   }
   function drawMenuBackdrop(t) { drawBackground(t / 2, t); ctx.fillStyle = '#16a34a'; ctx.fillRect(0, 136, VW, 8); ctx.fillStyle = '#4ade80'; ctx.fillRect(0, 136, VW, 2); }
@@ -1054,6 +1120,12 @@
         cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
       }
       else if (e.type === 'verloren') { lose(); }
+      else if (e.type === 'stampf') {
+        sfx.stampf(); squash = 6;
+        spawn(e.x + J.gegner.EW / 2, e.y + J.gegner.EH - 4, 10, '#2dd4bf', 1.0, 0.4);
+        spawn(e.x + J.gegner.EW / 2, e.y, 6, '#fde68a', 1.1, 0.3);
+        updateHud();
+      }
       else if (e.type === 'feder') { sfx.feder(); spawn(p.x + 5, p.y + 12, 6, '#f472b6', 0.9, 0.2); }
       else if (e.type === 'checkpoint') { sfx.checkpoint(); spawn(level.checkpoints[e.index].tx * T + 8, level.checkpoints[e.index].ty * T + 2, 8, '#F59E0B', 1, 0.3); }
       else if (e.type === 'ziel') { win(); }
@@ -1104,6 +1176,23 @@
     teleport: function (tx, ty) {
       if (!game) return;
       var p = game.player; p.x = tx * T; p.y = ty * T; p.vx = 0; p.vy = 0;
+      cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
+    },
+    // Rechenwichte lesen (Tafeltexte wie gezeichnet) und Lumo relativ zu Wicht i absetzen (Tests, Screenshots)
+    enemies: function () {
+      return game ? game.enemies.map(function (e) {
+        return { x: e.x, y: e.y, state: e.state, falsch: J.mathgen.rechnungText(e.rechnung, false), richtig: J.mathgen.rechnungText(e.rechnung, true) };
+      }) : [];
+    },
+    // Kristalle im Umkreis von r Kacheln um Wicht i entfernen (Tests, Screenshots: kein Zufallstreffer)
+    debugFreiUmWicht: function (i, r) {
+      var e = game && game.enemies[i]; if (!e) return;
+      var tx = Math.floor((e.x + J.gegner.EW / 2) / T);
+      game.crystals = game.crystals.filter(function (c) { return Math.abs(c.tx - tx) > r; });
+    },
+    debugAmWicht: function (i, dx, dy) {
+      var e = game && game.enemies[i]; if (!e) return;
+      var p = game.player; p.x = e.x + dx; p.y = e.y + dy; p.vx = 0; p.vy = 0; p.onGround = false;
       cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
     },
     reihenwahl: function () { return mode === 'reihenwahl' ? { level: rwLevel, sel: rwSel, empfohlen: RW.empfehlungen(lernstand) } : null; }
