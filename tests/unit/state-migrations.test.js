@@ -341,3 +341,16 @@ describe('STATE_MIGRATIONS', () => {
     expect(result.jnr.lastLevel).toBe('1-2');
   });
 });
+
+describe('v12 → v13: lastRoundDate', () => {
+  test('alter State bekommt lastRoundDate = null (gesperrt bis zur naechsten Runde), auch bei gesetztem lastPlayDate', () => {
+    const r = migrateState({ _version: 12, lastPlayDate: new Date().toDateString(), streak: 4 });
+    expect(r.lastRoundDate).toBeNull();
+  });
+  test('vorhandenes lastRoundDate bleibt erhalten', () => {
+    expect(migrateState({ _version: 12, lastRoundDate: 'Sun Oct 25 2026' }).lastRoundDate).toBe('Sun Oct 25 2026');
+  });
+  test('defaultState hat lastRoundDate null', () => {
+    expect(require('../../1x1-trainer/logic.js').defaultState().lastRoundDate).toBeNull();
+  });
+});

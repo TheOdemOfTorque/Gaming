@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 12;
+var STATE_VERSION = 13;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 
@@ -59,7 +59,7 @@ function defaultQS() { return { correct: 0, wrong: 0, consecutiveCorrect: 0 }; }
 
 function defaultState() {
   return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
-           streak: 0, lastPlayDate: null,
+           streak: 0, lastPlayDate: null, lastRoundDate: null,
            highScores: { blitz: 0, turnier: 0, blitzListe: [],
                          blitzDiv: 0, blitzGemischt: 0,
                          turnierDiv: 0, turnierGemischt: 0 },
@@ -201,6 +201,13 @@ var STATE_MIGRATIONS = [
       s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
                 options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } };
     }
+    return s;
+  },
+  // v12 → v13: lastRoundDate (nur endGame() bei gezählter Runde). Fehlt es,
+  // bleibt die Knobelwerkstatt bis zur nächsten Runde gesperrt; lastPlayDate
+  // wird bewusst nicht übernommen (Streak-Schutz setzt es ohne Runde).
+  (s) => {
+    if (s.lastRoundDate === undefined) s.lastRoundDate = null;
     return s;
   },
 ];
@@ -418,12 +425,11 @@ const GAME_RULES = {
 };
 
 // Tests: tests/unit/spiele-zugang.test.js
-// heute: new Date().toDateString() (gleiches Format wie lastPlayDate, das endGame
-// beim Streak setzt). Kalendertag-Vergleich, keine 24-h-Rechnung.
+// heute: new Date().toDateString(); lastRoundDate setzt nur endGame() bei einer Runde. Kalendertag-Vergleich, keine 24-h-Rechnung.
 function getGameAccess(state, gameId, heute) {
   const rule = GAME_RULES[gameId];
   if (!rule) return { spielbar: false, grund: 'unbekannt' };
-  if (rule.nachRundeHeute && state.lastPlayDate !== (heute || new Date().toDateString())) {
+  if (rule.nachRundeHeute && state.lastRoundDate !== (heute || new Date().toDateString())) {
     return { spielbar: false, grund: 'keine_runde' };
   }
   if ((state.streak || 0) < rule.minStreak) return { spielbar: false, grund: 'streak' };

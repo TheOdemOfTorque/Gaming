@@ -11,7 +11,7 @@ async function seedState(page, over) {
   const base = migrateState(defaultState());
   const seeded = Object.assign({}, base, {
     name: 'TestKind', streak: 5, stars: 0, gameSecondsLeft: 3,
-    lastPlayDate: new Date().toDateString(), // Runde heute gespielt -> Knobelwerkstatt frei
+    lastRoundDate: new Date().toDateString(), // Runde heute gespielt -> Knobelwerkstatt frei
     changelogSeenVersion: '2.11',
   }, over);
   await page.evaluate((state) => {
@@ -23,12 +23,32 @@ async function seedState(page, over) {
 
 test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   test('Knobelwerkstatt ist ohne Runde am selben Tag gesperrt, auch per openGame', async ({ page }) => {
-    await seedState(page, { lastPlayDate: 'Sat Oct 24 2026' });
+    await seedState(page, { lastRoundDate: 'Sat Oct 24 2026', lastPlayDate: new Date().toDateString() });
     const card = page.locator('.game-card[data-game="knobel"]');
     await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
     await expect(card.locator('button')).toBeDisabled();
     await page.evaluate(() => openGame('knobel'));
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+  });
+
+  test('Knobelwerkstatt schaltet nach einer echten Runde (endGame) ohne Reload frei', async ({ page }) => {
+    await seedState(page, { lastRoundDate: null, lastPlayDate: null, streak: 0 });
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await expect(card.locator('button')).toBeDisabled();
+    await page.evaluate(() => {
+      game.active = true; game.mode = 'training'; game.correct = 0; game.wrong = 0;
+      endGame('complete');
+      showScreen('home');
+    });
+    await expect(card.locator('.game-card-sub')).toHaveText('heute frei');
+    await expect(card.locator('button')).toBeEnabled();
+    await page.evaluate(() => openGame('knobel'));
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+  });
+
+  test('Streak-Schutz (lastPlayDate heute ohne Runde) schaltet Knobelwerkstatt nicht frei', async ({ page }) => {
+    await seedState(page, { lastRoundDate: null, lastPlayDate: new Date().toDateString() });
+    await expect(page.locator('.game-card[data-game="knobel"] button')).toBeDisabled();
   });
 
   test('Knobelwerkstatt nach Runde heute: Untertitel "heute frei", keine Stern-Zeit', async ({ page }) => {
