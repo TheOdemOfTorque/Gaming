@@ -211,7 +211,7 @@
   <canvas id="c" width="256" height="144" aria-label="Spielfeld"></canvas>
 
   <div id="hud" class="hidden">
-    <div id="vital" aria-live="polite">
+    <div id="vital">
       <div id="leben" aria-label="Leben"></div>
       <div id="energie" aria-label="Energie"></div>
     </div>
@@ -221,6 +221,7 @@
     </div>
     <div id="ziel-intro" class="hidden" aria-hidden="true"></div>
     <div id="ziel-live" class="sr-only" aria-live="polite"></div>
+    <div id="vital-live" class="sr-only" aria-live="polite"></div>
     <div id="tipp" class="hidden"></div>
     <div id="topbtns">
       <button class="iconbtn" id="btn-sound" aria-label="Ton an oder aus">♪</button>
@@ -447,6 +448,14 @@
       else if (RW.tasteZuReihe(e.code)) { rwSelect(RW.tasteZuReihe(e.code), true); e.preventDefault(); }
       return;
     }
+    if (msgOffen() && (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Escape')) {
+      var fokus = document.activeElement;
+      // Enter auf einem fokussierten Dialogknopf: dessen eigener Klick laeuft
+      if (e.code !== 'Escape' && fokus && fokus.tagName === 'BUTTON' && $('msg').contains(fokus)) return;
+      var fn = e.code === 'Escape' ? msgKeys.esc : msgKeys.enter;
+      if (fn) { e.preventDefault(); fn(); }
+      return;
+    }
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (mode === 'play') pause(); else if (mode === 'pause') resume();
       e.preventDefault(); return;
@@ -505,6 +514,7 @@
   bindOpt('opt-farbhilfe', function (v) { jnr.options.farbhilfe = v; });
 
   function showMenu() {
+    stopTipp();
     mode = 'menu'; game = null;
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
     $('menu').classList.remove('hidden');
@@ -638,22 +648,25 @@
   }
   // Kurzer Hinweis beim ersten Levelstart dieser Sitzung (blockiert nicht, verschwindet von selbst).
   // Er kommt erst nach der Zielansage (#ziel-intro, ca. 2 s), weil beide in der Bildmitte stehen.
-  var tippGezeigt = false, tippTimer = null;
+  // Pause, Game Over oder Menue unterbrechen ihn (stopTipp); er gilt erst als gezeigt, wenn er ganz
+  // durchgelaufen ist, und kommt nach "Weiter" bzw. beim naechsten Start wieder.
+  var tippFertig = false, tippTimer = null;
   function showTipp(verzoegerung) {
     var t = $('tipp');
     clearTimeout(tippTimer);
     t.classList.add('hidden');
-    if (tippGezeigt) return;
-    tippGezeigt = true;
+    if (tippFertig) return;
     t.innerHTML = 'Oben links: <b style="color:#fb7185">♥ Leben</b> und <b style="color:#fde68a">● Energie</b>. ' +
       'Falsche Zahlen und Dornen kosten 1 Energie, die Schlucht ein ganzes Leben.';
     tippTimer = setTimeout(function () {
       t.classList.remove('hidden', 'aus');
       tippTimer = setTimeout(function () {
+        tippFertig = true;
         t.classList.add('aus'); tippTimer = setTimeout(function () { t.classList.add('hidden'); }, 700);
       }, 6000);
     }, verzoegerung || 0);
   }
+  function stopTipp() { clearTimeout(tippTimer); $('tipp').classList.add('hidden'); }
 
   // ---------- Hilfe ----------
   var HILFE = '<div class="help">' +
@@ -665,7 +678,7 @@
     '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
     '</div>';
   function showHilfe(back) {
-    showMsg('So spielst du', HILFE, [{ text: 'Verstanden', main: true, fn: back }]);
+    showMsg('So spielst du', HILFE, [{ text: 'Verstanden', main: true, esc: true, fn: back }]);
   }
   $('btn-hilfe').addEventListener('click', function () {
     ensureAudio(); $('btn-hilfe').blur();
@@ -673,24 +686,31 @@
   });
 
   // ---------- Pause / Ende ----------
+  // Tastatur in Dialogen: Enter loest den Hauptknopf aus (er hat den Fokus), Esc den Knopf mit esc: true.
+  var msgKeys = { enter: null, esc: null };
   function showMsg(title, bodyHtml, buttons) {
     $('msg-title').textContent = title; $('msg-body').innerHTML = bodyHtml;
-    var bb = $('msg-buttons'); bb.innerHTML = '';
+    var bb = $('msg-buttons'), mainEl = null; bb.innerHTML = '';
+    msgKeys = { enter: null, esc: null };
     buttons.forEach(function (b) {
       var el = document.createElement('button'); el.className = 'big' + (b.main ? ' main' : ''); el.textContent = b.text;
       el.addEventListener('click', function () { ensureAudio(); el.blur(); b.fn(); });
       bb.appendChild(el);
+      if (b.main) { mainEl = el; msgKeys.enter = b.fn; }
+      if (b.esc) msgKeys.esc = b.fn;
     });
     $('msg').classList.remove('hidden');
+    if (mainEl) { try { mainEl.focus({ preventScroll: true }); } catch (e) { mainEl.focus(); } }
   }
+  function msgOffen() { return !$('msg').classList.contains('hidden'); }
   function pause() {
     if (mode !== 'play') return;
-    mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause();
+    mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); stopTipp();
     showPauseMsg();
   }
   function showPauseMsg() {
     showMsg('Pause', 'Lumo wartet auf dich.', [
-      { text: 'Weiter', main: true, fn: resume },
+      { text: 'Weiter', main: true, esc: true, fn: resume },
       { text: 'Level neu starten', fn: nochmal },
       { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } },
       { text: 'Levelauswahl', fn: showMenu }
@@ -699,6 +719,7 @@
   function resume() {
     if (mode !== 'pause') return;
     $('msg').classList.add('hidden'); mode = 'play'; last = 0; acc = 0;
+    if (!tippFertig) showTipp(0);
   }
   // Nochmal und "Level neu starten" verhalten sich gleich: bei Mathe-Stufen über die Reihenwahl,
   // vorgewählt ist die gerade gespielte Reihe (ein Tipp oder Enter genügt).
@@ -707,15 +728,17 @@
     else startLevel(meta.id);
   }
   function endByTime() {
+    stopTipp();
     mode = 'ended'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
     $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
     showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
   }
 
-  // Alle Leben weg: kein XP, kein jnr:result, kein Fortschritt (rewards.shouldReport).
+  // Alle Leben weg: kein XP, kein jnr:result, kein Fortschritt (vgl. rewards.shouldReport).
   function lose() {
-    mode = 'lost';
+    mode = 'lost'; stopTipp();
+    $('vital-live').textContent = 'Alle Leben verbraucht.';
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
     var st = GM.stats(game);
     sfx.verloren();
@@ -727,7 +750,7 @@
       '<div style="margin-top:6px;font-size:14px;opacity:.8">Mit „Nochmal“ wartet eine neue Landschaft.</div>';
     var btns = [
       { text: 'Nochmal', main: true, fn: nochmal },
-      { text: 'Zum Menü', fn: showMenu }
+      { text: 'Zum Menü', esc: true, fn: showMenu }
     ];
     setTimeout(function () { if (mode === 'lost') { $('hud').classList.add('hidden'); showMsg('Alle Leben verbraucht', body, btns); } }, 900);
   }
@@ -738,7 +761,6 @@
     var res = R.buildResult(meta.id, st, jnr);
     var d = res.details;
     sfx.ziel();
-    if (!R.shouldReport(st)) return;
     jnr = R.mergeResult(jnr, res);
     save();
     if (embedded) {
@@ -756,7 +778,7 @@
     var btns = [];
     if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next); } });
     btns.push({ text: 'Nochmal', main: !next, fn: nochmal });
-    btns.push({ text: 'Levelauswahl', fn: showMenu });
+    btns.push({ text: 'Levelauswahl', esc: true, fn: showMenu });
     setTimeout(function () { if (mode === 'won') showMsg('Geschafft!', rows, btns); }, 900);
   }
 
@@ -1026,6 +1048,7 @@
       else if (e.type === 'falsch') { var w = game.crystals[e.index]; spawn(w.tx * T + 8, w.ty * T + 8, 8, '#7c3aed', 1.2, 0.3); }
       else if (e.type === 'schaden') { sfx.falsch(); spawn(e.x + 5, e.y + 6, 6, '#fde68a', 1.0, 0.3); shake = 6; updateHud(); autsch(); }
       else if (e.type === 'leben') {
+        if (e.leben > 0) $('vital-live').textContent = 'Ein Leben weg. Noch ' + e.leben + ' Leben.';
         sfx.leben(); spawn(e.x + 5, Math.min(e.y + 6, VH - 4), 10, '#fb7185', 1.3, 0.4); shake = 10; updateHud(); autsch();
         cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
       }

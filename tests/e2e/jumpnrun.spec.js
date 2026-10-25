@@ -192,6 +192,45 @@ test.describe('Lumo: Energie und Leben', () => {
     expect((await state(page)).mode).toBe('menu');
   });
 
+  test('Game-Over per Tastatur: Fokus auf „Nochmal“, Esc geht ins Menü, Enter spielt nochmal', async ({ page }) => {
+    await page.goto(URL1);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
+    await expect(page.getByRole('button', { name: 'Nochmal' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menu')).toBeVisible();
+    expect((await state(page)).mode).toBe('menu');
+
+    await page.click('button[data-level="1-1"]');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nochmal' })).toBeFocused();
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#msg')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3 });
+  });
+
+  test('Lebensverlust wird per Live-Region angesagt, die Leben/Energie-Box selbst ist nicht live', async ({ page }) => {
+    await page.goto(URL1);
+    await expect(page.locator('#vital')).not.toHaveAttribute('aria-live', /.*/);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.__jnr.debugFall());
+    await expect(page.locator('#vital-live')).toContainText('Noch 2 Leben');
+    await expect(page.locator('#leben')).toHaveAttribute('aria-label', 'Leben: 2 von 3');
+  });
+
+  test('Hinweis zu Leben/Energie: Pause unterbricht ihn, nach „Weiter“ kommt er wieder', async ({ page }) => {
+    await page.goto(URL1);
+    await expect(page.locator('#tipp')).toBeVisible();
+    await page.click('#btn-pause');
+    await expect(page.locator('#tipp')).toBeHidden();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.locator('#tipp')).toBeVisible();
+  });
+
   test('Hilfe im Menü erklärt Energie und Leben', async ({ page }) => {
     await page.goto('/jumpnrun/index.html');
     await page.click('#btn-hilfe');
