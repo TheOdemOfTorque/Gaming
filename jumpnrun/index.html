@@ -28,12 +28,46 @@
 
   /* HUD */
   #hud { position: absolute; inset: 0; pointer-events: none; }
-  #ziel, #funken {
-    position: absolute; top: calc(8px + var(--sat)); padding: 4px 10px; border-radius: 12px;
-    background: rgba(13, 13, 43, .65); font-weight: 700; font-size: 15px; letter-spacing: .2px;
+  /* Ziel-Chip oben mittig (Reihe + gesammelt/gesamt), Funken klein darunter. Oben links bleibt frei. */
+  #hud-mitte {
+    position: absolute; top: calc(6px + var(--sat)); left: 50%; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    max-width: calc(100% - 2 * (128px + var(--sar))); --chip: clamp(17px, calc(1.1vw + 2.1vh + 3px), 38px);
   }
-  #ziel { left: calc(10px + var(--sal)); color: #fde68a; }
-  #funken { left: 50%; transform: translateX(-50%); color: var(--amber); }
+  /* Schmales Hochformat: unter die Knoepfe oben rechts ruecken, statt sie zu ueberdecken */
+  @media (max-width: 560px) {
+    #hud-mitte { top: calc(62px + var(--sat)); max-width: calc(100% - 20px); --chip: clamp(17px, 5.6vw, 26px); }
+  }
+  #ziel {
+    display: flex; align-items: center; gap: .55em; white-space: nowrap; padding: .22em .75em;
+    border-radius: 999px; border: 2px solid rgba(253, 230, 138, .75); background: rgba(13, 13, 43, .8);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, .35); color: #fde68a; font-weight: 800; font-size: var(--chip); line-height: 1.15;
+  }
+  #ziel.aus { font-size: calc(var(--chip) * .7); border-color: rgba(255, 255, 255, .25); }
+  #ziel .z-zahl { color: #a5f3fc; font-variant-numeric: tabular-nums; }
+  #ziel .z-zahl::before { content: '◆ '; color: #22d3ee; font-size: .8em; }
+  #funken {
+    padding: 2px 10px; border-radius: 12px; background: rgba(13, 13, 43, .65); color: var(--amber);
+    font-weight: 700; font-size: calc(var(--chip) * .6); letter-spacing: .2px;
+  }
+  /* Grosse Zielansage beim Stufenstart (ca. 2 s) */
+  #ziel-intro {
+    position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); pointer-events: none;
+    padding: .35em .8em; border-radius: 26px; background: rgba(13, 13, 43, .82); border: 3px solid #fde68a;
+    color: #fff; font-weight: 900; text-align: center; line-height: 1.1;
+    width: max-content; max-width: calc(100vw - 24px); overflow-wrap: break-word;
+    font-size: clamp(24px, min(calc(2.6vw + 4.2vh), 8.5vw), 84px); text-shadow: 0 3px 0 rgba(0, 0, 0, .4);
+    animation: ziel-intro 2s ease-out both;
+  }
+  #ziel-intro b { color: var(--amber); white-space: nowrap; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  @keyframes ziel-intro {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+    15% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+    25%, 80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) { #ziel-intro { animation: none; } }
   #topbtns { position: absolute; top: calc(6px + var(--sat)); right: calc(8px + var(--sar)); display: flex; gap: 8px; pointer-events: auto; }
   .iconbtn {
     width: 48px; height: 48px; border-radius: 14px; border: 2px solid rgba(255,255,255,.25);
@@ -91,6 +125,46 @@
   #msg-body .got { color: var(--amber); }
   #msg-body .miss { opacity: .5; }
 
+  /* Reihenwahl */
+  #reihenwahl .card { max-width: 620px; }
+  #rw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 10px; }
+  .rw {
+    position: relative; min-height: 72px; border-radius: 16px; border: 3px solid rgba(108, 99, 255, .7);
+    background: rgba(108, 99, 255, .22); color: #fff; font-size: 34px; font-weight: 900; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1; padding: 6px 4px;
+  }
+  .rw small { font-size: 13px; font-weight: 600; opacity: .8; margin-top: 3px; }
+  .rw.sel { background: var(--amber); border-color: #fde68a; color: #1a1030; }
+  .rw.sel small { opacity: 1; }
+  .rw:focus-visible { outline: 4px solid #fff; outline-offset: 2px; }
+  .rw .emp {
+    position: absolute; top: -9px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+    padding: 2px 8px; border-radius: 999px; background: #16a34a; color: #fff; font-size: 12px; font-weight: 800;
+  }
+  #rw-hilfe { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; background: rgba(108, 99, 255, .18); font-size: 14px; line-height: 1.45; }
+  #rw-hilfe p { margin: 0 0 4px; }
+  .rw-buttons { display: flex; gap: 10px; }
+  .rw-buttons .big { margin: 0; }
+  #rw-zurueck { flex: 0 0 auto; width: auto; }
+  #rw-hilfe-btn { flex: 0 0 auto; width: 52px; }
+  #rw-los { white-space: nowrap; }
+  @media (max-width: 440px) { #rw-los { font-size: 15px; padding: 8px; } }
+  @media (min-width: 1000px) and (min-height: 700px) {
+    #reihenwahl .card { max-width: 760px; padding: 20px 24px; }
+    h1#rw-titel { font-size: 32px; }
+    #rw-sub { font-size: 16px; }
+    #rw-grid { gap: 14px; }
+    .rw { min-height: 104px; font-size: 48px; }
+    .rw small { font-size: 16px; }
+    .rw .emp { font-size: 14px; top: -11px; }
+    #rw-hilfe { font-size: 16px; }
+  }
+  @media (max-height: 500px) {
+    #rw-grid { gap: 8px; margin: 4px 0 8px; }
+    .rw { min-height: 54px; font-size: 26px; }
+    .rw small { font-size: 11px; }
+  }
+
   /* Hochformat-Hinweis */
   #portrait-hint {
     position: absolute; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center;
@@ -107,8 +181,12 @@
   <canvas id="c" width="256" height="144" aria-label="Spielfeld"></canvas>
 
   <div id="hud" class="hidden">
-    <div id="ziel"></div>
-    <div id="funken">✦ 0</div>
+    <div id="hud-mitte">
+      <div id="ziel"></div>
+      <div id="funken">✦ 0</div>
+    </div>
+    <div id="ziel-intro" class="hidden" aria-hidden="true"></div>
+    <div id="ziel-live" class="sr-only" aria-live="polite"></div>
     <div id="topbtns">
       <button class="iconbtn" id="btn-sound" aria-label="Ton an oder aus">♪</button>
       <button class="iconbtn" id="btn-pause" aria-label="Pause">❚❚</button>
@@ -141,6 +219,20 @@
     </div>
   </div>
 
+  <div id="reihenwahl" class="overlay hidden">
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="rw-titel">
+      <h1 id="rw-titel">Welche Reihe <span>sammelst du?</span></h1>
+      <p class="sub" id="rw-sub"></p>
+      <div id="rw-grid" role="group" aria-label="Zahlenreihe wählen"></div>
+      <div id="rw-hilfe" class="hidden"></div>
+      <div class="rw-buttons">
+        <button class="big" id="rw-zurueck">Zurück</button>
+        <button class="big main" id="rw-los"></button>
+        <button class="big" id="rw-hilfe-btn" aria-label="Hilfe zur Reihenwahl" aria-expanded="false">?</button>
+      </div>
+    </div>
+  </div>
+
   <div id="msg" class="overlay hidden">
     <div class="card" style="max-width:460px">
       <h2 id="msg-title" style="text-transform:none;letter-spacing:0;opacity:1"></h2>
@@ -165,6 +257,7 @@
 <script src="core/game.js"></script>
 <script src="core/camera.js"></script>
 <script src="core/host.js"></script>
+<script src="core/reihenwahl.js"></script>
 <script src="data/sections.js"></script>
 <script src="core/levelgen.js"></script>
 <script src="data/levels.js"></script>
@@ -173,7 +266,7 @@
 (function () {
   'use strict';
   var J = window.JNR, T = 16, VW = 256, VH = 144;
-  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport, CAM = J.camera;
+  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport, CAM = J.camera, RW = J.reihenwahl;
   var $ = function (id) { return document.getElementById(id); };
   var embedded = H.isEmbedded(window);
   var STORE = 'henry_jnr';
@@ -192,6 +285,12 @@
   var qs = new URLSearchParams(location.search);
   var dbgLevel = qs.get('jnrLevel');
   var dbgSeed = qs.get('jnrSeed') != null ? parseInt(qs.get('jnrSeed'), 10) : null;
+  var dbgReihe = qs.get('jnrReihe') != null ? parseInt(qs.get('jnrReihe'), 10) : null; // überspringt die Reihenwahl
+
+  // ---------- Reihenwahl-Zustand (flüchtig, nie im Spielstand) ----------
+  var lernstand = null;   // aus jnr:init (nur eingebettet), sonst null: keine Empfehlung
+  var letzteReihe = null; // zuletzt gewählte Reihe in dieser Sitzung
+  var aktReihe = null;    // Reihe des laufenden Laufs (null ohne Zahlen)
 
   // ---------- Audio (synthetisiert, erst nach erster Berührung) ----------
   var actx = null, master = null, muted = false;
@@ -233,7 +332,7 @@
   // ---------- Zustand ----------
   var canvas = $('c'), ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   ctx.imageSmoothingEnabled = false;
-  var mode = 'menu'; // menu | play | pause | won | ended
+  var mode = 'menu'; // menu | reihenwahl | play | pause | won | ended
   var meta = null, level = null, game = null;
   var cam = 0, shake = 0, squash = 0, animT = 0, lastY = 0;
   var particles = [];
@@ -296,8 +395,20 @@
     function (e) { delete padJ[e.pointerId]; });
 
   var KEYMAP = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', Space: 'j', ArrowUp: 'j', KeyW: 'j' };
+  var RW_KEYS = { ArrowLeft: 'links', ArrowRight: 'rechts', ArrowUp: 'hoch', ArrowDown: 'runter' };
   window.addEventListener('keydown', function (e) {
     ensureAudio();
+    if (mode === 'reihenwahl') {
+      if (RW_KEYS[e.code]) { rwSelect(RW.naechsteReihe(rwSel, RW_KEYS[e.code]), true); e.preventDefault(); }
+      else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
+        // Fokus auf Zurück/Hilfe: deren eigene Aktion laufen lassen
+        var f = document.activeElement;
+        if (f && (f.id === 'rw-zurueck' || f.id === 'rw-hilfe-btn')) return;
+        e.preventDefault(); rwStart(rwSel);
+      } else if (e.code === 'Escape') { e.preventDefault(); showMenu(); }
+      else if (RW.tasteZuReihe(e.code)) { rwSelect(RW.tasteZuReihe(e.code), true); e.preventDefault(); }
+      return;
+    }
     if (e.code === 'KeyP' || e.code === 'Escape') {
       if (mode === 'play') pause(); else if (mode === 'pause') resume();
       e.preventDefault(); return;
@@ -357,32 +468,126 @@
 
   function showMenu() {
     mode = 'menu'; game = null;
-    $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.remove('hidden');
+    $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
+    $('menu').classList.remove('hidden');
     buildMenu();
   }
 
+  // ---------- Reihenwahl (vor jeder Mathe-Stufe) ----------
+  var rwLevel = null, rwSel = 2;
+  function rwHilfeHtml(reihe) {
+    var emp = RW.empfehlungen(lernstand);
+    return '<p><b>So geht\'s:</b> Auf den Kristallen stehen Zahlen. Sammle nur die Ergebnisse deiner Reihe, ' +
+      'bei der ' + RW.chipReihe(reihe) + ' also ' + RW.beispiel(reihe) + ' und so weiter.</p>' +
+      '<p>Vorsicht vor falschen Zahlen, sie stoßen Lumo zurück. Oben in der Mitte siehst du, wie viele richtige Kristalle du schon hast.</p>' +
+      (emp.length ? '<p><b>Empfohlen</b> sind die Reihen, die du im Training gerade noch übst.</p>' : '') +
+      '<p>Tastatur: Pfeiltasten oder Ziffern wählen, Enter startet, Esc geht zurück.</p>';
+  }
+  function rwSelect(reihe, focus) {
+    if (!RW.istReihe(reihe)) return;
+    rwSel = reihe;
+    var btns = $('rw-grid').querySelectorAll('.rw');
+    for (var i = 0; i < btns.length; i++) {
+      var on = parseInt(btns[i].getAttribute('data-reihe'), 10) === reihe;
+      btns[i].classList.toggle('sel', on); btns[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+      btns[i].tabIndex = on ? 0 : -1;
+      if (on && focus) btns[i].focus();
+    }
+    $('rw-los').textContent = 'Los mit der ' + RW.chipReihe(reihe);
+    $('rw-hilfe').innerHTML = rwHilfeHtml(reihe);
+  }
+  // fest: Reihe, die vorgewählt sein soll (Nochmal / Level neu starten = gerade gespielte Reihe)
+  function showReihenwahl(id, fest) {
+    var m = LV.byId(id); if (!m) return showMenu();
+    mode = 'reihenwahl'; rwLevel = id; game = null;
+    keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
+    $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
+    $('ziel-intro').classList.add('hidden');
+    var emp = RW.empfehlungen(lernstand);
+    $('rw-sub').textContent = m.id + ' · ' + m.name + ': Tippe auf eine Zahl. Lumo sammelt dann die Ergebnisse dieser Reihe.';
+    var grid = $('rw-grid'); grid.innerHTML = '';
+    RW.REIHEN.forEach(function (r) {
+      var b = document.createElement('button');
+      b.className = 'rw'; b.setAttribute('data-reihe', String(r));
+      var isEmp = emp.indexOf(r) >= 0;
+      b.setAttribute('aria-label', RW.chipReihe(r) + (isEmp ? ', empfohlen' : ''));
+      b.innerHTML = (isEmp ? '<span class="emp">Empfohlen</span>' : '') + r + '<small>er-Reihe</small>';
+      b.addEventListener('click', function () { ensureAudio(); rwStart(r); });
+      b.addEventListener('focus', function () { if (rwSel !== r) rwSelect(r, false); });
+      grid.appendChild(b);
+    });
+    $('reihenwahl').classList.remove('hidden');
+    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, fest), true);
+  }
+  function rwStart(reihe) {
+    if (mode !== 'reihenwahl' || !RW.istReihe(reihe)) return;
+    letzteReihe = reihe;
+    $('reihenwahl').classList.add('hidden');
+    startLevel(rwLevel, reihe);
+  }
+  $('rw-los').addEventListener('click', function () { ensureAudio(); rwStart(rwSel); });
+  $('rw-zurueck').addEventListener('click', function () { showMenu(); });
+  $('rw-hilfe-btn').addEventListener('click', function () {
+    var h = $('rw-hilfe'), open = h.classList.toggle('hidden') === false;
+    $('rw-hilfe-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && h.scrollIntoView) h.scrollIntoView({ block: 'nearest' });
+  });
+
+  // ---------- Zielansage + Ziel-Chip ----------
+  var introTimer = null;
+  function showZielIntro(reihe) {
+    var el = $('ziel-intro');
+    el.innerHTML = 'Sammle die <b>' + RW.chipReihe(reihe) + '</b>';
+    $('ziel-live').textContent = J.mathgen.targetLabel(reihe); // einmal vorlesen, nicht bei jedem Kristall
+    el.classList.add('hidden'); void el.offsetWidth; el.classList.remove('hidden'); // Animation neu starten
+    clearTimeout(introTimer);
+    introTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
+  }
+  function setZielChip(o) {
+    var z = $('ziel');
+    if (o.mode === 'ziel') {
+      z.className = '';
+      z.innerHTML = '<span class="z-reihe"></span><span class="z-zahl"></span>';
+      z.querySelector('.z-reihe').textContent = RW.chipReihe(o.reihe);
+    } else {
+      z.className = 'aus';
+      z.textContent = 'Sammle alle Funken';
+    }
+  }
+
   // ---------- Level starten ----------
-  function startLevel(id) {
+  // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl.
+  function startLevel(id, reihe) {
     meta = LV.byId(id); if (!meta) return showMenu();
+    if (!RW.istReihe(reihe) && RW.istReihe(dbgReihe)) reihe = dbgReihe;
+    if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id);
+    if (RW.istReihe(reihe)) letzteReihe = reihe;
     // Jeder Start bekommt einen neuen Seed (auch "Nochmal"/"Level neu starten"); ?jnrSeed= erzwingt einen festen.
     var seed = (dbgSeed != null && !isNaN(dbgSeed)) ? dbgSeed : (Date.now() >>> 0);
     var gen = LV.generateFor(id, seed);
     level = J.level.parseLevel(gen.rows);
-    var o = LV.gameOptions(meta, jnr.options, seed);
+    var o = LV.gameOptions(meta, jnr.options, seed, reihe);
     game = GM.createGame(level, o);
     cam = CAM.computeCameraTarget(game.player.x, J.physics.W, game.player.facing, VW);
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     particles.forEach(function (q) { q.life = 0; });
     shake = 0; squash = 0; acc = 0;
-    $('menu').classList.add('hidden'); $('msg').classList.add('hidden'); $('hud').classList.remove('hidden');
+    $('menu').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
+    $('hud').classList.remove('hidden');
     document.body.classList.toggle('einfach', einfach());
-    $('ziel').textContent = o.mode === 'ziel' ? J.mathgen.targetLabel(meta.reihe) : 'Sammle alle Funken';
+    setZielChip(o);
+    aktReihe = o.mode === 'ziel' ? o.reihe : null;
     updateHud();
+    if (o.mode === 'ziel') showZielIntro(o.reihe); else $('ziel-intro').classList.add('hidden');
     mode = 'play';
     jnr.lastLevel = id;
     onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
   }
-  function updateHud() { $('funken').textContent = '✦ ' + game.funken; }
+  function updateHud() {
+    $('funken').textContent = '✦ ' + game.funken;
+    var zz = $('ziel').querySelector('.z-zahl');
+    if (zz) zz.textContent = RW.zaehler(game.richtig, game.totalGood);
+  }
 
   // ---------- Pause / Ende ----------
   function showMsg(title, bodyHtml, buttons) {
@@ -400,7 +605,7 @@
     mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause();
     showMsg('Pause', 'Lumo wartet auf dich.', [
       { text: 'Weiter', main: true, fn: resume },
-      { text: 'Level neu starten', fn: function () { startLevel(meta.id); } },
+      { text: 'Level neu starten', fn: nochmal },
       { text: 'Levelauswahl', fn: showMenu }
     ]);
   }
@@ -408,10 +613,16 @@
     if (mode !== 'pause') return;
     $('msg').classList.add('hidden'); mode = 'play'; last = 0; acc = 0;
   }
+  // Nochmal und "Level neu starten" verhalten sich gleich: bei Mathe-Stufen über die Reihenwahl,
+  // vorgewählt ist die gerade gespielte Reihe (ein Tipp oder Enter genügt).
+  function nochmal() {
+    if (LV.brauchtReihenwahl(meta, jnr.options)) showReihenwahl(meta.id, aktReihe);
+    else startLevel(meta.id);
+  }
   function endByTime() {
     mode = 'ended'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
-    $('hud').classList.add('hidden');
+    $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
     showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
   }
 
@@ -437,7 +648,7 @@
       (res.xp > 0 ? ' · +' + res.xp + ' XP' : '') + '</div>';
     var btns = [];
     if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next); } });
-    btns.push({ text: 'Nochmal', main: !next, fn: function () { startLevel(meta.id); } });
+    btns.push({ text: 'Nochmal', main: !next, fn: nochmal });
     btns.push({ text: 'Levelauswahl', fn: showMenu });
     setTimeout(function () { if (mode === 'won') showMsg('Geschafft!', rows, btns); }, 900);
   }
@@ -452,6 +663,8 @@
       else if (m.kind === 'timeup') endByTime();
       else if (m.kind === 'init') {
         jnr = m.jnr;
+        lernstand = m.lernstand;
+        if (mode === 'reihenwahl') showReihenwahl(rwLevel); // Empfehlung nachziehen
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
         else if (mode === 'ended' || mode === 'won') {
           // Reset-Pfad aus einem beendeten Lauf heraus: ohne ihn bliebe das Spiel nach
@@ -481,15 +694,30 @@
     8: ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
     9: ['01110', '10001', '10001', '01111', '00001', '00010', '01100']
   };
+  // Schmale 3-px-Ziffern für dreistellige Zahlen (die 100 der 10er-Reihe), siehe mathgen.anzeigeSchrift
+  var FONT_SCHMAL = {
+    0: ['111', '101', '101', '101', '101', '101', '111'],
+    1: ['010', '110', '010', '010', '010', '010', '111'],
+    2: ['111', '001', '001', '111', '100', '100', '111'],
+    3: ['111', '001', '001', '111', '001', '001', '111'],
+    4: ['101', '101', '101', '111', '001', '001', '001'],
+    5: ['111', '100', '100', '111', '001', '001', '111'],
+    6: ['111', '100', '100', '111', '101', '101', '111'],
+    7: ['111', '001', '001', '010', '010', '010', '010'],
+    8: ['111', '101', '101', '111', '101', '101', '111'],
+    9: ['111', '101', '101', '111', '001', '001', '111']
+  };
   function drawNumber(str, cx, cy, col, outline) {
-    var w = str.length * 6 - 1, x0 = Math.round(cx - w / 2), y0 = Math.round(cy - 3.5);
+    var a = J.mathgen.anzeigeSchrift(str), schmal = a.schrift === 'schmal';
+    var font = schmal ? FONT_SCHMAL : FONT, gw = schmal ? 3 : 5, step = gw + 1;
+    var w = a.breite, x0 = Math.round(cx - w / 2), y0 = Math.round(cy - 3.5);
     for (var pass = 0; pass < 2; pass++) {
       ctx.fillStyle = pass === 0 ? outline : col;
       for (var i = 0; i < str.length; i++) {
-        var g = FONT[str[i]];
-        for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) {
+        var g = font[str[i]];
+        for (var r = 0; r < 7; r++) for (var c = 0; c < gw; c++) {
           if (g[r][c] !== '1') continue;
-          var px = x0 + i * 6 + c, py = y0 + r;
+          var px = x0 + i * step + c, py = y0 + r;
           if (pass === 0) { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
           else ctx.fillRect(px, py, 1, 1);
         }
@@ -722,9 +950,18 @@
     state: function () {
       if (!game) return { mode: mode };
       var p = game.player;
-      return { mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken, status: game.status, t: game.t, fehltreffer: game.fehltreffer };
+      return { mode: mode, level: meta.id, reihe: aktReihe, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken, status: game.status, t: game.t, fehltreffer: game.fehltreffer };
     },
-    start: startLevel
+    start: startLevel,
+    // Debug/Tests: Kristalle lesen und Lumo an eine Kachel setzen (z.B. um die 100 anzusehen)
+    crystals: function () { return game ? game.crystals.map(function (c) { return { tx: c.tx, ty: c.ty, value: c.value, good: c.good }; }) : []; },
+    goal: function () { return level ? { tx: level.goal.tx, ty: level.goal.ty } : null; },
+    teleport: function (tx, ty) {
+      if (!game) return;
+      var p = game.player; p.x = tx * T; p.y = ty * T; p.vx = 0; p.vy = 0;
+      cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
+    },
+    reihenwahl: function () { return mode === 'reihenwahl' ? { level: rwLevel, sel: rwSel, empfohlen: RW.empfehlungen(lernstand) } : null; }
   };
   document.body.classList.toggle('einfach', einfach());
   if (dbgLevel && LV.byId(dbgLevel)) {

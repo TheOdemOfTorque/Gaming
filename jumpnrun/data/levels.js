@@ -36,11 +36,19 @@
     return LG.generate(meta.gen, seed);
   }
 
-  // Optionen des Spiels (rewards.defaultJnr().options) und Stufen-Metadaten -> Optionen für game.createGame
-  function gameOptions(meta, options, seed) {
+  function istWaehlbareReihe(n) { return typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= 10; }
+
+  // Optionen des Spiels (rewards.defaultJnr().options) und Stufen-Metadaten -> Optionen für game.createGame.
+  // reihe (optional): auf dem Auswahlbildschirm gewaehlte Reihe 2..10, sonst gilt meta.reihe.
+  function gameOptions(meta, options, seed, reihe) {
     var aus = !meta.mathe || (options && options.mathe === 'aus');
-    return { mode: aus ? 'aus' : 'ziel', reihe: meta.reihe, seed: seed };
+    return { mode: aus ? 'aus' : 'ziel', reihe: istWaehlbareReihe(reihe) ? reihe : meta.reihe, seed: seed };
   }
 
-  return { STAGES: STAGES, ORDER: ORDER, byId: byId, generateFor: generateFor, gameOptions: gameOptions };
+  // Vor einer Stufe kommt der Reihen-Auswahlbildschirm nur, wenn sie Zahlen-Kristalle hat.
+  function brauchtReihenwahl(meta, options) {
+    return !!meta.mathe && !(options && options.mathe === 'aus');
+  }
+
+  return { STAGES: STAGES, ORDER: ORDER, byId: byId, generateFor: generateFor, gameOptions: gameOptions, brauchtReihenwahl: brauchtReihenwahl };
 });

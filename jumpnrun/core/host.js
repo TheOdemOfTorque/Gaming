@@ -10,11 +10,17 @@
 //       xp         >= 0   XP-Vorschlag: nur beim ersten Abschluss des Levels > 0 (Trainer rechnet gut)
 //
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
-//     { type: 'jnr:init', level?, jnr?, options? }
+//     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
 //        jnr     optional: Fortschritt { levels: { "1-1": { medals, bestTimeMs, bestFunken } },
 //                xpAwarded: { "1-1": true }, funkenTotal, lastLevel }
 //        options optional: { steuerung: 'standard'|'einfach', mathe: 'ziel'|'aus', farbhilfe, musik }
+//        lernstand optional: { "2": 0.9, "7": 0.3, ... } Lernstand je Reihe (Schluessel "2".."10",
+//                Werte 0..1, nur bereits geuebte Reihen; der Trainer rechnet ihn mit computeLernstand
+//                in 1x1-trainer/logic.js aus den Leitner-Serien). Lumo empfiehlt daraus die 1-2
+//                schwaechsten Reihen auf dem Reihen-Auswahlbildschirm. Fehlt das Feld oder ist es
+//                ungueltig, ist lernstand null: alle Reihen waehlbar, keine Empfehlung. Ungueltige
+//                Eintraege fallen einzeln weg. Nur fluechtig, landet nie im Spielstand.
 //     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel)
 //     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus, Hinweis),
 //                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
@@ -33,6 +39,18 @@
     return { type: 'jnr:result', level: r.level, medaillen: r.medaillen, funken: r.funken, xp: r.xp };
   }
 
+  function sanitizeLernstand(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    var out = {}, any = false;
+    Object.keys(raw).forEach(function (k) {
+      if (!/^(?:[2-9]|10)$/.test(k)) return;
+      var v = raw[k];
+      if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1) return;
+      out[k] = v; any = true;
+    });
+    return any ? out : null;
+  }
+
   function parseHostMessage(data) {
     if (!data || typeof data !== 'object' || typeof data.type !== 'string') return null;
     if (data.type === 'jnr:pause') return { kind: 'pause' };
@@ -43,7 +61,8 @@
       return {
         kind: 'init',
         level: typeof data.level === 'string' && /^\d+-\d+$/.test(data.level) ? data.level : null,
-        jnr: R.sanitizeJnr(merged)
+        jnr: R.sanitizeJnr(merged),
+        lernstand: sanitizeLernstand(data.lernstand)
       };
     }
     return null;
@@ -55,5 +74,5 @@
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, parseHostMessage: parseHostMessage, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

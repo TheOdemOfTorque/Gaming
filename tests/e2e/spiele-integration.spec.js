@@ -175,6 +175,25 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(overlap).toBe(false);
   });
 
+  test('Lumo bekommt den Lernstand aus den Leitner-Serien und empfiehlt die schwächste geübte Reihe', async ({ page }) => {
+    const qs = (cc, correct, wrong) => ({ correct, wrong, consecutiveCorrect: cc });
+    const questionStats = { 3: {}, 8: { 1: qs(1, 1, 2), 2: qs(0, 0, 1), 3: qs(0, 1, 1) } };
+    for (let f = 1; f <= 10; f++) questionStats[3][f] = qs(5, 5, 0);
+    const base = migrateState(defaultState());
+    const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } } });
+    await seedState(page, { gameSecondsLeft: 600, questionStats, jnr });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-2"]').click();
+    await expect(frame.locator('#reihenwahl')).toBeVisible();
+    const emp = await frame.locator('#rw-grid .rw:has(.emp)').evaluateAll(bs => bs.map(b => b.getAttribute('data-reihe')));
+    expect(emp).toEqual(['3', '8']); // Raster-Reihenfolge; vorgewählt ist die schwächste (8)
+    await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '8');
+    await frame.locator('#rw-los').click();
+    await expect(frame.locator('#ziel .z-reihe')).toHaveText('8er-Reihe');
+  });
+
   test('Space Invader bleibt unverändert spielbar (Regression)', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 600 });
     await page.locator('.game-card[data-game="invader"] button').click();
