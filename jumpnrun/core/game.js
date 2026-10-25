@@ -23,7 +23,8 @@
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
 
-  // opts: { mode: 'ziel' | 'aus', reihe, seed, crystals (überschreibt die Erzeugung, für Tests) }
+  // opts: { mode: 'ziel' | 'aus', reihe, seed, crystals (überschreibt die Erzeugung, für Tests und das
+  //         Tutorial), uebung (true: Uebungsmodus des Tutorials, es gehen nie Leben verloren, siehe loseLife) }
   function createGame(level, opts) {
     opts = opts || {};
     var list = opts.crystals || M.assignCrystals(level.crystalSlots, {
@@ -40,6 +41,7 @@
       funken: 0, richtig: 0, fehltreffer: 0,
       leben: LEBEN, energie: ENERGIE, unverwundbar: 0,
       checkpointIdx: -1, spawn: { x: level.start.x, y: level.start.y },
+      uebung: !!opts.uebung,
       t: 0, status: 'play', events: []
     };
   }
@@ -52,8 +54,17 @@
 
   // Ein Leben weg (Energie leer oder Abgrund). Respawn am letzten Checkpoint mit voller Energie,
   // ohne Leben endet der Lauf mit status 'lost'. Das Ereignis traegt den Unfallort.
+  // Im Uebungsmodus (Tutorial) bleibt das Leben: Abgrund setzt an den letzten Startpunkt zurueck,
+  // leere Energie fuellt sich wieder auf (ohne Respawn). Ereignis 'zurueck' statt 'leben'.
   function loseLife(g, grund) {
     var p = g.player;
+    if (g.uebung) {
+      g.events.push({ type: 'zurueck', grund: grund, x: p.x, y: p.y });
+      g.energie = ENERGIE;
+      g.unverwundbar = INVULN;
+      if (grund === 'abgrund') respawn(g);
+      return;
+    }
     g.leben = Math.max(0, g.leben - 1);
     g.events.push({ type: 'leben', grund: grund, leben: g.leben, x: p.x, y: p.y });
     if (g.leben === 0) {
@@ -75,7 +86,7 @@
     g.funken = Math.max(0, g.funken - 1);
     g.energie = Math.max(0, g.energie - 1);
     g.events.push({ type: 'schaden', quelle: quelle, energie: g.energie, x: p.x, y: p.y });
-    if (g.energie === 0) { loseLife(g, 'energie'); return true; }
+    if (g.energie === 0) { loseLife(g, 'energie'); if (!g.uebung) return true; }
     var dir = richtung < 0 ? -1 : 1;
     p.vx = dir * KNOCK_X; p.vy = -KNOCK_Y; p.onGround = false; p.canCut = false;
     g.unverwundbar = INVULN;
