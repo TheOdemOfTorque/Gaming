@@ -40,6 +40,31 @@ describe('parseHostMessage', () => {
     expect(m.level).toBeNull();
     expect(m.jnr.levels).toEqual({});
   });
+  test('init ohne lernstand ergibt lernstand null (Standalone-Verhalten)', () => {
+    expect(H.parseHostMessage({ type: 'jnr:init' }).lernstand).toBeNull();
+  });
+  test('init übernimmt einen gültigen lernstand', () => {
+    const m = H.parseHostMessage({ type: 'jnr:init', lernstand: { 2: 0.9, '7': 0.3, 10: 0, 5: 1 } });
+    expect(m.lernstand).toEqual({ 2: 0.9, 7: 0.3, 10: 0, 5: 1 });
+  });
+  test('lernstand: ungültige Einträge fallen weg, gültige bleiben', () => {
+    const m = H.parseHostMessage({ type: 'jnr:init', lernstand: {
+      1: 0.5, 11: 0.5, 'x': 0.5, '3.5': 0.5, '03': 0.5,
+      4: -0.1, 6: 1.5, 8: NaN, 9: '0.4', 7: null, 3: Infinity, 2: 0.25
+    } });
+    expect(m.lernstand).toEqual({ 2: 0.25 });
+  });
+  test('lernstand ohne gültige Einträge oder mit falschem Typ ergibt null', () => {
+    expect(H.parseHostMessage({ type: 'jnr:init', lernstand: {} }).lernstand).toBeNull();
+    expect(H.parseHostMessage({ type: 'jnr:init', lernstand: { 1: 0.5 } }).lernstand).toBeNull();
+    expect(H.parseHostMessage({ type: 'jnr:init', lernstand: [0.1, 0.2, 0.3] }).lernstand).toBeNull();
+    expect(H.parseHostMessage({ type: 'jnr:init', lernstand: 'viel' }).lernstand).toBeNull();
+    expect(H.parseHostMessage({ type: 'jnr:init', lernstand: null }).lernstand).toBeNull();
+  });
+  test('lernstand landet nicht im jnr-Fortschritt (kein Schreiben in den Spielstand)', () => {
+    const m = H.parseHostMessage({ type: 'jnr:init', lernstand: { 7: 0.3 } });
+    expect(m.jnr.lernstand).toBeUndefined();
+  });
   test('fremde oder kaputte Nachrichten ergeben null', () => {
     expect(H.parseHostMessage(null)).toBeNull();
     expect(H.parseHostMessage('jnr:pause')).toBeNull();
