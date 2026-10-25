@@ -493,24 +493,25 @@ function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
 // Lernstand je Reihe fuer Lumo (Feld `lernstand` in jnr:init, Vertrag jumpnrun/core/host.js).
 // Wert je Reihe 2..10 = Mittel ueber die Faktoren 1..10 von min(consecutiveCorrect, 6) / 6,
 // also derselbe Leitner-Massstab wie im Statistik-Screen (6 richtige in Folge = gemeistert).
-// Ungesehene Faktoren zaehlen 0. Nur Reihen mit mindestens einer beantworteten Aufgabe
+// Ungesehene Faktoren zaehlen 0. Nur Reihen mit mindestens 3 verschiedenen beantworteten Aufgaben
 // kommen ins Ergebnis. Gerundet auf 2 Stellen, mutiert nichts.
 const LERNSTAND_MASTERY = 6;
+const LERNSTAND_MIN_FAKTOREN = 3; // erst ab 3 verschiedenen beantworteten Aufgaben gilt eine Reihe als geuebt
 function computeLernstand(questionStats) {
   const out = {};
   if (!questionStats || typeof questionStats !== 'object') return out;
   for (let r = 2; r <= 10; r++) {
     const row = questionStats[r];
     if (!row || typeof row !== 'object') continue;
-    let sum = 0, seen = false;
+    let sum = 0, seen = 0;
     for (let f = 1; f <= 10; f++) {
       const q = row[f];
       if (!q || typeof q !== 'object') continue;
-      if ((q.correct || 0) > 0 || (q.wrong || 0) > 0) seen = true;
+      if ((q.correct || 0) > 0 || (q.wrong || 0) > 0) seen++;
       const cc = typeof q.consecutiveCorrect === 'number' && isFinite(q.consecutiveCorrect) ? q.consecutiveCorrect : 0;
       sum += Math.max(0, Math.min(cc, LERNSTAND_MASTERY)) / LERNSTAND_MASTERY;
     }
-    if (seen) out[r] = Math.round((sum / 10) * 100) / 100;
+    if (seen >= LERNSTAND_MIN_FAKTOREN) out[r] = Math.round((sum / 10) * 100) / 100;
   }
   return out;
 }

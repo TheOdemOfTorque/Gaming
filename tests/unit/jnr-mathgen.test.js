@@ -44,6 +44,21 @@ describe('assignCrystals', () => {
     cr.forEach(c => expect(String(c.value).length).toBeLessThanOrEqual(3));
   });
 
+  test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])('Reihe %i: falsche Zahlen sind höchstens zweistellig (<= 99)', (r) => {
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const cr = M.assignCrystals(slots(80), { reihe: r, seed, mode: 'ziel' });
+      cr.filter(c => !c.good).forEach(c => expect(c.value).toBeLessThanOrEqual(99));
+    }
+  });
+
+  test('anzeigeSchrift: dreistellige Zahlen bekommen die schmale Schrift, die in den Kristall passt', () => {
+    expect(M.anzeigeSchrift(7)).toEqual({ schrift: 'normal', breite: 5 });
+    expect(M.anzeigeSchrift(98)).toEqual({ schrift: 'normal', breite: 11 });
+    const s = M.anzeigeSchrift(100);
+    expect(s.schrift).toBe('schmal');
+    expect(s.breite).toBeLessThanOrEqual(12); // Kristall-Innenfläche ist 12 px breit
+  });
+
   test('bis 10 Kristalle kommen gute Zahlen nicht doppelt vor', () => {
     const cr = M.assignCrystals(slots(10), { reihe: 4, seed: 11, mode: 'ziel' }).filter(c => c.good);
     const vals = cr.map(c => c.value);

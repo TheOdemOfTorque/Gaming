@@ -29,7 +29,8 @@
   function wrongCandidates(reihe) {
     var set = {}, out = [];
     function add(v) {
-      if (v >= 1 && v <= 999 && !isMultiple(v, reihe) && !set[v]) { set[v] = true; out.push(v); }
+      // <= 99: dreistellige Falsche wie 101 passen nicht lesbar auf einen Kristall
+      if (v >= 1 && v <= 99 && !isMultiple(v, reihe) && !set[v]) { set[v] = true; out.push(v); }
     }
     for (var k = 1; k <= 10; k++) {
       var m = reihe * k;
@@ -75,5 +76,13 @@
     });
   }
 
-  return { assignCrystals: assignCrystals, isMultiple: isMultiple, targetLabel: targetLabel, mulberry32: mulberry32 };
+  // Pixel-Schrift fuer die Kristallzahl: normal 5 px je Ziffer + 1 px Abstand, schmal 3 + 1.
+  // Dreistellige Zahlen (nur die 100 der 10er-Reihe) brauchen die schmale, sonst ragen sie
+  // ueber die 12 px Innenflaeche hinaus in die Nachbarkristalle.
+  function anzeigeSchrift(value) {
+    var n = String(value).length;
+    return n >= 3 ? { schrift: 'schmal', breite: n * 4 - 1 } : { schrift: 'normal', breite: n * 6 - 1 };
+  }
+
+  return { anzeigeSchrift: anzeigeSchrift, assignCrystals: assignCrystals, isMultiple: isMultiple, targetLabel: targetLabel, mulberry32: mulberry32 };
 });

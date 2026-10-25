@@ -26,8 +26,10 @@
     return liste.slice(0, MAX_EMPFEHLUNGEN).map(function (e) { return e.reihe; });
   }
 
-  // Vorauswahl: schwaechste Empfehlung, sonst die letzte Wahl, sonst die Reihe der Stufe, sonst 2.
-  function vorauswahl(lernstand, letzte, stufenReihe) {
+  // Vorauswahl: feste Vorgabe, sonst schwaechste Empfehlung, sonst die letzte Wahl, sonst die Reihe der Stufe, sonst 2.
+  // fest: z.B. die gerade gespielte Reihe bei "Nochmal" oder "Level neu starten"; geht allem vor.
+  function vorauswahl(lernstand, letzte, stufenReihe, fest) {
+    if (istReihe(fest)) return fest;
     var emp = empfehlungen(lernstand);
     if (emp.length) return emp[0];
     if (istReihe(letzte)) return letzte;
@@ -46,12 +48,21 @@
     return MIN + i;
   }
 
+  // Tastatur: Ziffern 2..9 (oben oder Ziffernblock) waehlen die Reihe, 0 die 10er-Reihe, sonst null.
+  function tasteZuReihe(code) {
+    var m = /^(?:Digit|Numpad)([0-9])$/.exec(code || '');
+    if (!m) return null;
+    var d = parseInt(m[1], 10);
+    if (d === 0) return 10;
+    return d >= 2 ? d : null;
+  }
+
   function beispiel(reihe) { return [reihe, reihe * 2, reihe * 3].join(', '); }
   function chipReihe(reihe) { return reihe + 'er-Reihe'; }
   function zaehler(gesammelt, gesamt) { return gesammelt + ' / ' + gesamt; }
 
   return {
     REIHEN: REIHEN, SPALTEN: SPALTEN, istReihe: istReihe, empfehlungen: empfehlungen, vorauswahl: vorauswahl,
-    naechsteReihe: naechsteReihe, beispiel: beispiel, chipReihe: chipReihe, zaehler: zaehler
+    naechsteReihe: naechsteReihe, tasteZuReihe: tasteZuReihe, beispiel: beispiel, chipReihe: chipReihe, zaehler: zaehler
   };
 });

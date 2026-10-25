@@ -50,6 +50,10 @@ describe('vorauswahl', () => {
     expect(RW.vorauswahl(null, null, 3)).toBe(3);
     expect(RW.vorauswahl(null, 42, 3)).toBe(3);
   });
+  test('fest vorgegebene Reihe (Nochmal, Neustart) geht vor jeder Empfehlung', () => {
+    expect(RW.vorauswahl({ 2: 0.9, 7: 0.3 }, 4, 2, 5)).toBe(5);
+    expect(RW.vorauswahl({ 2: 0.9, 7: 0.3 }, 4, 2, 11)).toBe(7);
+  });
   test('letzter Ausweg ist die 2er-Reihe', () => {
     expect(RW.vorauswahl(null, null, null)).toBe(2);
     expect(RW.vorauswahl(null, null, 12)).toBe(2);
@@ -73,6 +77,24 @@ describe('naechsteReihe (Tastatur im 3er-Raster 2-3-4 / 5-6-7 / 8-9-10)', () => 
   });
   test('unbekannte Richtung ändert nichts', () => {
     expect(RW.naechsteReihe(7, 'quer')).toBe(7);
+  });
+});
+
+describe('tasteZuReihe', () => {
+  test('Ziffern 2..9 oben und auf dem Ziffernblock', () => {
+    expect(RW.tasteZuReihe('Digit2')).toBe(2);
+    expect(RW.tasteZuReihe('Digit9')).toBe(9);
+    expect(RW.tasteZuReihe('Numpad7')).toBe(7);
+  });
+  test('0 steht für die 10er-Reihe', () => {
+    expect(RW.tasteZuReihe('Digit0')).toBe(10);
+    expect(RW.tasteZuReihe('Numpad0')).toBe(10);
+  });
+  test('1 und andere Tasten wählen nichts', () => {
+    expect(RW.tasteZuReihe('Digit1')).toBeNull();
+    expect(RW.tasteZuReihe('Numpad1')).toBeNull();
+    expect(RW.tasteZuReihe('KeyA')).toBeNull();
+    expect(RW.tasteZuReihe(undefined)).toBeNull();
   });
 });
 
