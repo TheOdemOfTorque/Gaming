@@ -1219,7 +1219,7 @@ const APP_VERSION = '2.11'; // Anzeigeversion in Einstellungen — bei Releases 
 const CHANGELOG = [
   { version: '2.11', date: '2026-10-25', entries: [
     '🆕 Lumo und die Zahlennacht: neues Spring-Spiel dazu',
-    '🆕 Knobelwerkstatt: Rätsel ohne Sterne, immer spielbar',
+    '🆕 Knobelwerkstatt: Rätsel ohne Sterne, nach einer Trainingsrunde',
     '⚡ Spiele-Leiste zeigt jetzt drei Spielkarten',
   ]},
   { version: '2.10', date: '2026-05-22', entries: [
@@ -1945,6 +1945,8 @@ function gameCardHtml(gameId, icon, title, onClick) {
     sub = `🔒 ab 3 Tagen Streak (${state.streak})`;
   } else if (!access.spielbar && access.grund === 'keine_sterne') {
     sub = '🔒 keine Sterne übrig';
+  } else if (!access.spielbar && access.grund === 'keine_runde') {
+    sub = '🔒 Erst eine Runde trainieren';
   } else if (rule.kostetSternZeit) {
     const totalMin = state.gameSecondsLeft > 0
       ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
@@ -1952,7 +1954,7 @@ function gameCardHtml(gameId, icon, title, onClick) {
     const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
     sub = `${starsDisplay} · ${totalMin} min`;
   } else {
-    sub = 'immer spielbar';
+    sub = 'heute frei';
   }
   return `<div class="game-card ${cls}" data-game="${gameId}">
     <div class="game-card-icon">${icon}</div>
@@ -2013,7 +2015,10 @@ function openGame(gameId) {
         type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
       }, location.origin);
     } else if (gameId === 'jnr') {
-      frame.contentWindow.postMessage({ type: 'jnr:init', jnr: state.jnr }, location.origin);
+      // lernstand (logic.js) lässt Lumo die schwächsten geübten Reihen empfehlen.
+      frame.contentWindow.postMessage({
+        type: 'jnr:init', jnr: state.jnr, lernstand: computeLernstand(state.questionStats),
+      }, location.origin);
     }
   };
   frame.src = GAME_SRC[gameId];
@@ -2998,6 +3003,7 @@ function endGame(reason) {
     state.streak = state.lastPlayDate === yesterday.toDateString() ? state.streak+1 : 1;
     state.lastPlayDate = today;
   }
+  state.lastRoundDate = today; // schaltet die Knobelwerkstatt für heute frei
 
   state.totalCorrect += game.correct;
   state.totalGames++;
@@ -4250,6 +4256,8 @@ document.addEventListener('visibilitychange', () => {
   } else {
     if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
     else if (currentGame === 'jnr') startLumoTimer();
+    // Nach Mitternacht ist die Knobel-Freischaltung von gestern abgelaufen: Karten neu berechnen.
+    if (!currentGame) renderGamesBar();
     if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });

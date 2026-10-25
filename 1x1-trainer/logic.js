@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 12;
+var STATE_VERSION = 13;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 
@@ -59,7 +59,7 @@ function defaultQS() { return { correct: 0, wrong: 0, consecutiveCorrect: 0 }; }
 
 function defaultState() {
   return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
-           streak: 0, lastPlayDate: null,
+           streak: 0, lastPlayDate: null, lastRoundDate: null,
            highScores: { blitz: 0, turnier: 0, blitzListe: [],
                          blitzDiv: 0, blitzGemischt: 0,
                          turnierDiv: 0, turnierGemischt: 0 },
@@ -201,6 +201,13 @@ var STATE_MIGRATIONS = [
       s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
                 options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } };
     }
+    return s;
+  },
+  // v12 → v13: lastRoundDate (nur endGame() bei gezählter Runde). Fehlt es,
+  // bleibt die Knobelwerkstatt bis zur nächsten Runde gesperrt; lastPlayDate
+  // wird bewusst nicht übernommen (Streak-Schutz setzt es ohne Runde).
+  (s) => {
+    if (s.lastRoundDate === undefined) s.lastRoundDate = null;
     return s;
   },
 ];
@@ -408,17 +415,23 @@ function computeStreakProtection(state, todayStr) {
 // ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
 // Defaults, Marco noch zu bestätigen (siehe Vault-Plan Spiele-Integration):
 // Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
-// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sperren.
+// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sterne und
+// Streak-Mindestwert, im Trainer aber erst nach einer gezählten Runde am selben
+// Kalendertag spielbar (nachRundeHeute). Die Adresse /knobel/ bleibt offen.
 const GAME_RULES = {
   invader: { kostetSternZeit: true,  minStreak: 3 },
   jnr:      { kostetSternZeit: true,  minStreak: 3 },
-  knobel:   { kostetSternZeit: false, minStreak: 0 },
+  knobel:   { kostetSternZeit: false, minStreak: 0, nachRundeHeute: true },
 };
 
 // Tests: tests/unit/spiele-zugang.test.js
-function getGameAccess(state, gameId) {
+// heute: new Date().toDateString(); lastRoundDate setzt nur endGame() bei einer Runde. Kalendertag-Vergleich, keine 24-h-Rechnung.
+function getGameAccess(state, gameId, heute) {
   const rule = GAME_RULES[gameId];
   if (!rule) return { spielbar: false, grund: 'unbekannt' };
+  if (rule.nachRundeHeute && state.lastRoundDate !== (heute || new Date().toDateString())) {
+    return { spielbar: false, grund: 'keine_runde' };
+  }
   if ((state.streak || 0) < rule.minStreak) return { spielbar: false, grund: 'streak' };
   if (rule.kostetSternZeit && (state.stars || 0) === 0 && (state.gameSecondsLeft || 0) <= 0) {
     return { spielbar: false, grund: 'keine_sterne' };
@@ -488,6 +501,32 @@ function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
     state: Object.assign({}, state, { xp: (state.xp || 0) + credit, jnr: jnr }),
     creditedXp: credit,
   };
+}
+
+// Lernstand je Reihe fuer Lumo (Feld `lernstand` in jnr:init, Vertrag jumpnrun/core/host.js).
+// Wert je Reihe 2..10 = Mittel ueber die Faktoren 1..10 von min(consecutiveCorrect, 6) / 6,
+// also derselbe Leitner-Massstab wie im Statistik-Screen (6 richtige in Folge = gemeistert).
+// Ungesehene Faktoren zaehlen 0. Nur Reihen mit mindestens 3 verschiedenen beantworteten Aufgaben
+// kommen ins Ergebnis. Gerundet auf 2 Stellen, mutiert nichts.
+const LERNSTAND_MASTERY = 6;
+const LERNSTAND_MIN_FAKTOREN = 3; // erst ab 3 verschiedenen beantworteten Aufgaben gilt eine Reihe als geuebt
+function computeLernstand(questionStats) {
+  const out = {};
+  if (!questionStats || typeof questionStats !== 'object') return out;
+  for (let r = 2; r <= 10; r++) {
+    const row = questionStats[r];
+    if (!row || typeof row !== 'object') continue;
+    let sum = 0, seen = 0;
+    for (let f = 1; f <= 10; f++) {
+      const q = row[f];
+      if (!q || typeof q !== 'object') continue;
+      if ((q.correct || 0) > 0 || (q.wrong || 0) > 0) seen++;
+      const cc = typeof q.consecutiveCorrect === 'number' && isFinite(q.consecutiveCorrect) ? q.consecutiveCorrect : 0;
+      sum += Math.max(0, Math.min(cc, LERNSTAND_MASTERY)) / LERNSTAND_MASTERY;
+    }
+    if (seen >= LERNSTAND_MIN_FAKTOREN) out[r] = Math.round((sum / 10) * 100) / 100;
+  }
+  return out;
 }
 
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
@@ -644,7 +683,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime,
-                     applyKnobelResult, applyJnrResult,
+                     applyKnobelResult, applyJnrResult, computeLernstand,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

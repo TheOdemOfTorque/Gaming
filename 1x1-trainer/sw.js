@@ -20,6 +20,7 @@ const ASSETS = [
   '../jumpnrun/core/collision.js',
   '../jumpnrun/core/game.js',
   '../jumpnrun/core/host.js',
+  '../jumpnrun/core/reihenwahl.js',
   '../jumpnrun/core/level.js',
   '../jumpnrun/core/mathgen.js',
   '../jumpnrun/core/physics.js',

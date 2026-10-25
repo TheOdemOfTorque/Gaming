@@ -27,6 +27,31 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     expect(D.gameOptions(D.byId('1-1'), { mathe: 'ziel' }, 1).mode).toBe('aus');
   });
 
+  test('gameOptions: gewählte Reihe (2..10) fließt in die Kristalle, sonst die Reihe der Stufe', () => {
+    const l2 = D.byId('1-2');
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, 7).reihe).toBe(7);
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, 10).reihe).toBe(10);
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1).reihe).toBe(l2.reihe);
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, 1).reihe).toBe(l2.reihe);
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, 11).reihe).toBe(l2.reihe);
+    expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, '7').reihe).toBe(l2.reihe);
+  });
+
+  test('brauchtReihenwahl: nur Mathe-Stufen im Zahlen-Modus', () => {
+    expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'ziel' })).toBe(true);
+    expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'aus' })).toBe(false);
+    expect(D.brauchtReihenwahl(D.byId('1-1'), { mathe: 'ziel' })).toBe(false);
+  });
+
+  test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])('Stufe 1-2 mit Reihe %i: Kristalle tragen nur Vielfache als gute Zahlen', (reihe) => {
+    const meta = D.byId('1-2');
+    const gen = D.generateFor('1-2', 3);
+    const level = parseLevel(gen.rows);
+    const g = G.createGame(level, D.gameOptions(meta, { mathe: 'ziel' }, 3, reihe));
+    expect(g.totalGood).toBeGreaterThan(0);
+    g.crystals.forEach(c => expect(c.value % reihe === 0).toBe(c.good));
+  });
+
   describe.each(D.ORDER)('Stufe %s: generateFor', (id) => {
     const meta = D.byId(id);
 
