@@ -70,7 +70,7 @@ describe('parseLevel: Fehler werden sprechend gemeldet', () => {
 });
 
 test('CHARS dokumentiert alle Zeichen', () => {
-  expect(Object.keys(CHARS).sort()).toEqual(['#', '.', '^', 'C', 'G', 'S', 'o', '~'].sort());
+  expect(Object.keys(CHARS).sort()).toEqual(['#', '.', '^', 'C', 'G', 'S', 'o', '~', 'w'].sort());
 });
 
 describe('Landestellen (falsche Zahlen dort waeren kaum zu vermeiden)', () => {
@@ -101,5 +101,67 @@ describe('Landestellen (falsche Zahlen dort waeren kaum zu vermeiden)', () => {
   });
   test('Platz in der Luft ist keine Landestelle', () => {
     expect(land(['..........', '.....o....', '.S.......G', '##########'])).toEqual([false]);
+  });
+});
+
+describe('Rechenwicht (w): Laufstrecke auf flachem Boden', () => {
+  const LV = require('../../jumpnrun/core/level.js');
+  const FLAT = [
+    '....................',
+    'S.........w........G',
+    '####################',
+  ];
+  function withRow(row1, row0, row2) {
+    return [row0 || FLAT[0], row1, row2 || FLAT[2]];
+  }
+
+  test('w ist ein bekanntes Zeichen', () => {
+    expect(CHARS.w).toBe('Rechenwicht');
+  });
+
+  test('Strecke: flacher Boden, mindestens 4 Kacheln Abstand zu Start, Ziel und Laternen', () => {
+    const L = parseLevel(FLAT);
+    expect(L.enemies).toEqual([{ tx: 10, ty: 1, von: 4, bis: 15 }]);
+  });
+
+  test('Laterne verkuerzt die Strecke (nie direkt am Checkpoint)', () => {
+    const L = parseLevel(withRow('S.....C...w........G'));
+    expect(L.enemies[0]).toMatchObject({ von: 10, bis: 15 });
+  });
+
+  test('Dornen: die Kachel davor und dahinter gehoert nicht zur Strecke (Landestelle bleibt frei)', () => {
+    const L = parseLevel(withRow('S.........w..^.....G'));
+    expect(L.enemies[0]).toMatchObject({ von: 4, bis: 11 });
+    const landing = L.crystalSlots.filter(s => s.landung);
+    landing.forEach(s => expect(s.tx < L.enemies[0].von || s.tx > L.enemies[0].bis).toBe(true));
+  });
+
+  test('Luecke und Wand begrenzen die Strecke mit einer Kachel Abstand', () => {
+    const L = parseLevel(withRow('S.........w........G', null, '#####.##############'));
+    expect(L.enemies[0]).toMatchObject({ von: 7, bis: 15 });
+    const W = parseLevel(withRow('S.....#...w........G'));
+    expect(W.enemies[0]).toMatchObject({ von: 8, bis: 15 });
+  });
+
+  test('Kopffreiheit: niedrige Decke ueber dem Weg beendet die Strecke', () => {
+    const L = parseLevel(withRow('S.........w........G', '.............#......'));
+    expect(L.enemies[0]).toMatchObject({ von: 4, bis: 12 });
+  });
+
+  test('Fehler: Rechenwicht ohne Boden, zu nah am Start oder zu kurze Strecke', () => {
+    expect(err(withRow('S.........w........G', null, '##########.#########'))).toMatch(/Rechenwicht/);
+    expect(err(withRow('S..w...............G'))).toMatch(/Rechenwicht/);
+    expect(err(withRow('S.......^.w.^......G'))).toMatch(/Rechenwicht/);
+  });
+
+  test('strecke() bewertet auch freie Kacheln ohne w (fuer den Generator)', () => {
+    const L = parseLevel(['....................', 'S...................G'.slice(0, 20).replace(/.$/, 'G'), '####################']);
+    expect(LV.strecke(L, 10, 1)).toEqual({ von: 4, bis: 15 });
+    expect(LV.strecke(L, 2, 1)).toBeNull();
+    expect(LV.MIN_STRECKE).toBe(4);
+  });
+
+  test('Level ohne w hat eine leere Gegnerliste', () => {
+    expect(parseLevel(VALID).enemies).toEqual([]);
   });
 });

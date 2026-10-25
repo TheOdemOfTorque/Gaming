@@ -86,5 +86,20 @@
     return n >= 3 ? { schrift: 'schmal', breite: n * 4 - 1 } : { schrift: 'normal', breite: n * 6 - 1 };
   }
 
-  return { anzeigeSchrift: anzeigeSchrift, assignCrystals: assignCrystals, isMultiple: isMultiple, targetLabel: targetLabel, mulberry32: mulberry32 };
+  // Tafel des Rechenwichts (core/gegner.js): eine Aufgabe faktor x reihe mit einem Ergebnis, das
+  // 1 oder 2 neben dem richtigen liegt (wie die verwechselbaren falschen Kristallzahlen).
+  // rnd: Zufallsfunktion (mulberry32), damit mehrere Wichte eines Levels nacheinander ziehen.
+  function rechnung(reihe, rnd) {
+    if (!Number.isInteger(reihe) || reihe < 2 || reihe > 12) throw new Error('Ungültige Reihe: ' + reihe);
+    var faktor = 1 + Math.floor(rnd() * 10), richtig = faktor * reihe;
+    var abw = [-2, -1, 1, 2].filter(function (d) { return richtig + d >= 1; });
+    var falsch = richtig + abw[Math.floor(rnd() * abw.length)];
+    return { faktor: faktor, reihe: reihe, richtig: richtig, falsch: falsch };
+  }
+  // Text fuer die Pixelschrift, z. B. '8×7=54' (falsch) bzw. '8×7=56' (aufgedeckt).
+  function rechnungText(r, aufgedeckt) {
+    return r.faktor + '×' + r.reihe + '=' + (aufgedeckt ? r.richtig : r.falsch);
+  }
+
+  return { rechnung: rechnung, rechnungText: rechnungText, anzeigeSchrift: anzeigeSchrift, assignCrystals: assignCrystals, isMultiple: isMultiple, targetLabel: targetLabel, mulberry32: mulberry32 };
 });

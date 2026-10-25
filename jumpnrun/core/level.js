@@ -2,7 +2,7 @@
 //
 // Zeichen:  .  Luft     #  Boden (fest)   S  Start     G  Ziel (Leuchtturm)
 //           C  Checkpoint   o  Kristallplatz (Zahl wird beim Laden gesetzt, siehe mathgen.js)
-//           ^  Dornen       ~  Federpilz
+//           ^  Dornen       ~  Federpilz     w  Rechenwicht (Gegner, laeuft auf seiner Strecke hin und her)
 (function (root, factory) {
   var deps = (typeof module === 'object' && module.exports)
     ? { collision: require('./collision.js'), physics: require('./physics.js') }
@@ -12,10 +12,12 @@
   else { root.JNR = root.JNR || {}; root.JNR.level = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C, P) {
   var T = C.TILE;
+  var MIN_STRECKE = 4; // Kacheln, die ein Rechenwicht mindestens zum Hin- und Herlaufen braucht
+  var ABSTAND_LATERNE = 3; // so viele Kacheln neben Start, Laterne und Ziel bleiben gegnerfrei
   var LANDUNG = 1; // nur die Kachel direkt hinter einer Gefahr gilt als Landestelle (sonst lernen Kinder "nach dem Sprung immer richtig")
   var CHARS = {
     '.': 'Luft', '#': 'Boden', 'S': 'Start', 'G': 'Ziel', 'C': 'Checkpoint',
-    'o': 'Kristallplatz', '^': 'Dornen', '~': 'Federpilz'
+    'o': 'Kristallplatz', '^': 'Dornen', '~': 'Federpilz', 'w': 'Rechenwicht'
   };
 
   function fail(msg) { var e = new Error(msg); e.name = 'LevelError'; throw e; }
@@ -29,7 +31,7 @@
     if (!rows || !rows.length) fail('Level ist leer.');
     var h = rows.length, w = rows[0].length;
     var solid = new Uint8Array(w * h);
-    var starts = [], goals = [], cps = [], slots = [], spikes = [], springs = [];
+    var starts = [], goals = [], cps = [], slots = [], spikes = [], springs = [], wichte = [];
 
     rows.forEach(function (row, y) {
       if (row.length !== w) fail('Zeile ' + (y + 1) + ' hat ' + row.length + ' Zeichen, erwartet sind ' + w + '.');
@@ -43,6 +45,7 @@
         else if (c === 'o') slots.push({ tx: x, ty: y });
         else if (c === '^') spikes.push({ tx: x, ty: y });
         else if (c === '~') springs.push({ tx: x, ty: y });
+        else if (c === 'w') wichte.push({ tx: x, ty: y });
       }
     });
 
@@ -84,16 +87,51 @@
       }
     });
 
-    return {
+    var level = {
       w: w, h: h, solid: solid,
       start: standPos(starts[0].tx, starts[0].ty),
       goal: { tx: goals[0].tx, ty: goals[0].ty },
       checkpoints: cps.map(function (c) { return standPos(c.tx, c.ty); }),
       crystalSlots: slots,
       spikes: spikes,
-      springs: springs
+      springs: springs,
+      enemies: []
     };
+    wichte.sort(byXY).forEach(function (wi) {
+      var st = strecke(level, wi.tx, wi.ty);
+      var wo = 'Rechenwicht bei Zeile ' + (wi.ty + 1) + ', Spalte ' + (wi.tx + 1);
+      if (!st) fail(wo + ' braucht flachen Boden mit Abstand zu Gefahren, Start, Ziel und Laternen.');
+      if (st.bis - st.von + 1 < MIN_STRECKE) fail(wo + ': Laufstrecke zu kurz (mindestens ' + MIN_STRECKE + ' Kacheln).');
+      level.enemies.push({ tx: wi.tx, ty: wi.ty, von: st.von, bis: st.bis });
+    });
+    return level;
   }
 
-  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos, LANDUNG: LANDUNG };
+  // Laufstrecke eines Rechenwichts, der auf (tx, ty) steht: die zusammenhaengenden Kacheln links
+  // und rechts davon, auf denen er laufen darf. Eine Kachel zaehlt, wenn sie flach ist (Luft, Boden
+  // darunter, keine Dornen/Federpilze), ihre beiden Nachbarn ebenfalls flach sind (so bleibt die
+  // Landestelle direkt hinter einer Gefahr frei, siehe LANDUNG), darueber 2 Kacheln Luft sind
+  // (Lumo kann drueberspringen oder draufspringen), sie keine Kristall-Landestelle ist und sie mehr
+  // als ABSTAND_LATERNE Kacheln von Start, Ziel und jeder Laterne entfernt liegt.
+  // Gibt { von, bis } (Kachelspalten) zurueck oder null, wenn (tx, ty) selbst nicht geht.
+  function strecke(level, tx, ty) {
+    function solidAt(x, y) { return x < 0 || x >= level.w ? true : (y >= 0 && y < level.h && level.solid[y * level.w + x] === 1); }
+    function on(list, x) { for (var i = 0; i < list.length; i++) if (list[i].tx === x && list[i].ty === ty) return true; return false; }
+    function flach(x) { return !solidAt(x, ty) && solidAt(x, ty + 1) && ty + 1 < level.h && !on(level.spikes, x) && !on(level.springs, x); }
+    var marken = [level.start.tx, level.goal.tx].concat(level.checkpoints.map(function (c) { return c.tx; }));
+    var landungen = level.crystalSlots.filter(function (s) { return s.landung; });
+    function geht(x) {
+      if (x < 0 || x >= level.w || !flach(x) || !flach(x - 1) || !flach(x + 1)) return false;
+      if (solidAt(x, ty - 1) || solidAt(x, ty - 2) || on(landungen, x)) return false;
+      for (var i = 0; i < marken.length; i++) if (Math.abs(x - marken[i]) <= ABSTAND_LATERNE) return false;
+      return true;
+    }
+    if (!geht(tx)) return null;
+    var von = tx, bis = tx;
+    while (geht(von - 1)) von--;
+    while (geht(bis + 1)) bis++;
+    return { von: von, bis: bis };
+  }
+
+  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos, strecke: strecke, LANDUNG: LANDUNG, MIN_STRECKE: MIN_STRECKE };
 });

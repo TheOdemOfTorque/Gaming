@@ -106,3 +106,34 @@ describe('Landestellen bekommen nie eine falsche Zahl', () => {
     expect(M.assignCrystals(only, { reihe: 7, seed: 5, mode: 'ziel' }).every(c => c.good)).toBe(true);
   });
 });
+
+describe('rechnung (Tafel des Rechenwichts)', () => {
+  test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])('Reihe %i: Faktor 1..10, richtig = Faktor x Reihe, falsch liegt 1-2 daneben', (reihe) => {
+    const rnd = M.mulberry32(9);
+    for (let i = 0; i < 60; i++) {
+      const r = M.rechnung(reihe, rnd);
+      expect(r.reihe).toBe(reihe);
+      expect(r.faktor).toBeGreaterThanOrEqual(1);
+      expect(r.faktor).toBeLessThanOrEqual(10);
+      expect(r.richtig).toBe(r.faktor * reihe);
+      expect(r.falsch).not.toBe(r.richtig);
+      expect(Math.abs(r.falsch - r.richtig)).toBeLessThanOrEqual(2);
+      expect(r.falsch).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  test('deterministisch: gleicher Seed liefert dieselben Rechnungen', () => {
+    const a = M.mulberry32(4), b = M.mulberry32(4);
+    for (let i = 0; i < 10; i++) expect(M.rechnung(7, a)).toEqual(M.rechnung(7, b));
+  });
+
+  test('Text in der Pixelschrift: Faktor x Reihe = Ergebnis', () => {
+    const r = { faktor: 8, reihe: 7, richtig: 56, falsch: 54 };
+    expect(M.rechnungText(r, false)).toBe('8×7=54');
+    expect(M.rechnungText(r, true)).toBe('8×7=56');
+  });
+
+  test('ungueltige Reihe wirft', () => {
+    expect(() => M.rechnung(1, M.mulberry32(1))).toThrow();
+  });
+});
