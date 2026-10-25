@@ -32,8 +32,41 @@
     position: absolute; top: calc(8px + var(--sat)); padding: 4px 10px; border-radius: 12px;
     background: rgba(13, 13, 43, .65); font-weight: 700; font-size: 15px; letter-spacing: .2px;
   }
-  #ziel { left: calc(10px + var(--sal)); color: #fde68a; }
+  #ziel { left: calc(10px + var(--sal)); top: calc(54px + var(--sat)); color: #fde68a; }
+  /* Leben (Herzen) und Energie (Lichtpunkte der Laterne) */
+  #vital {
+    position: absolute; top: calc(6px + var(--sat)); left: calc(10px + var(--sal)); display: flex; align-items: center;
+    gap: 12px; padding: 6px 12px; border-radius: 14px; background: rgba(13, 13, 43, .72);
+    border: 2px solid rgba(253, 230, 138, .25);
+  }
+  #leben { display: flex; gap: 3px; font-size: 22px; line-height: 1; color: #fb7185; text-shadow: 0 0 6px rgba(251,113,133,.55); }
+  #leben .weg { color: #4b4778; text-shadow: none; }
+  #energie { display: flex; gap: 6px; }
+  #energie i {
+    display: block; width: 16px; height: 16px; border-radius: 50%; background: #fde68a;
+    box-shadow: 0 0 8px 2px rgba(245, 158, 11, .8); border: 2px solid #F59E0B;
+  }
+  #energie i.leer { background: transparent; box-shadow: none; border-color: #5b57a0; }
+  #vital.autsch { animation: autsch .45s ease-out; }
+  @keyframes autsch { 0%, 60% { border-color: #fb7185; background: rgba(120, 20, 50, .8); } 100% { border-color: rgba(253,230,138,.25); } }
+  #tipp {
+    position: absolute; top: calc(92px + var(--sat)); left: 50%; transform: translateX(-50%); max-width: min(92%, 560px);
+    padding: 8px 14px; border-radius: 14px; background: rgba(20, 20, 60, .9); border: 2px solid rgba(108, 99, 255, .7);
+    font-size: 15px; line-height: 1.4; text-align: center; transition: opacity .6s;
+  }
+  #tipp.aus { opacity: 0; }
+  @media (min-width: 1000px) and (min-height: 560px) {
+    #ziel, #funken { font-size: 20px; padding: 6px 14px; }
+    #ziel { top: calc(70px + var(--sat)); }
+    #vital { padding: 8px 16px; gap: 16px; }
+    #leben { font-size: 34px; }
+    #energie i { width: 26px; height: 26px; }
+    #tipp { top: calc(116px + var(--sat)); font-size: 18px; }
+  }
+  .help p { margin: 0 0 8px; line-height: 1.45; font-size: 15px; }
+  .help b { color: #fde68a; }
   #funken { left: 50%; transform: translateX(-50%); color: var(--amber); }
+  @media (max-width: 560px) { #funken { left: auto; right: calc(10px + var(--sar)); top: calc(64px + var(--sat)); transform: none; } }
   #topbtns { position: absolute; top: calc(6px + var(--sat)); right: calc(8px + var(--sar)); display: flex; gap: 8px; pointer-events: auto; }
   .iconbtn {
     width: 48px; height: 48px; border-radius: 14px; border: 2px solid rgba(255,255,255,.25);
@@ -107,7 +140,12 @@
   <canvas id="c" width="256" height="144" aria-label="Spielfeld"></canvas>
 
   <div id="hud" class="hidden">
+    <div id="vital" aria-live="polite">
+      <div id="leben" aria-label="Leben"></div>
+      <div id="energie" aria-label="Energie"></div>
+    </div>
     <div id="ziel"></div>
+    <div id="tipp" class="hidden"></div>
     <div id="funken">✦ 0</div>
     <div id="topbtns">
       <button class="iconbtn" id="btn-sound" aria-label="Ton an oder aus">♪</button>
@@ -136,6 +174,7 @@
           <label class="opt"><input type="checkbox" id="opt-mathe"> Zahlen-Modus (Zielzahl sammeln)</label>
           <label class="opt"><input type="checkbox" id="opt-farbhilfe"> Farbhilfe (goldene Kristalle sind richtig)</label>
           <p class="sub" style="margin-top:8px">Tastatur: Pfeile oder A/D laufen, Leertaste springt, P pausiert.</p>
+          <button class="big" id="btn-hilfe">? So spielst du</button>
         </div>
       </div>
     </div>
@@ -227,13 +266,15 @@
     feder: function () { tone(220, 880, 0.2, 'triangle', 0.5); },
     checkpoint: function () { [0, 2, 4].forEach(function (n, i) { tone(PENTA[n], PENTA[n], 0.14, 'sine', 0.4, i * 0.09); }); },
     ziel: function () { [0, 1, 2, 3, 4, 3, 4].forEach(function (n, i) { tone(PENTA[n] * 1.0, PENTA[n], 0.2, 'triangle', 0.45, i * 0.11); }); },
-    pause: function () { tone(520, 520, 0.08, 'sine', 0.3); tone(390, 390, 0.1, 'sine', 0.3, 0.08); }
+    pause: function () { tone(520, 520, 0.08, 'sine', 0.3); tone(390, 390, 0.1, 'sine', 0.3, 0.08); },
+    leben: function () { [4, 2, 0].forEach(function (n, i) { tone(PENTA[n] / 2, PENTA[n] / 2.2, 0.2, 'triangle', 0.4, i * 0.12); }); },
+    verloren: function () { [3, 2, 1, 0].forEach(function (n, i) { tone(PENTA[n] / 2, PENTA[n] / 2.4, 0.3, 'sine', 0.4, i * 0.18); }); }
   };
 
   // ---------- Zustand ----------
   var canvas = $('c'), ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   ctx.imageSmoothingEnabled = false;
-  var mode = 'menu'; // menu | play | pause | won | ended
+  var mode = 'menu'; // menu | play | pause | won | lost | ended
   var meta = null, level = null, game = null;
   var cam = 0, shake = 0, squash = 0, animT = 0, lastY = 0;
   var particles = [];
@@ -378,11 +419,52 @@
     document.body.classList.toggle('einfach', einfach());
     $('ziel').textContent = o.mode === 'ziel' ? J.mathgen.targetLabel(meta.reihe) : 'Sammle alle Funken';
     updateHud();
+    showTipp();
     mode = 'play';
     jnr.lastLevel = id;
     onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
   }
-  function updateHud() { $('funken').textContent = '✦ ' + game.funken; }
+  function updateHud() {
+    $('funken').textContent = '✦ ' + game.funken;
+    var h = '', e = '', i;
+    for (i = 0; i < GM.LEBEN; i++) h += '<span' + (i < game.leben ? '' : ' class="weg"') + '>♥</span>';
+    for (i = 0; i < GM.ENERGIE; i++) e += '<i' + (i < game.energie ? '' : ' class="leer"') + '></i>';
+    $('leben').innerHTML = h; $('energie').innerHTML = e;
+    $('leben').setAttribute('aria-label', 'Leben: ' + game.leben + ' von ' + GM.LEBEN);
+    $('energie').setAttribute('aria-label', 'Energie: ' + game.energie + ' von ' + GM.ENERGIE);
+  }
+  function autsch() {
+    var v = $('vital'); v.classList.remove('autsch'); void v.offsetWidth; v.classList.add('autsch');
+  }
+  // Kurzer Hinweis beim ersten Levelstart dieser Sitzung (blockiert nicht, verschwindet von selbst).
+  var tippGezeigt = false, tippTimer = null;
+  function showTipp() {
+    var t = $('tipp');
+    clearTimeout(tippTimer);
+    if (tippGezeigt) { t.classList.add('hidden'); return; }
+    tippGezeigt = true;
+    t.innerHTML = 'Oben links: <b style="color:#fb7185">♥ Leben</b> und <b style="color:#fde68a">● Energie</b>. ' +
+      'Falsche Zahlen und Dornen kosten 1 Energie, die Schlucht ein ganzes Leben.';
+    t.classList.remove('hidden', 'aus');
+    tippTimer = setTimeout(function () { t.classList.add('aus'); tippTimer = setTimeout(function () { t.classList.add('hidden'); }, 700); }, 6000);
+  }
+
+  // ---------- Hilfe ----------
+  var HILFE = '<div class="help">' +
+    '<p><b>Laufen und Springen:</b> Links/rechts laufen, ▲ oder Leertaste springt. Lange drücken springt höher.</p>' +
+    '<p><b>Zahlen sammeln:</b> Sammle die Zahlen der Zielreihe. Jede richtige Zahl gibt einen Funken ✦.</p>' +
+    '<p><b>Energie <span style="color:#fde68a">●●●</span>:</b> Lumo hat 3 Lichtpunkte. Eine falsche Zahl oder Dornen kosten einen Lichtpunkt und schubsen Lumo zurück. Danach blinkt Lumo kurz und kann nicht getroffen werden.</p>' +
+    '<p><b>Leben <span style="color:#fb7185">♥♥♥</span>:</b> Sind alle Lichtpunkte aus, ist ein Leben weg. Lumo startet dann an der letzten Laterne mit voller Energie. Ein Sturz in die Schlucht kostet sofort ein Leben.</p>' +
+    '<p><b>Laternen:</b> Lauf an einer Laterne vorbei, dann leuchtet sie und du startest dort neu.</p>' +
+    '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
+    '</div>';
+  function showHilfe(back) {
+    showMsg('So spielst du', HILFE, [{ text: 'Verstanden', main: true, fn: back }]);
+  }
+  $('btn-hilfe').addEventListener('click', function () {
+    ensureAudio(); $('btn-hilfe').blur();
+    showHilfe(function () { $('msg').classList.add('hidden'); });
+  });
 
   // ---------- Pause / Ende ----------
   function showMsg(title, bodyHtml, buttons) {
@@ -398,9 +480,13 @@
   function pause() {
     if (mode !== 'play') return;
     mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause();
+    showPauseMsg();
+  }
+  function showPauseMsg() {
     showMsg('Pause', 'Lumo wartet auf dich.', [
       { text: 'Weiter', main: true, fn: resume },
       { text: 'Level neu starten', fn: function () { startLevel(meta.id); } },
+      { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } },
       { text: 'Levelauswahl', fn: showMenu }
     ]);
   }
@@ -415,12 +501,32 @@
     showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
   }
 
+  // Alle Leben weg: kein XP, kein jnr:result, kein Fortschritt (rewards.shouldReport).
+  function lose() {
+    mode = 'lost';
+    keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
+    var st = GM.stats(game);
+    sfx.verloren();
+    var cps = level.checkpoints.length, cp = game.checkpointIdx + 1;
+    var body = '<div>Lumo braucht eine Pause. So weit bist du gekommen:</div>' +
+      '<div style="margin-top:8px" class="got">✦ ' + st.funken + ' Funken</div>' +
+      '<div class="got">◆ ' + st.richtig + ' von ' + st.totalGood + ' Kristallen gesammelt</div>' +
+      '<div class="got">✧ ' + cp + ' von ' + cps + ' Laternen erreicht</div>' +
+      '<div style="margin-top:6px;font-size:14px;opacity:.8">Mit „Nochmal“ wartet eine neue Landschaft.</div>';
+    var btns = [
+      { text: 'Nochmal', main: true, fn: function () { startLevel(meta.id); } },
+      { text: 'Zum Menü', fn: showMenu }
+    ];
+    setTimeout(function () { if (mode === 'lost') { $('hud').classList.add('hidden'); showMsg('Alle Leben verbraucht', body, btns); } }, 900);
+  }
+
   function win() {
     mode = 'won';
     var st = GM.stats(game);
     var res = R.buildResult(meta.id, st, jnr);
     var d = res.details;
     sfx.ziel();
+    if (!R.shouldReport(st)) return;
     jnr = R.mergeResult(jnr, res);
     save();
     if (embedded) {
@@ -453,7 +559,7 @@
       else if (m.kind === 'init') {
         jnr = m.jnr;
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
-        else if (mode === 'ended' || mode === 'won') {
+        else if (mode === 'ended' || mode === 'won' || mode === 'lost') {
           // Reset-Pfad aus einem beendeten Lauf heraus: ohne ihn bliebe das Spiel nach
           // jnr:timeup dauerhaft in mode 'ended' haengen (siehe Vertrag oben).
           if (actx && actx.state === 'suspended') actx.resume();
@@ -625,6 +731,8 @@
   }
 
   function drawLumo(camX, t) {
+    // Unverwundbar: Lumo blinkt (jeder zweite 4er-Takt unsichtbar)
+    if (game.unverwundbar > 0 && game.status === 'play' && ((t >> 2) & 1)) return;
     var p = game.player, cx = Math.round(p.x + 5 - camX), feet = Math.round(p.y + 12);
     var rx = 6, ry = 6;
     if (squash > 0) { rx = 7; ry = 5; } else if (p.vy < -1) { rx = 5; ry = 7; } else if (p.vy > 2) { rx = 5; ry = 7; }
@@ -686,8 +794,13 @@
       if (e.type === 'sprung') sfx.sprung();
       else if (e.type === 'landung') { sfx.landung(); squash = 6; spawn(p.x + 5, p.y + 12, 4, '#8f89ff', 0.6, 0.3); }
       else if (e.type === 'funke') { sfx.funke(e.kette); var c = game.crystals[e.index]; spawn(c.tx * T + 8, c.ty * T + 8, 6, '#fde68a', 1.1, 0.2); updateHud(); }
-      else if (e.type === 'falsch') { sfx.falsch(); var w = game.crystals[e.index]; spawn(w.tx * T + 8, w.ty * T + 8, 8, '#7c3aed', 1.2, 0.3); shake = 6; updateHud(); }
-      else if (e.type === 'treffer') { sfx.falsch(); spawn(e.x + 5, e.y + 6, 8, '#c7c9ee', 1.2, 0.3); shake = 8; updateHud(); cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW); }
+      else if (e.type === 'falsch') { var w = game.crystals[e.index]; spawn(w.tx * T + 8, w.ty * T + 8, 8, '#7c3aed', 1.2, 0.3); }
+      else if (e.type === 'schaden') { sfx.falsch(); spawn(e.x + 5, e.y + 6, 6, '#fde68a', 1.0, 0.3); shake = 6; updateHud(); autsch(); }
+      else if (e.type === 'leben') {
+        sfx.leben(); spawn(e.x + 5, Math.min(e.y + 6, VH - 4), 10, '#fb7185', 1.3, 0.4); shake = 10; updateHud(); autsch();
+        cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
+      }
+      else if (e.type === 'verloren') { lose(); }
       else if (e.type === 'feder') { sfx.feder(); spawn(p.x + 5, p.y + 12, 6, '#f472b6', 0.9, 0.2); }
       else if (e.type === 'checkpoint') { sfx.checkpoint(); spawn(level.checkpoints[e.index].tx * T + 8, level.checkpoints[e.index].ty * T + 2, 8, '#F59E0B', 1, 0.3); }
       else if (e.type === 'ziel') { win(); }
@@ -699,7 +812,7 @@
     var dt = last ? ts - last : 0; last = ts;
     if (dt > 250) dt = DT;
     animT++;
-    if (mode === 'play' || mode === 'won') {
+    if (mode === 'play' || mode === 'won' || mode === 'lost') {
       acc += dt;
       var steps = 0;
       while (acc >= DT && steps < 5) {
@@ -722,8 +835,15 @@
     state: function () {
       if (!game) return { mode: mode };
       var p = game.player;
-      return { mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken, status: game.status, t: game.t, fehltreffer: game.fehltreffer };
+      return {
+        mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
+        status: game.status, t: game.t, fehltreffer: game.fehltreffer,
+        leben: game.leben, energie: game.energie, unverwundbar: game.unverwundbar
+      };
     },
+    // Nur fuer Tests: Lumo in die Schlucht versetzen (kostet im naechsten Schritt ein Leben).
+    debugFall: function () { if (game) { game.player.y = level.h * T + 40; game.unverwundbar = 0; } },
+    debugSet: function (o) { if (game) Object.keys(o).forEach(function (k) { game[k] = o[k]; }); if (game) updateHud(); },
     start: startLevel
   };
   document.body.classList.toggle('einfach', einfach());
