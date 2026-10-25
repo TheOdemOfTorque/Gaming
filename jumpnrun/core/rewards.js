@@ -15,7 +15,7 @@
 
   // stats: { reached, richtig, totalGood, fehltreffer }
   function calcMedals(s) {
-    if (!s.reached) return { geschafft: false, funken: false, fehlerfrei: false, anzahl: 0 };
+    if (!s.reached || s.lost) return { geschafft: false, funken: false, fehlerfrei: false, anzahl: 0 };
     var funken = s.totalGood === 0 || s.richtig / s.totalGood >= FUNKEN_QUOTE;
     var fehlerfrei = s.fehltreffer === 0;
     return { geschafft: true, funken: funken, fehlerfrei: fehlerfrei, anzahl: 1 + (funken ? 1 : 0) + (fehlerfrei ? 1 : 0) };
@@ -93,6 +93,12 @@
     return j;
   }
 
+  // Nur ein geschaffter Lauf geht als jnr:result an den Trainer und in den Spielstand. Ein verlorener
+  // Lauf (alle Leben weg) bringt weder XP noch Funken noch Fortschritt.
+  function shouldReport(stats) {
+    return !!(stats && stats.reached && !stats.lost);
+  }
+
   // Level n+1 ist frei, sobald Level n geschafft ist (mindestens 1 Medaille).
   function isUnlocked(jnr, id, order) {
     var i = order.indexOf(id);
@@ -104,6 +110,6 @@
   return {
     parseLevelId: parseLevelId, calcMedals: calcMedals, xpFor: xpFor,
     defaultJnr: defaultJnr, sanitizeJnr: sanitizeJnr,
-    buildResult: buildResult, mergeResult: mergeResult, isUnlocked: isUnlocked
+    buildResult: buildResult, mergeResult: mergeResult, isUnlocked: isUnlocked, shouldReport: shouldReport
   };
 });

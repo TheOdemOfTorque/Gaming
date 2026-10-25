@@ -2,7 +2,8 @@
 //
 // VERTRAG (Same-Origin-iframe; der Trainer bleibt einziger Schreiber von `henry_einmaleins`):
 //
-//   Spiel -> Trainer, nur wenn window.parent !== window, immer mit targetOrigin = location.origin:
+//   Spiel -> Trainer, nur wenn window.parent !== window, immer mit targetOrigin = location.origin,
+//   und nur fuer geschaffte Laeufe (rewards.shouldReport; ein verlorener Lauf ohne Leben sendet nichts):
 //     parent.postMessage({ type: 'jnr:result', level, medaillen, funken, xp }, location.origin)
 //       level      "1-2"  Level-ID (Welt-Nummer)
 //       medaillen  0..3   Anzahl in diesem Lauf (0, wenn das Ziel nicht erreicht wurde)

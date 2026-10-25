@@ -103,3 +103,17 @@ describe('sanitizeJnr', () => {
     expect(R.defaultJnr().options).toEqual({ steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true });
   });
 });
+
+describe('verlorener Lauf (alle Leben weg)', () => {
+  const lost = { reached: false, lost: true, leben: 0, richtig: 9, totalGood: 10, fehltreffer: 9, funken: 4, timeMs: 30000 };
+  test('buildResult: keine Medaille, kein XP', () => {
+    const r = R.buildResult('1-2', lost, R.defaultJnr());
+    expect(r.medaillen).toBe(0);
+    expect(r.xp).toBe(0);
+  });
+  test('shouldReport: nur geschaffte Laeufe gehen als jnr:result an den Trainer', () => {
+    expect(R.shouldReport(lost)).toBe(false);
+    expect(R.shouldReport({ ...base, lost: false })).toBe(true);
+    expect(R.shouldReport({ ...base, reached: true, lost: true })).toBe(false);
+  });
+});
