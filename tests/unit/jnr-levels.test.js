@@ -37,6 +37,25 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, '7').reihe).toBe(l2.reihe);
   });
 
+  test('Rechenwichte nur in Stufe 1-2 (Stufe 1-1 bleibt ohne Gefahren)', () => {
+    expect(D.byId('1-1').gen.gegner).toBeFalsy();
+    expect(D.byId('1-2').gen.gegner).toBe(true);
+    let n = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      expect(parseLevel(D.generateFor('1-1', seed).rows).enemies).toHaveLength(0);
+      n += parseLevel(D.generateFor('1-2', seed).rows).enemies.length;
+    }
+    expect(n).toBeGreaterThan(0);
+  });
+
+  test('Stufe 1-2: die Tafel der Wichte rechnet in der gewaehlten Reihe', () => {
+    const meta = D.byId('1-2');
+    const level = parseLevel(D.generateFor('1-2', 5).rows);
+    const g = G.createGame(level, D.gameOptions(meta, { mathe: 'ziel' }, 5, 7));
+    expect(g.enemies.length).toBeGreaterThan(0);
+    g.enemies.forEach(e => expect(e.rechnung.reihe).toBe(7));
+  });
+
   test('brauchtReihenwahl: nur Mathe-Stufen im Zahlen-Modus', () => {
     expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'ziel' })).toBe(true);
     expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'aus' })).toBe(false);
@@ -78,13 +97,17 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
 
     test(`ist fuer ${SEEDS_PROPERTY} Seeds per Greedy-Bot nachweislich loesbar`, () => {
       const options = R.defaultJnr().options;
+      let gegnerTreffer = 0;
       for (let seed = 1; seed <= SEEDS_PROPERTY; seed++) {
         const gen = D.generateFor(id, seed);
         const level = parseLevel(gen.rows);
         const opts = D.gameOptions(meta, options, seed);
         const r = SOLVER.solve(level, opts);
         if (!r.won) throw new Error('Stufe ' + id + ', seed ' + seed + ' nicht loesbar (' + r.game.status + ', Leben ' + r.game.leben + '): ' + gen.sections.join(' > '));
+        gegnerTreffer += r.schaden.gegner || 0;
       }
+      // Rechenwichten kann man immer ausweichen (drueber- oder draufspringen)
+      expect(gegnerTreffer).toBe(0);
     }, 60000);
   });
 

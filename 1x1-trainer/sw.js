@@ -18,6 +18,7 @@ const ASSETS = [
   '../knobel/icon-512.png',
   '../jumpnrun/index.html',
   '../jumpnrun/core/collision.js',
+  '../jumpnrun/core/gegner.js',
   '../jumpnrun/core/game.js',
   '../jumpnrun/core/host.js',
   '../jumpnrun/core/reihenwahl.js',

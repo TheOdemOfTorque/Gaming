@@ -68,3 +68,70 @@ describe('Level-Generator (core/levelgen.js)', () => {
     }
   });
 });
+
+describe('Rechenwichte im Generator (opts.gegner)', () => {
+  const GEN = { minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18, gegner: true };
+  const OHNE = Object.assign({}, GEN, { gegner: false });
+  const SEEDS = Array.from({ length: 200 }, (_, i) => i + 1);
+  const countW = rows => rows.join('').split('').filter(c => c === 'w').length;
+
+  test('ohne opts.gegner kein einziger Wicht', () => {
+    SEEDS.slice(0, 50).forEach(seed => {
+      expect(countW(LG.generate(OHNE, seed).rows)).toBe(0);
+      expect(countW(LG.generate(BASE, seed).rows)).toBe(0);
+    });
+  });
+
+  test('deterministisch und ohne Einfluss auf Abschnittsfolge, Kristalle und Gelaende', () => {
+    SEEDS.slice(0, 50).forEach(seed => {
+      const a = LG.generate(GEN, seed), b = LG.generate(GEN, seed), o = LG.generate(OHNE, seed);
+      expect(a.rows).toEqual(b.rows);
+      expect(a.gegner).toEqual(b.gegner);
+      expect(a.sections).toEqual(o.sections);
+      expect(a.rows.map(r => r.replace(/w/g, '.'))).toEqual(o.rows);
+      expect(countW(a.rows)).toBe(a.gegner.length);
+    });
+  });
+
+  test('nie im Start-, ersten Mittel- oder Ziel-Abschnitt, hoechstens einer je 2 bis 3 Abschnitte', () => {
+    SEEDS.forEach(seed => {
+      const g = LG.generate(GEN, seed);
+      g.gegner.forEach((w, i) => {
+        expect(w.abschnitt).toBeGreaterThanOrEqual(2);
+        expect(w.abschnitt).toBeLessThanOrEqual(g.sections.length - 2);
+        if (i > 0) expect(w.abschnitt - g.gegner[i - 1].abschnitt).toBeGreaterThanOrEqual(2);
+      });
+    });
+  });
+
+  test('Laufstrecke liegt nie an Start, Ziel oder Laterne und nie auf einem Kristallplatz', () => {
+    SEEDS.forEach(seed => {
+      const L = parseLevel(LG.generate(GEN, seed).rows);
+      const marken = [L.start.tx, L.goal.tx].concat(L.checkpoints.map(c => c.tx));
+      L.enemies.forEach(e => {
+        expect(e.bis - e.von + 1).toBeGreaterThanOrEqual(4);
+        marken.forEach(m => {
+          expect(m < e.von - 3 || m > e.bis + 3).toBe(true);
+        });
+        L.crystalSlots.filter(s => s.ty === e.ty).forEach(s => {
+          expect(s.tx < e.von || s.tx > e.bis).toBe(true);
+        });
+        L.spikes.forEach(s => expect(s.ty !== e.ty || s.tx < e.von - 1 || s.tx > e.bis + 1).toBe(true));
+      });
+    });
+  });
+
+  test('seltener als Stacheln, aber regelmaessig: in fast jedem Lauf mindestens ein Wicht', () => {
+    let wichte = 0, mitWicht = 0, abschnitte = 0, stacheln = 0;
+    SEEDS.forEach(seed => {
+      const g = LG.generate(GEN, seed);
+      const L = parseLevel(g.rows);
+      wichte += g.gegner.length; abschnitte += g.sections.length;
+      stacheln += L.spikes.length;
+      if (g.gegner.length) mitWicht++;
+    });
+    expect(mitWicht).toBeGreaterThanOrEqual(SEEDS.length * 0.9);
+    expect(wichte).toBeLessThan(stacheln);
+    expect(wichte / abschnitte).toBeLessThanOrEqual(1 / 2);
+  });
+});
