@@ -12,7 +12,7 @@
   else { root.JNR = root.JNR || {}; root.JNR.level = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C, P) {
   var T = C.TILE;
-  var LANDUNG = 3; // Kacheln hinter einer Gefahr, in denen ein Kristall als Landestelle gilt
+  var LANDUNG = 1; // nur die Kachel direkt hinter einer Gefahr gilt als Landestelle (sonst lernen Kinder "nach dem Sprung immer richtig")
   var CHARS = {
     '.': 'Luft', '#': 'Boden', 'S': 'Start', 'G': 'Ziel', 'C': 'Checkpoint',
     'o': 'Kristallplatz', '^': 'Dornen', '~': 'Federpilz'
@@ -66,7 +66,7 @@
     function byXY(a, b) { return a.tx - b.tx || a.ty - b.ty; }
     cps.sort(byXY); slots.sort(byXY);
 
-    // Landestelle: Kristall auf Boden, bis LANDUNG Kacheln hinter Dornen, Federpilz, Luecke oder
+    // Landestelle: Kristall auf Boden, LANDUNG Kachel(n) direkt hinter Dornen, Federpilz, Luecke oder
     // Hoehenwechsel. Dort kommt Lumo nach einem Pflichtsprung auf; eine falsche Zahl waere kaum zu
     // vermeiden (mathgen.js setzt dort nur richtige Zahlen).
     function solidAt(x, y) { return x >= 0 && x < w && y >= 0 && y < h && solid[y * w + x] === 1; }
