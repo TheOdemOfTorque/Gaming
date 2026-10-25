@@ -40,6 +40,16 @@
  *    nur die Typen 'knobel:init' bzw. 'knobel:result'. Alles andere wird
  *    ignoriert.
  * ---------------------------------------------------------------------------
+ * SPEICHER-UEBERSICHT (drei getrennte localStorage-Schluessel)
+ * ---------------------------------------------------------------------------
+ * - henry_einmaleins  : nur der Trainer schreibt hier (siehe oben).
+ * - henry_knobel      : Raetsel-Fortschritt, Stufen, XP (knobelMigration()).
+ * - henry_knobel_ui   : rein praesentationsbezogene Einstellungen, kein
+ *   Raetsel-Zustand. Aktuell { dubletteWarnung: bool, tutorialGesehen: {
+ *   mauer: bool, kaefige: bool } }. Laden/Speichern lebt in index.html
+ *   (try/catch wie bei henry_knobel), bewusst getrennt von henry_knobel,
+ *   damit ein zurueckgesetztes Raetsel die Einstellungen nicht mitreisst.
+ * ---------------------------------------------------------------------------
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -720,7 +730,7 @@
     zellenZusammenhaengend: zellenZusammenhaengend,
     solveCages: solveCages, logicSolveCages: logicSolveCages, generateCages: generateCages,
     generatePuzzle: generatePuzzle, checkSolution: checkSolution, findHint: findHint,
-    istFest: istFest, festerWert: festerWert, kaefigFuer: kaefigFuer,
+    istFest: istFest, festerWert: festerWert, kaefigFuer: kaefigFuer, wirksam: wirksam,
     applyMove: applyMove, undoMove: undoMove,
     BASIS_XP: BASIS_XP, TAGES_CAP: TAGES_CAP, computeKnobelXP: computeKnobelXP,
     nextKnobelStufe: nextKnobelStufe, dailySeed: dailySeed,

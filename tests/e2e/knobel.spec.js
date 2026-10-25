@@ -154,6 +154,72 @@ test.describe('Knobelwerkstatt', () => {
     });
   }
 
+  test.describe('Rechenkaefige: Fuge zwischen Kaefigen gleicher Rechenart (Akzeptanzkriterium 3)', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      test(`Stufe 5 (6x6), seed ${seed}: falls zwei gleichartige Kaefige angrenzen, ist die Fuge sichtbar`, async ({ page }) => {
+        await page.goto(`/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=${seed}`);
+        await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+        const paar = await page.evaluate(() => {
+          const { puzzle } = window.__knobel.cur, L = window.__knobel.L, n = puzzle.n;
+          for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+            const k = L.kaefigFuer(puzzle, r, c);
+            if (c + 1 < n) {
+              const rechts = L.kaefigFuer(puzzle, r, c + 1);
+              if (rechts !== k && rechts.op === k.op) return { a: [r, c], b: [r, c + 1], achse: 'x' };
+            }
+            if (r + 1 < n) {
+              const unten = L.kaefigFuer(puzzle, r + 1, c);
+              if (unten !== k && unten.op === k.op) return { a: [r, c], b: [r + 1, c], achse: 'y' };
+            }
+          }
+          return null;
+        });
+        test.skip(!paar, 'kein angrenzendes Kaefigpaar gleicher Rechenart in diesem Raetsel');
+        const elA = page.locator(`#board [data-r="${paar.a[0]}"][data-c="${paar.a[1]}"]`);
+        const elB = page.locator(`#board [data-r="${paar.b[0]}"][data-c="${paar.b[1]}"]`);
+        const klasseB = await elB.getAttribute('class');
+        expect(klasseB.split(' ')).toEqual(expect.arrayContaining([paar.achse === 'x' ? 'fl' : 'ft']));
+        const [boxA, boxB] = [await elA.boundingBox(), await elB.boundingBox()];
+        const luecke = paar.achse === 'x' ? boxB.x - (boxA.x + boxA.width) : boxB.y - (boxA.y + boxA.height);
+        expect(luecke).toBeGreaterThanOrEqual(1.5);
+      });
+    }
+  });
+
+  test.describe('Rechenkaefige: Ziffer ueberlappt den Zeichen-Chip nie (Akzeptanzkriterium 5)', () => {
+    for (const vp of [{ name: 'iPhone', width: 390, height: 844 }, { name: 'Desktop', width: 1280, height: 800 }]) {
+      for (const stufe of [1, 2, 4, 5]) {
+        test(`Stufe ${stufe} (${vp.name})`, async ({ page }) => {
+          await page.setViewportSize({ width: vp.width, height: vp.height });
+          await page.goto(`/knobel/index.html?debug=1&modus=kaefige&stufe=${stufe}&seed=1`);
+          await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+          // Alle Felder einmal durchtippen, damit auch die Ziffer selbst (nicht nur der Chip) geprueft wird.
+          const plan = await page.evaluate(() => {
+            const { puzzle, modus } = window.__knobel.cur, L = window.__knobel.L, out = [];
+            for (let r = 0; r < puzzle.n; r++) for (let c = 0; c < puzzle.n; c++)
+              if (!L.istFest(modus, puzzle, r, c)) out.push({ r, c, wert: puzzle.loesung[r][c] });
+            return out;
+          });
+          for (const z of plan) {
+            await page.locator(`#board [data-r="${z.r}"][data-c="${z.c}"]`).click();
+            await page.locator(`#pad .key[data-k="${z.wert}"]`).click();
+          }
+          const overlaps = await page.$$eval('#board.kaefige .cell', (cells) => cells.filter((el) => {
+            const chip = el.querySelector('.chip');
+            const text = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+            if (!chip || !text) return false;
+            const r = document.createRange(); r.selectNodeContents(text);
+            const numBox = r.getBoundingClientRect(), chipBox = chip.getBoundingClientRect();
+            const ueberlappt = numBox.left < chipBox.right && numBox.right > chipBox.left &&
+              numBox.top < chipBox.bottom && numBox.bottom > chipBox.top;
+            return ueberlappt;
+          }).map((el) => el.textContent.trim()));
+          expect(overlaps).toEqual([]);
+        });
+      }
+    }
+  });
+
   test.describe('Querformat auf dem Telefon (kurze Seite < 520px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
