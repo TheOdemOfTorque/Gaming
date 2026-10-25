@@ -11,8 +11,37 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Knobelwerkstatt</title>
 <style>
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/AtkinsonHyperlegible-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src: url('fonts/AtkinsonHyperlegible-Bold.woff2') format('woff2');
+}
 :root {
-  --bg: #0d0d2b;
+  /* Rechenfarben (Spec "Knobelwerkstatt UI-Design"): je Rechenart eine feste
+     Farbe, ueberall gleich verwendet (Kaefigrand, Zeichen-Chip, Streifen, Fuge). */
+  --nacht: #12112b;      /* Grundflaeche */
+  --tafel: #1d1b45;      /* Brett, Streifen */
+  --feld: #26245a;       /* Felder, Steine, Tasten */
+  --kreide: #f3f1ff;     /* Zahlen */
+  --leise: #a9a5d6;      /* Ein-Feld-Kaefig "=", Nebentext */
+  --plus: #34d1b0;       /* + zusammenzaehlen */
+  --mal: #f5a524;        /* x malnehmen */
+  --minus: #ff7a9a;      /* - abziehen */
+  --geteilt: #6db3ff;    /* / teilen */
+  --gut: #7be08a;        /* erfuellt, immer mit Haekchen */
+  --fehler: #ff5d6c;     /* Widerspruch, immer mit Text */
+  --wahl: #ffffff;       /* gewaehltes Feld/Stein */
+
+  --bg: var(--nacht);
   --card: rgba(255,255,255,0.07);
   --card-hi: rgba(255,255,255,0.12);
   --line: rgba(255,255,255,0.18);
@@ -21,12 +50,12 @@
   --gold: #F59E0B;
   --ok: #10B981;
   --err: #EF4444;
-  --text: #f1f1ff;
-  --muted: #b4b4d6;
+  --text: var(--kreide);
+  --muted: var(--leise);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   font-variant-numeric: tabular-nums; overscroll-behavior: none; }
 body { height: 100vh; height: 100dvh; overflow: hidden; }
 button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; border: 0; }
@@ -65,42 +94,76 @@ h1 { margin: 0; font-size: 26px; }
 #status.good { color: var(--ok); }
 #area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; overflow-y: auto; }
 
-/* Zahlenmauer */
-#board.mauer { display: grid; gap: 6px 0; width: 100%; }
-.stone { position: relative; height: var(--sh, 52px); margin: 0 3px; border-radius: 10px; background: var(--card-hi);
-  border: 2px solid transparent; font-size: 22px; font-weight: 600; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 0 rgba(0,0,0,.35); }
-.stone.fest { background: rgba(108,99,255,.28); color: #fff; }
-.stone.hint { background: rgba(245,158,11,.22); }
+/* Zahlenmauer: Rechenzeichen sitzt als Kreis in der Fuge, direkt unter dem
+   Ergebnisstein (nicht mehr als Prefix im Stein selbst). */
+#board.mauer { display: grid; gap: 14px 0; width: 100%; }
+.stone { position: relative; height: var(--sh, 52px); margin: 0 3px; border-radius: 10px; background: var(--feld);
+  color: var(--kreide); border: 2px solid transparent; font-size: 22px; font-weight: 700; display: flex;
+  align-items: center; justify-content: center; }
+.stone.op-mal { --c: var(--mal); } .stone.op-plus { --c: var(--plus); }
+.stone.fest { background: #353176; }
+.stone.hint { box-shadow: inset 0 0 0 999px rgba(245,158,11,.22); }
 .stone.big { font-size: 17px; }
-/* Platz links fuer das Rechenzeichen, damit es die Zahl nicht ueberdeckt */
-.stone[data-op] { padding-left: clamp(22px, calc(var(--sh, 52px) * .5), 30px); padding-right: 4px; }
-.stone[data-op]::before { position: absolute; top: 50%; left: 6px; transform: translateY(-50%);
-  font-size: clamp(18px, calc(var(--sh, 52px) * .42), 26px); font-weight: 800; line-height: 1; color: var(--accent-hi); }
-.stone[data-op="mul"]::before { content: "×"; }
-.stone[data-op="add"]::before { content: "+"; }
-.stone.sel { border-color: var(--gold); background: rgba(245,158,11,.18); }
+.stone-op { position: absolute; bottom: -13px; left: 50%; transform: translate(-50%, 50%); z-index: 2;
+  width: clamp(18px, calc(var(--sh, 52px) * .46), 26px); height: clamp(18px, calc(var(--sh, 52px) * .46), 26px);
+  border-radius: 50%; background: var(--c); color: #141233; font-size: clamp(12px, calc(var(--sh, 52px) * .32), 18px);
+  font-weight: 700; display: grid; place-items: center; line-height: 1; }
+.stone.sel { outline: 3px solid var(--wahl); outline-offset: -4px; }
+.stone.quelle { border-color: var(--qc, var(--c)); }
 .stone.err, .cell.err { border-color: var(--err); }
 .stone.err::after, .cell.err::after { content: "✕"; position: absolute; top: 1px; right: 5px; font-size: 12px; color: var(--err); }
-.stone.top.done { background: var(--gold); color: #1b1200; }
+.stone.top.done { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--gut) 25%, transparent); }
+.legende { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 14px; color: var(--leise); padding: 2px 0; }
+.legende[hidden] { display: none; }
+.legende span { display: flex; align-items: center; gap: 6px; }
+.legende .op-sym { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c); color: #141233; font-weight: 700; font-size: 13px; }
 
-/* Rechenkaefige */
-#board.kaefige { display: grid; width: var(--bs); height: var(--bs); background: var(--line); border: 2px solid var(--accent-hi); border-radius: 6px; }
-.cell { position: relative; background: #17173f; display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--bs) / var(--n) * .5); font-weight: 600; min-width: 0; min-height: 0; padding: 0;
-  border: 1px solid rgba(255,255,255,.10); }
-.cell.bt { border-top: 3px solid var(--accent-hi); }
-.cell.br { border-right: 3px solid var(--accent-hi); }
-.cell.bb { border-bottom: 3px solid var(--accent-hi); }
-.cell.bl { border-left: 3px solid var(--accent-hi); }
-.cell.fest { background: rgba(108,99,255,.30); }
-.cell.hint { background: rgba(245,158,11,.22); }
-.cell.sel { background: rgba(245,158,11,.30); box-shadow: inset 0 0 0 3px var(--gold); }
-.cell.conf { color: #ff9a9a; }
-.cell.conf::before { content: "≠"; position: absolute; bottom: 1px; right: 4px; font-size: 12px; color: #ff9a9a; }
+/* Rechenstreifen: schreibt die Aufgabe des gewaehlten Kaefigs/Steins als
+   normale Rechnung aus, mit Luecken fuer die fehlenden Zahlen. */
+.streifen { border-radius: 12px; background: var(--tafel); padding: 6px 12px; border-left: 6px solid var(--c, var(--leise)); }
+.streifen[hidden] { display: none; }
+.streifen .gl { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  font-size: clamp(16px, calc(var(--bs, 300px) * .07), 24px); font-weight: 700; min-height: 1.2em; line-height: 1.2; }
+.streifen .o { color: var(--c, var(--leise)); }
+.streifen .ziel { color: var(--c, var(--leise)); }
+.streifen .ok2 { color: var(--gut); }
+.streifen .slot { width: 24px; height: 26px; border-radius: 6px; border: 2px dashed var(--leise); display: inline-block; }
+.streifen .slot.jetzt { border-style: solid; border-color: var(--wahl); }
+.streifen .wort { font-size: 13px; color: var(--leise); margin-top: 2px; line-height: 1.25; }
+.streifen .wort.fehler { color: var(--fehler); }
+.streifen.flash { animation: streifen-gut .15s ease-out; }
+@keyframes streifen-gut { from { background: color-mix(in srgb, var(--gut) 40%, var(--tafel)); } to { background: var(--tafel); } }
+
+/* Rechenkaefige: Kaefig als Flaeche, Felder stossen luecken­los aneinander,
+   aussen ein 4px Rand in der Rechenfarbe, dazwischen eine feine dunkle Linie. */
+#board.kaefige { display: grid; width: var(--bs); height: var(--bs); background: var(--tafel);
+  border-radius: 16px; padding: 4px; }
+.cell { position: relative; background: var(--feld); display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 0 clamp(3px, calc(var(--bs) / var(--n) * .06), 6px) 0; line-height: 1;
+  font-size: calc(var(--bs) / var(--n) * .36); font-weight: 700; min-width: 0; min-height: 0;
+  border: 1px solid rgba(18,17,43,.9); color: var(--kreide); }
+.cell.op-plus { --c: var(--plus); } .cell.op-mal { --c: var(--mal); } .cell.op-minus { --c: var(--minus); }
+.cell.op-geteilt { --c: var(--geteilt); } .cell.op-eins { --c: var(--leise); }
+.cell.k { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--c) 13%, transparent); }
+.cell.bt { border-top: 4px solid var(--c); } .cell.br { border-right: 4px solid var(--c); }
+.cell.bb { border-bottom: 4px solid var(--c); } .cell.bl { border-left: 4px solid var(--c); }
+/* dunkle Fuge zwischen zwei Kaefigen gleicher Rechenart: diese Zelle gewinnt 2px zurueck,
+   das Brett (dunkel) scheint durch; nur "oben"/"links" setzen, sonst doppelte Fuge */
+.cell.ft { margin-top: 2px; } .cell.fl { margin-left: 2px; }
+.cell.fest { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--c) 13%, transparent); }
+.cell.hint { box-shadow: inset 0 0 0 999px rgba(245,158,11,.22); }
+.cell.cagesel { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--c) 26%, transparent); }
+.cell.sel { outline: 3px solid var(--wahl); outline-offset: -4px; }
+.cell.conf { color: var(--fehler); }
 .cell.err { box-shadow: inset 0 0 0 3px var(--err); }
-.cell.done { background: rgba(245,158,11,.25); }
-.lbl { position: absolute; top: 1px; left: 3px; font-size: calc(var(--bs) / var(--n) * .21); color: var(--accent-hi); font-weight: 700; line-height: 1; }
+.cell.done { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--gut) 20%, transparent); }
+.chip { position: absolute; top: 2px; left: 2px; display: flex; align-items: center; gap: 3px; z-index: 1;
+  background: var(--nacht); border-radius: 7px; padding: 1px 5px 1px 1px;
+  font-size: clamp(10px, calc(var(--bs) / var(--n) * .14), 15px); font-weight: 700; line-height: 1.2; }
+.chip .op-sym { width: 1.3em; height: 1.3em; border-radius: 50%; background: var(--c); color: #141233;
+  display: grid; place-items: center; font-weight: 700; }
+.chip .ok { color: var(--gut); font-size: .85em; margin-left: 1px; }
 .notes { position: absolute; inset: 14% 8% 6% 8%; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, 1fr);
   font-size: calc(var(--bs) / var(--n) * .2); color: var(--muted); font-weight: 400; pointer-events: none; text-align: center; align-items: center; }
 
@@ -127,13 +190,29 @@ h1 { margin: 0; font-size: 26px; }
 }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
+/* Regelkarte und Tutorial: gleiche Bausteine wie das Spiel (Kaefig, Chip,
+   Streifen), als Vollbild-Dialog ueber dem Brett. */
+#hilfe, #tutorial { position: fixed; inset: 0; background: rgba(13,13,43,.95); display: none;
+  flex-direction: column; align-items: center; justify-content: center; padding: 24px; z-index: 40; overflow-y: auto; }
+#hilfe.on, #tutorial.on { display: flex; }
+.hilfe-knopf { font-weight: 700; }
+.karte { width: min(360px, 100%); display: flex; flex-direction: column; gap: 16px; }
+.karte .regel { font-size: 16px; line-height: 1.35; color: var(--kreide); }
+.karte .btns { display: flex; flex-direction: column; gap: 10px; }
+.beispiel { background: var(--tafel); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.beispiel .mini-brett { display: grid; gap: 0; width: 160px; background: var(--tafel); border-radius: 10px; }
+.beispiel .mini-pad { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.beispiel .mini-pad button { min-width: 48px; min-height: 48px; border-radius: 10px; background: var(--feld);
+  color: var(--kreide); font-size: 20px; font-weight: 700; }
+.beispiel .zeile-glueht { outline: 3px solid var(--gut); outline-offset: 2px; }
+
 /* Querformat auf dem Telefon: Das Raetsel selbst ist ein Hochformat-Layout.
    Reicht die kurze Geraeteseite nicht fuer ein spielbares Raetsel (Telefon
    quer), zeigt ein freundlicher Hinweis die Drehung an, statt ein zu kleines
    oder ueberlappendes Layout zu riskieren. Das Menue (nur eine scrollbare
    Liste) bleibt davon unberuehrt, ebenso Tablets und Desktop. */
 #rotate-hint { display: none; }
-@media (orientation: landscape) and (max-height: 519.98px) {
+@media (orientation: landscape) and (max-height: 559.98px) {
   #game.on { visibility: hidden; }
   #game.on ~ #rotate-hint { display: flex; }
 }
@@ -170,6 +249,10 @@ h1 { margin: 0; font-size: 26px; }
     <div class="sub">Jede Zahl kommt in jeder Zeile und Spalte genau einmal vor. Die Käfige nennen Ziel und Rechenart.</div>
     <div class="lvls" role="group" aria-label="Stufe Rechenkäfige"></div>
     <button class="primary" id="start-kaefige">Neue Käfige</button>
+    <label class="sub" style="display:flex;align-items:center;gap:8px;">
+      <input type="checkbox" id="dublette-warnung" style="width:20px;height:20px;">
+      Doppelte Zahl sofort markieren
+    </label>
   </div>
 </section>
 
@@ -179,10 +262,18 @@ h1 { margin: 0; font-size: 26px; }
     <button class="iconbtn" id="back" aria-label="Zurück zum Menü">Menü</button>
     <div class="title" id="title"></div>
     <button class="iconbtn" id="mute" aria-pressed="false">Ton an</button>
+    <button class="iconbtn hilfe-knopf" id="hilfe-knopf" aria-label="Hilfe">?</button>
   </div>
   <div id="rule"></div>
   <div id="status" role="status" aria-live="polite"></div>
   <div id="area"><div id="board" role="group"></div></div>
+  <div id="streifen" class="streifen" role="status" aria-live="polite" hidden>
+    <div>
+      <div class="gl" id="streifen-gl"></div>
+      <div class="wort" id="streifen-wort"></div>
+    </div>
+  </div>
+  <div id="legende" class="legende" hidden></div>
   <div id="tools">
     <button class="tool" id="t-notes" aria-pressed="false">Notizen</button>
     <button class="tool" id="t-undo">Rückgängig</button>
@@ -202,6 +293,28 @@ h1 { margin: 0; font-size: 26px; }
   </div>
 </section>
 
+<div id="hilfe" role="dialog" aria-modal="true" aria-label="Regelkarte">
+  <div class="karte">
+    <p class="regel" id="hilfe-regel"></p>
+    <div class="beispiel" id="hilfe-beispiel"></div>
+    <div class="btns">
+      <button class="primary" id="hilfe-tutorial">Tutorial nochmal spielen</button>
+      <button class="secondary" id="hilfe-schliessen">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div id="tutorial" role="dialog" aria-modal="true" aria-label="Tutorial">
+  <div class="karte">
+    <p class="regel" id="tut-text"></p>
+    <div class="beispiel" id="tut-beispiel"></div>
+    <div class="btns">
+      <button class="primary" id="tut-weiter" hidden>Weiter</button>
+      <button class="secondary" id="tut-ueberspringen">Überspringen</button>
+    </div>
+  </div>
+</div>
+
 <div id="rotate-hint" role="status" aria-live="polite">
   <div class="icon" aria-hidden="true">📱 ↻</div>
   <p>Dreh dein Handy hochkant, dann passt die Knobelwerkstatt auf den Bildschirm.</p>
@@ -213,12 +326,31 @@ h1 { margin: 0; font-size: 26px; }
   'use strict';
   var L = window.KnobelLogic;
   var STORE = 'henry_knobel';
+  var UI_STORE = 'henry_knobel_ui';
   var NAMEN = { mauer: 'Zahlenmauer', kaefige: 'Rechenkäfige' };
+  var OP_KLASSE = { '+': 'op-plus', '×': 'op-mal', '−': 'op-minus', '÷': 'op-geteilt', '=': 'op-eins' };
   var embedded = window.parent !== window;
   var params = new URLSearchParams(location.search);
   var debug = params.get('debug') === '1';
 
   function $(id) { return document.getElementById(id); }
+
+  // ===== UI-Einstellungen (henry_knobel_ui): rein praesentationsbezogen, kein
+  // Raetsel-Zustand. Getrennt von henry_knobel, damit ein zurueckgesetztes
+  // Raetsel die Einstellungen nicht mitreisst. Siehe Vertragskommentar in
+  // knobel-logic.js fuer die vollstaendige Speicher-Uebersicht.
+  function defaultUI() { return { dubletteWarnung: true, tutorialGesehen: { mauer: false, kaefige: false } }; }
+  function loadUI() {
+    try {
+      var v = JSON.parse(localStorage.getItem(UI_STORE));
+      if (!v || typeof v !== 'object') return defaultUI();
+      var d = defaultUI();
+      return { dubletteWarnung: typeof v.dubletteWarnung === 'boolean' ? v.dubletteWarnung : d.dubletteWarnung,
+        tutorialGesehen: Object.assign({}, d.tutorialGesehen, v.tutorialGesehen && typeof v.tutorialGesehen === 'object' ? v.tutorialGesehen : {}) };
+    } catch (e) { return defaultUI(); }
+  }
+  var UI = loadUI();
+  function saveUI() { try { localStorage.setItem(UI_STORE, JSON.stringify(UI)); } catch (e) { /* privat/voll */ } }
   function heute() {
     var d = new Date(), p = function (x) { return (x < 10 ? '0' : '') + x; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
@@ -269,6 +401,7 @@ h1 { margin: 0; font-size: 26px; }
     var el = $('status');
     el.textContent = text || '';
     el.className = kind || '';
+    el.hidden = !text;
   }
 
   function emptyInput(modus, p) {
@@ -285,13 +418,13 @@ h1 { margin: 0; font-size: 26px; }
       modus: modus, stufe: stufe, seed: seed, puzzle: p,
       eingabe: opt.eingabe || emptyInput(modus, p), notizen: opt.notizen || {}, hinweise: opt.hinweise || {},
       tipps: opt.tipps || 0, sek: opt.sek || 0, tagesraetsel: !!opt.tagesraetsel,
-      sel: null, notizModus: false, undo: [], marks: {}, conflicts: {}, solved: false
+      sel: null, notizModus: false, undo: [], marks: {}, conflicts: {}, solved: false, streifenZustand: {}
     };
     persistRun();
     buildBoard();
     buildPad();
     show('game');
-    say(modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.');
+    say('');
     $('title').textContent = NAMEN[modus] + ' · Stufe ' + stufe + (cur.tagesraetsel ? ' · Tagesrätsel' : '');
     $('rule').textContent = modus === 'mauer'
       ? 'Zahlen von ' + p.fmin + ' bis ' + p.fmax + ' stehen in der untersten Reihe. × multipliziert, + addiert.'
@@ -326,7 +459,10 @@ h1 { margin: 0; font-size: 26px; }
           s.dataset.r = r; s.dataset.c = c;
           s.style.gridColumn = (r + 2 * c + 1) + ' / span 2';
           s.style.gridRow = (p.n - r);
-          if (r >= 1) s.dataset.op = p.regeln[r];
+          if (r >= 1) {
+            s.dataset.op = p.regeln[r];
+            s.classList.add(OP_KLASSE[p.regeln[r] === 'mul' ? '×' : '+']);
+          }
           if (r === p.n - 1) s.classList.add('top');
           b.appendChild(s);
         }
@@ -342,9 +478,14 @@ h1 { margin: 0; font-size: 26px; }
           cell.className = 'cell';
           cell.dataset.r = r; cell.dataset.c = c;
           var k = L.kaefigFuer(p, r, c);
+          cell.classList.add('k', OP_KLASSE[k.op]);
           [[-1, 0, 'bt'], [0, 1, 'br'], [1, 0, 'bb'], [0, -1, 'bl']].forEach(function (d) {
             var nk = (r + d[0] >= 0 && r + d[0] < p.n && c + d[1] >= 0 && c + d[1] < p.n) ? L.kaefigFuer(p, r + d[0], c + d[1]) : null;
-            if (nk !== k) cell.classList.add(d[2]);
+            if (nk !== k) {
+              cell.classList.add(d[2]);
+              // Fuge nur "oben"/"links" setzen, sonst waere sie an jeder Grenze doppelt so breit.
+              if (nk && nk.op === k.op && (d[2] === 'bt' || d[2] === 'bl')) cell.classList.add(d[2] === 'bt' ? 'ft' : 'fl');
+            }
           });
           b.appendChild(cell);
         }
@@ -354,7 +495,31 @@ h1 { margin: 0; font-size: 26px; }
       var t = ev.target.closest('[data-r]');
       if (t) selectCell(+t.dataset.r, +t.dataset.c);
     };
+    renderLegende();
     renderAll();
+  }
+
+  var OP_NAME = { '×': 'malnehmen', '+': 'zusammenzählen' };
+  function renderLegende() {
+    var el = $('legende');
+    if (cur.modus !== 'mauer') { el.hidden = true; el.innerHTML = ''; return; }
+    var vorkommend = [];
+    cur.puzzle.regeln.forEach(function (regel) {
+      var sym = regel === 'mul' ? '×' : regel === 'add' ? '+' : null;
+      if (sym && vorkommend.indexOf(sym) === -1) vorkommend.push(sym);
+    });
+    el.innerHTML = '';
+    vorkommend.forEach(function (sym) {
+      var span = document.createElement('span');
+      var kreis = document.createElement('span');
+      kreis.className = 'op-sym';
+      kreis.style.setProperty('--c', sym === '×' ? 'var(--mal)' : 'var(--plus)');
+      kreis.textContent = sym;
+      span.appendChild(kreis);
+      span.appendChild(document.createTextNode(OP_NAME[sym]));
+      el.appendChild(span);
+    });
+    el.hidden = vorkommend.length === 0;
   }
 
   function buildPad() {
@@ -377,9 +542,71 @@ h1 { margin: 0; font-size: 26px; }
 
   function cellEl(r, c) { return $('board').querySelector('[data-r="' + r + '"][data-c="' + c + '"]'); }
 
+  // Rechnung + Satz fuer den Rechenstreifen, zum aktuell gewaehlten Feld/Stein.
+  function bekannteAnzahl(eingaben) { return eingaben.filter(function (v) { return v !== null; }).length; }
+
+  function aktuelleRechnung() {
+    if (!cur || !cur.sel) return null;
+    var p = cur.puzzle, modus = cur.modus, r = cur.sel[0], c = cur.sel[1];
+    if (modus === 'kaefige') {
+      var k = L.kaefigFuer(p, r, c);
+      var werte = k.zellen.map(function (z) { return L.wirksam(modus, p, cur.eingabe, z[0], z[1]); });
+      var rechnung = L.rechnungFuer(k, werte);
+      var dub = UI.dubletteWarnung && cur.conflicts[key(r, c)] ? cur.eingabe[r][c] : null;
+      var satz = L.satzFuer(rechnung, { modus: 'kaefig', dublette: dub });
+      return { rechnung: rechnung, satz: satz, fehlerhaft: !!dub || (rechnung.vollstaendig && rechnung.erfuellt === false) };
+    }
+    // Mauerstein: eigene Relation (r hat Quellen r-1,c / r-1,c+1) und, falls
+    // dieser Stein selbst Quelle einer Relation darueber ist, die Umkehraufgabe.
+    // Gewaehlt wird, welche Relation mehr bekannte Zahlen hat (hilfreicher);
+    // bei Gleichstand gewinnt die eigene Relation.
+    var regeln = p.regeln, kandidaten = [];
+    if (r >= 1) {
+      var a = L.wirksam(modus, p, cur.eingabe, r - 1, c), b = L.wirksam(modus, p, cur.eingabe, r - 1, c + 1);
+      var erg = L.wirksam(modus, p, cur.eingabe, r, c);
+      kandidaten.push([a, b, erg, regeln[r]]);
+    }
+    if (r + 1 < p.n) {
+      var oben = r + 1, istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
+      var quelleA = L.wirksam(modus, p, cur.eingabe, r, nc), quelleB = L.wirksam(modus, p, cur.eingabe, r, nc + 1);
+      var ergebnis = L.wirksam(modus, p, cur.eingabe, oben, nc);
+      kandidaten.push([quelleA, quelleB, ergebnis, regeln[oben]]);
+    }
+    if (!kandidaten.length) kandidaten.push([null, null, null, 'add']);
+    kandidaten.sort(function (x, y) { return bekannteAnzahl(y.slice(0, 3)) - bekannteAnzahl(x.slice(0, 3)); });
+    var beste = kandidaten[0];
+    var rechnung2 = L.rechnungFuer({ op: beste[3] }, [beste[0], beste[1], beste[2]]);
+    var satz2 = L.satzFuer(rechnung2, { modus: 'mauer' });
+    return { rechnung: rechnung2, satz: satz2, fehlerhaft: rechnung2.vollstaendig && rechnung2.erfuellt === false };
+  }
+
+  var STRUKTUR_KLASSEN = ['bt', 'br', 'bb', 'bl', 'top', 'k', 'ft', 'fl',
+    'op-plus', 'op-mal', 'op-minus', 'op-geteilt', 'op-eins'];
+
+  // Quellsteine (und ggf. das Ergebnis darueber bei fehlendem unteren Stein)
+  // fuer den gewaehlten Stein: key -> Farb-Var fuer den Rand.
+  function quellenFuerAuswahl() {
+    var out = {};
+    if (!cur || cur.modus !== 'mauer' || !cur.sel) return out;
+    var p = cur.puzzle, r = cur.sel[0], c = cur.sel[1];
+    var farbe = function (regel) { return regel === 'mul' ? 'var(--mal)' : 'var(--plus)'; };
+    if (r >= 1) {
+      out[key(r - 1, c)] = farbe(p.regeln[r]);
+      out[key(r - 1, c + 1)] = farbe(p.regeln[r]);
+    }
+    var eigenerWert = L.wirksam('mauer', p, cur.eingabe, r, c);
+    if (r + 1 < p.n && eigenerWert === null) {
+      var oben = r + 1, istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
+      out[key(oben, nc)] = farbe(p.regeln[oben]);
+    }
+    return out;
+  }
+
   function renderAll() {
     var p = cur.puzzle, modus = cur.modus;
     var res = L.checkSolution(modus, p, cur.eingabe);
+    var selKaefig = (modus === 'kaefige' && cur.sel) ? L.kaefigFuer(p, cur.sel[0], cur.sel[1]) : null;
+    var quellen = quellenFuerAuswahl();
     $('board').querySelectorAll('[data-r]').forEach(function (el) {
       var r = +el.dataset.r, c = +el.dataset.c, kk = key(r, c);
       var fest = L.istFest(modus, p, r, c), hint = !!cur.hinweise[kk];
@@ -387,24 +614,45 @@ h1 { margin: 0; font-size: 26px; }
       var base = modus === 'mauer' ? 'stone' : 'cell';
       var cls = [base];
       var old = el.className.split(' ');
-      ['bt', 'br', 'bb', 'bl', 'top'].forEach(function (x) { if (old.indexOf(x) >= 0) cls.push(x); });
+      STRUKTUR_KLASSEN.forEach(function (x) { if (old.indexOf(x) >= 0) cls.push(x); });
       if (fest) cls.push('fest');
       if (hint) cls.push('hint');
       if (cur.sel && cur.sel[0] === r && cur.sel[1] === c) cls.push('sel');
       if (cur.marks[kk]) cls.push('err');
-      if (cur.conflicts[kk]) cls.push('conf');
+      if (UI.dubletteWarnung && cur.conflicts[kk]) cls.push('conf');
       if (v && String(v).length >= 4) cls.push('big');
       if (cur.solved && (modus === 'kaefige' || el.classList.contains('top'))) cls.push('done');
+      if (selKaefig && selKaefig === L.kaefigFuer(p, r, c)) cls.push('cagesel');
+      if (quellen[kk]) { cls.push('quelle'); el.style.setProperty('--qc', quellen[kk]); }
+      else el.style.removeProperty('--qc');
       el.className = cls.join(' ');
       el.innerHTML = '';
+      if (modus === 'mauer' && r >= 1) {
+        var kreis = document.createElement('span');
+        kreis.className = 'stone-op';
+        kreis.setAttribute('aria-hidden', 'true');
+        kreis.textContent = p.regeln[r] === 'mul' ? '×' : '+';
+        el.appendChild(kreis);
+      }
       if (modus === 'kaefige') {
         var k = L.kaefigFuer(p, r, c);
         var fc = labelZelle(k);
-        if (k.op !== '=' && fc[0] === r && fc[1] === c) {
-          var lb = document.createElement('span');
-          lb.className = 'lbl';
-          lb.textContent = k.ziel + k.op;
-          el.appendChild(lb);
+        if (fc[0] === r && fc[1] === c) {
+          var werte = k.zellen.map(function (z) { return L.wirksam(modus, p, cur.eingabe, z[0], z[1]); });
+          var chipR = L.rechnungFuer(k, werte);
+          var chip = document.createElement('span');
+          chip.className = 'chip';
+          var sym = document.createElement('span');
+          sym.className = 'op-sym';
+          sym.textContent = k.op;
+          chip.appendChild(sym);
+          chip.appendChild(document.createTextNode(k.ziel));
+          if (chipR.erfuellt) {
+            var ok = document.createElement('span');
+            ok.className = 'ok'; ok.textContent = '✓';
+            chip.appendChild(ok);
+          }
+          el.appendChild(chip);
         }
         if (!v && cur.notizen[kk]) {
           var nt = document.createElement('span');
@@ -422,8 +670,73 @@ h1 { margin: 0; font-size: 26px; }
       el.setAttribute('aria-label', lab);
     });
     $('t-hint').textContent = 'Tipp' + (cur.tipps ? ' (' + cur.tipps + ')' : '');
+    renderStreifen();
     return res;
   }
+
+  var FARBE_OP = { '+': 'var(--plus)', '×': 'var(--mal)', '−': 'var(--minus)', '÷': 'var(--geteilt)', '=': 'var(--leise)' };
+  function textSpan(text, cls) {
+    var s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+  function slotSpan(jetzt) {
+    var s = document.createElement('span');
+    s.className = 'slot' + (jetzt ? ' jetzt' : '');
+    return s;
+  }
+
+  // Rechenstreifen: schreibt die Aufgabe des gewaehlten Kaefigs/Steins als
+  // Rechnung mit Luecken aus (Spec "Knobelwerkstatt UI-Design", Zustandstabelle).
+  // Baut die ".gl"-Rechnung aus einem rechnungFuer()-Ergebnis als DOM-Fragment.
+  // Gemeinsamer Baustein von Spielstreifen, Regelkarte und Tutorial.
+  function buildRechnungGl(r) {
+    var gl = document.createElement('div');
+    gl.className = 'gl';
+    r.glieder.forEach(function (g, i) {
+      if (i > 0) gl.appendChild(textSpan(r.op, 'o'));
+      gl.appendChild(g === null ? slotSpan(i === r.lueckeIndex) : textSpan(g));
+    });
+    gl.appendChild(textSpan('=', 'o'));
+    // ergebnis kann auch ausserhalb von ergebnisIstLuecke null sein (Umkehraufgabe,
+    // bei der zusaetzlich das Ergebnis der Partnerbeziehung noch unbekannt ist) --
+    // dann trotzdem eine Luecke zeigen statt eines leeren Textknotens.
+    gl.appendChild(r.ergebnis === null ? slotSpan(r.ergebnisIstLuecke) : textSpan(r.ergebnis, 'ziel'));
+    if (r.erfuellt) gl.appendChild(textSpan('✓', 'ok2'));
+    return gl;
+  }
+
+  function renderStreifen() {
+    var wrap = $('streifen'), glHost = $('streifen-gl'), wort = $('streifen-wort');
+    if (!cur || cur.solved) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    glHost.innerHTML = '';
+    if (!cur.sel) {
+      wrap.style.removeProperty('--c');
+      wort.textContent = cur.modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.';
+      wort.className = 'wort';
+      cur.streifenZustand = {};
+      return;
+    }
+    var ar = aktuelleRechnung(), r = ar.rechnung;
+    wrap.style.setProperty('--c', FARBE_OP[r.op] || 'var(--leise)');
+    glHost.appendChild(buildRechnungGl(r));
+    wort.textContent = ar.satz;
+    wort.className = 'wort' + (ar.fehlerhaft ? ' fehler' : '');
+    // Einziger Bewegungsmoment: kurz in --gut aufleuchten, wenn diese Aufgabe
+    // gerade (neu) richtig geloest wurde. prefers-reduced-motion deaktiviert
+    // die Animation bereits global (siehe @media-Regel oben).
+    var sk = key(cur.sel[0], cur.sel[1]);
+    cur.streifenZustand = cur.streifenZustand || {};
+    if (r.erfuellt && !cur.streifenZustand[sk]) {
+      wrap.classList.remove('flash');
+      void wrap.offsetWidth;
+      wrap.classList.add('flash');
+    }
+    cur.streifenZustand[sk] = !!r.erfuellt;
+  }
+
   function labelZelle(k) {
     var best = k.zellen[0];
     k.zellen.forEach(function (z) { if (z[0] < best[0] || (z[0] === best[0] && z[1] < best[1])) best = z; });
@@ -434,6 +747,258 @@ h1 { margin: 0; font-size: 26px; }
     if (!k || k.op === '=') return '';
     var namen = { '+': 'plus', '×': 'mal', '−': 'minus', '÷': 'geteilt' };
     return ', Käfig ' + k.ziel + ' ' + namen[k.op];
+  }
+
+  // ===== Regelkarte ("?"): Kurzregel + gezeichnetes Mini-Beispiel aus =====
+  // denselben Bausteinen (Käfig/Streifen) wie das Spiel selbst.
+  var REGELTEXT = {
+    mauer: 'Jeder Stein ist das Ergebnis der beiden Steine direkt darunter.',
+    kaefige: 'In jeder Zeile und Spalte steht 1 bis n genau einmal. Die Zahlen in einem Käfig ergeben zusammen gerechnet seine Zielzahl.'
+  };
+  function buildBeispielStreifen(host, aufgabe, werte, modus) {
+    var wrap = document.createElement('div');
+    wrap.className = 'streifen';
+    var r = L.rechnungFuer(aufgabe, werte);
+    wrap.style.setProperty('--c', FARBE_OP[r.op] || 'var(--leise)');
+    wrap.appendChild(buildRechnungGl(r));
+    wrap.appendChild(textSpan(L.satzFuer(r, { modus: modus }), 'wort'));
+    host.appendChild(wrap);
+    return r;
+  }
+  function buildMiniKaefigBeispiel(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    brett.style.aspectRatio = '2 / 1';
+    brett.style.setProperty('--bs', '160px');
+    brett.style.setProperty('--n', '2');
+    [2, 3].forEach(function (wert, i) {
+      var cell = document.createElement('div');
+      cell.className = 'cell k op-mal' + (i === 0 ? ' bt bl bb' : ' bt br bb');
+      cell.style.minHeight = '68px';
+      if (i === 0) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.appendChild(textSpan('×', 'op-sym'));
+        chip.appendChild(document.createTextNode('6'));
+        cell.appendChild(chip);
+      }
+      cell.appendChild(document.createTextNode(wert));
+      brett.appendChild(cell);
+    });
+    host.appendChild(brett);
+    buildBeispielStreifen(host, { op: '×', ziel: 6 }, [2, 3], 'kaefig');
+  }
+  function buildMiniMauerBeispiel(host) {
+    buildBeispielStreifen(host, { op: 'mul' }, [2, 3, 6], 'mauer');
+  }
+  function openHelp() {
+    if (!cur) return;
+    $('hilfe-regel').textContent = REGELTEXT[cur.modus];
+    var host = $('hilfe-beispiel');
+    host.innerHTML = '';
+    if (cur.modus === 'kaefige') buildMiniKaefigBeispiel(host); else buildMiniMauerBeispiel(host);
+    $('hilfe').classList.add('on');
+  }
+  function closeHelp() { $('hilfe').classList.remove('on'); }
+
+  // ===== Mitmach-Tutorial =====
+  // Wortlaut und Reihenfolge exakt nach Spec "Knobelwerkstatt UI-Design".
+  // Interaktive Schritte sind eindeutig loesbar: tests/unit/knobel-tutorial.test.js
+  // beweist das mit dem bestehenden zaehlenden Loeser (solveCages/solvePyramid).
+  var TUTORIAL = {
+    kaefige: [
+      { typ: 'zeile', text: 'In jeder Zeile steht 1, 2 und 3 genau einmal. Genauso in jeder Spalte.' },
+      { typ: 'kaefig-statisch', text: 'Ein Käfig hat einen farbigen Rand. Das Zeichen sagt, wie gerechnet wird.' },
+      { typ: 'kaefig-interaktiv', text: 'Welche zwei Zahlen ergeben malgenommen 6?', op: '×', ziel: 6, bereich: [1, 2, 3] },
+      { typ: 'streifen-statisch', text: 'Bei − und ÷ steht die größere Zahl vorne.', op: '−', ziel: 2, glieder: [3, 1] },
+      { typ: 'gift', text: 'Ein Käfig mit = verrät dir die Zahl. Jetzt löst du den Rest ganz allein!' }
+    ],
+    mauer: [
+      { typ: 'mauer-interaktiv', text: 'Jeder Stein ist das Ergebnis der beiden Steine direkt darunter. Rechne aus: 2 mal 3.', op: 'mul', bekannt: [2, 3, null], index: 2, bereich: [4, 5, 6, 7] },
+      { typ: 'mauer-interaktiv', text: 'Fehlt ein unterer Stein, findest du ihn genauso. 3 mal welche Zahl ergibt 12?', op: 'mul', bekannt: [3, null, 12], index: 1, bereich: [2, 3, 4, 5] }
+    ]
+  };
+  var tut = null;
+
+  function startTutorial(modus, erzwungen) {
+    tut = { modus: modus, index: 0, erzwungen: !!erzwungen };
+    renderTutorialSchritt();
+    $('tutorial').classList.add('on');
+  }
+  function endTutorial() {
+    $('tutorial').classList.remove('on');
+    var weiter = tut && !tut.erzwungen ? tut.pendingStart : null;
+    if (tut) { UI.tutorialGesehen[tut.modus] = true; saveUI(); }
+    tut = null;
+    if (weiter) startNew(weiter.modus, weiter.stufe);
+  }
+  function renderTutorialSchritt() {
+    var liste = TUTORIAL[tut.modus], schritt = liste[tut.index];
+    $('tut-text').textContent = schritt.text;
+    var host = $('tut-beispiel');
+    host.innerHTML = '';
+    var weiterBtn = $('tut-weiter');
+    weiterBtn.hidden = true;
+    if (schritt.typ === 'zeile') { buildTutorialZeile(host); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'kaefig-statisch') { buildMiniKaefigBeispiel(host); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'streifen-statisch') { buildBeispielStreifen(host, { op: schritt.op, ziel: schritt.ziel }, schritt.glieder, 'kaefig'); weiterBtn.hidden = false; }
+    else if (schritt.typ === 'kaefig-interaktiv') buildTutorialKaefigInteraktiv(host, schritt);
+    else if (schritt.typ === 'mauer-interaktiv') buildTutorialMauerInteraktiv(host, schritt);
+    else if (schritt.typ === 'gift') { buildMiniKaefigGift(host); weiterBtn.hidden = false; }
+  }
+  function tutorialWeiter() {
+    var liste = TUTORIAL[tut.modus];
+    if (tut.index + 1 < liste.length) { tut.index++; renderTutorialSchritt(); }
+    else endTutorial();
+  }
+  function buildTutorialZeile(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    brett.style.aspectRatio = '1';
+    brett.style.setProperty('--bs', '180px');
+    brett.style.setProperty('--n', '3');
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell k op-eins';
+      if (r === 1) { cell.classList.add('zeile-glueht'); cell.appendChild(document.createTextNode(c + 1)); }
+      brett.appendChild(cell);
+    }
+    host.appendChild(brett);
+  }
+  function buildMiniKaefigGift(host) {
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = '1fr';
+    brett.style.aspectRatio = '1.4 / 1';
+    brett.style.setProperty('--bs', '120px');
+    brett.style.setProperty('--n', '1');
+    var cell = document.createElement('div');
+    cell.className = 'cell k op-eins bt bl br bb';
+    cell.style.minHeight = '68px';
+    var chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.appendChild(textSpan('=', 'op-sym'));
+    chip.appendChild(document.createTextNode('3'));
+    cell.appendChild(chip);
+    cell.appendChild(document.createTextNode('3'));
+    brett.appendChild(cell);
+    host.appendChild(brett);
+  }
+  function entferneText(el) {
+    Array.from(el.childNodes).forEach(function (n) { if (n.nodeType === 3) el.removeChild(n); });
+  }
+  function buildTutorialKaefigInteraktiv(host, schritt) {
+    var werte = [null, null], sel = 0;
+    var brett = document.createElement('div');
+    brett.className = 'mini-brett';
+    brett.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    brett.style.aspectRatio = '2 / 1';
+    brett.style.setProperty('--bs', '160px');
+    brett.style.setProperty('--n', '2');
+    var zellen = [];
+    for (var i = 0; i < 2; i++) {
+      var cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'cell k op-mal' + (i === 0 ? ' bt bl bb' : ' bt br bb');
+      cell.style.minHeight = '68px';
+      if (i === 0) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.appendChild(textSpan('×', 'op-sym'));
+        chip.appendChild(document.createTextNode(String(schritt.ziel)));
+        cell.appendChild(chip);
+      }
+      cell.onclick = (function (idx) { return function () { sel = idx; zeichnen(); }; })(i);
+      brett.appendChild(cell);
+      zellen.push(cell);
+    }
+    host.appendChild(brett);
+    var streifenHost = document.createElement('div');
+    host.appendChild(streifenHost);
+    var pad = document.createElement('div');
+    pad.className = 'mini-pad';
+    schritt.bereich.forEach(function (ziffer) {
+      var bt = document.createElement('button');
+      bt.type = 'button';
+      bt.textContent = ziffer;
+      bt.onclick = function () {
+        werte[sel] = ziffer;
+        if (sel < werte.length - 1) sel++;
+        zeichnen();
+        pruefen();
+      };
+      pad.appendChild(bt);
+    });
+    host.appendChild(pad);
+    function zeichnen() {
+      zellen.forEach(function (c, i) {
+        entferneText(c);
+        if (werte[i] !== null) c.appendChild(document.createTextNode(werte[i]));
+        c.classList.toggle('sel', i === sel);
+      });
+      streifenHost.innerHTML = '';
+      buildBeispielStreifen(streifenHost, { op: schritt.op, ziel: schritt.ziel }, werte, 'kaefig');
+    }
+    function pruefen() {
+      if (werte[0] === null || werte[1] === null) return;
+      if (L.cageOk({ op: schritt.op, ziel: schritt.ziel }, werte)) { $('tut-weiter').hidden = false; }
+      else setTimeout(function () { werte[0] = null; werte[1] = null; sel = 0; zeichnen(); }, 500);
+    }
+    zeichnen();
+  }
+  function buildTutorialMauerInteraktiv(host, schritt) {
+    var werte = schritt.bekannt.slice();
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:10px;';
+    wrap.style.setProperty('--sh', '56px');
+    var top = document.createElement('button');
+    top.type = 'button';
+    top.className = 'stone' + (schritt.index === 2 ? '' : ' fest') + (schritt.op === 'mul' ? ' op-mal' : ' op-plus');
+    top.style.cssText = 'width:72px;position:relative;';
+    var kreis = document.createElement('span');
+    kreis.className = 'stone-op';
+    kreis.setAttribute('aria-hidden', 'true');
+    kreis.textContent = schritt.op === 'mul' ? '×' : '+';
+    top.appendChild(kreis);
+    var unten = document.createElement('div');
+    unten.style.cssText = 'display:flex;gap:16px;';
+    var sA = document.createElement('button'); sA.type = 'button'; sA.className = 'stone' + (schritt.index === 0 ? '' : ' fest'); sA.style.width = '72px';
+    var sB = document.createElement('button'); sB.type = 'button'; sB.className = 'stone' + (schritt.index === 1 ? '' : ' fest'); sB.style.width = '72px';
+    unten.appendChild(sA); unten.appendChild(sB);
+    wrap.appendChild(top); wrap.appendChild(unten);
+    host.appendChild(wrap);
+    var streifenHost = document.createElement('div');
+    host.appendChild(streifenHost);
+    var pad = document.createElement('div');
+    pad.className = 'mini-pad';
+    schritt.bereich.forEach(function (ziffer) {
+      var bt = document.createElement('button');
+      bt.type = 'button';
+      bt.textContent = ziffer;
+      bt.onclick = function () { werte[schritt.index] = ziffer; zeichnen(); pruefen(); };
+      pad.appendChild(bt);
+    });
+    host.appendChild(pad);
+    function zeichnen() {
+      [[top, 2], [sA, 0], [sB, 1]].forEach(function (paar) {
+        entferneText(paar[0]);
+        if (werte[paar[1]] !== null) paar[0].appendChild(document.createTextNode(werte[paar[1]]));
+        paar[0].classList.toggle('sel', paar[1] === schritt.index);
+      });
+      streifenHost.innerHTML = '';
+      buildBeispielStreifen(streifenHost, { op: schritt.op }, werte, 'mauer');
+    }
+    function pruefen() {
+      var erwartet = schritt.op === 'mul' ? werte[0] * werte[1] : werte[0] + werte[1];
+      var richtig = schritt.index === 2 ? werte[2] === erwartet
+        : (schritt.op === 'mul' ? werte[schritt.index === 0 ? 1 : 0] * werte[schritt.index] === werte[2]
+          : werte[schritt.index === 0 ? 1 : 0] + werte[schritt.index] === werte[2]);
+      if (richtig) { $('tut-weiter').hidden = false; }
+      else setTimeout(function () { werte[schritt.index] = schritt.bekannt[schritt.index]; zeichnen(); }, 500);
+    }
+    zeichnen();
   }
 
   // ===== Eingabe =====
@@ -490,9 +1055,9 @@ h1 { margin: 0; font-size: 26px; }
     var res = L.checkSolution(cur.modus, cur.puzzle, cur.eingabe);
     cur.conflicts = {};
     res.konflikte.forEach(function (z) { cur.conflicts[key(z[0], z[1])] = true; });
-    if (cur.modus === 'kaefige' && cur.conflicts[key(r, c)]) {
-      var v = cur.eingabe[r][c];
-      say('Hier passt die ' + v + ' nicht, sie steht in der Zeile oder Spalte schon.', 'bad');
+    if (UI.dubletteWarnung && cur.modus === 'kaefige' && cur.conflicts[key(r, c)]) {
+      // Satz steht jetzt im Rechenstreifen (satzFuer mit dublette), #status bleibt leer.
+      say('');
     } else if (res.richtig) {
       renderAll(); persistRun(); onSolved(); return;
     } else if (res.vollstaendig) {
@@ -644,6 +1209,7 @@ h1 { margin: 0; font-size: 26px; }
     $('mute-menu').setAttribute('aria-pressed', S.stumm ? 'true' : 'false');
     $('mute').textContent = S.stumm ? 'Ton aus' : 'Ton an';
     $('mute').setAttribute('aria-pressed', S.stumm ? 'true' : 'false');
+    $('dublette-warnung').checked = UI.dubletteWarnung;
   }
 
   function newSeed() { return (Math.floor(Math.random() * 4294967295)) >>> 0; }
@@ -680,7 +1246,7 @@ h1 { margin: 0; font-size: 26px; }
     } else {
       // Zahlenmauer: Steinhoehe an die verfuegbare Hoehe anpassen, sonst
       // reisst eine fixe Hoehe im Querformat die Werkzeugleiste unter sich.
-      var n = cur.puzzle.n, gap = 6;
+      var n = cur.puzzle.n, gap = 14;
       var avail = a.clientHeight - gap * (n - 1);
       var sh = Math.max(30, Math.min(52, Math.floor(avail / n)));
       $('board').style.setProperty('--sh', sh + 'px');
@@ -696,8 +1262,16 @@ h1 { margin: 0; font-size: 26px; }
     if (t.classList.contains('lvl')) { gewaehlt[t.dataset.modus] = +t.dataset.stufe; renderMenu(); }
     else if (t.classList.contains('key')) pressKey(t.dataset.k === 'del' ? 'del' : +t.dataset.k);
   });
-  $('start-mauer').onclick = function () { startNew('mauer', gewaehlt.mauer); };
-  $('start-kaefige').onclick = function () { startNew('kaefige', gewaehlt.kaefige); };
+  function tutorialOderStart(modus, stufe) {
+    if (!UI.tutorialGesehen[modus]) {
+      startTutorial(modus, false);
+      tut.pendingStart = { modus: modus, stufe: stufe };
+    } else {
+      startNew(modus, stufe);
+    }
+  }
+  $('start-mauer').onclick = function () { tutorialOderStart('mauer', gewaehlt.mauer); };
+  $('start-kaefige').onclick = function () { tutorialOderStart('kaefige', gewaehlt.kaefige); };
   $('resume').onclick = resume;
   $('daily').onclick = function () {
     var datum = heute();
@@ -717,12 +1291,18 @@ h1 { margin: 0; font-size: 26px; }
   function toggleMute() { S.stumm = !S.stumm; save(); renderMenu(); }
   $('mute').onclick = toggleMute;
   $('mute-menu').onclick = toggleMute;
+  $('dublette-warnung').onchange = function (ev) { UI.dubletteWarnung = ev.target.checked; saveUI(); };
   $('s-next').onclick = function () {
     var m = cur.modus, stufe = cur.naechsteStufe;
     gewaehlt[m] = stufe;
     startGame(m, stufe, newSeed());
   };
   $('s-menu').onclick = function () { $('solved').classList.remove('on'); show('menu'); };
+  $('hilfe-knopf').onclick = openHelp;
+  $('hilfe-schliessen').onclick = closeHelp;
+  $('hilfe-tutorial').onclick = function () { closeHelp(); startTutorial(cur.modus, true); };
+  $('tut-weiter').onclick = tutorialWeiter;
+  $('tut-ueberspringen').onclick = endTutorial;
 
   document.addEventListener('keydown', function (ev) {
     if (!cur || !$('game').classList.contains('on')) return;
@@ -731,9 +1311,11 @@ h1 { margin: 0; font-size: 26px; }
     if (/^[0-9]$/.test(ev.key)) {
       var d = +ev.key;
       if (cur.modus === 'kaefige' && (d < 1 || d > cur.puzzle.n)) return;
+      ev.preventDefault();
       pressKey(d);
     } else if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); pressKey('del'); }
-    else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') $('t-notes').click();
+    else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') { ev.preventDefault(); $('t-notes').click(); }
+    else if (ev.key === '?') { ev.preventDefault(); openHelp(); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSel(-1, 0); }
     else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSel(1, 0); }
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSel(0, -1); }
