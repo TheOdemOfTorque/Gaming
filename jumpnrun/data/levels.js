@@ -1,55 +1,46 @@
-// Lumo - Welt 1 "Dämmerwiese": zwei handgebaute Level als ASCII-Daten.
-// Zeichen siehe core/level.js. Einheit: 1 Zeichen = 1 Kachel (16 px), 9 Zeilen = Bildhöhe.
-// Zielzahl-Reihe und Seed sind pro Level festgelegt, damit Tests und Replays reproduzierbar sind.
+// Lumo - Stufen-Tabelle Welt 1 "Daemmerwiese": Metadaten je Stufe, die ASCII-Zeilen kommen
+// jetzt bei jedem Spielstart frisch aus core/levelgen.js (Abschnitts-Bibliothek, siehe
+// data/sections.js und ADR-0002 im Vault). Das ersetzt die frueher fest verdrahteten Level,
+// die sich nach 3-5 Durchlaeufen immer gleich angefuehlt haben.
 (function (root, factory) {
-  var api = factory();
+  var deps = (typeof module === 'object' && module.exports)
+    ? { levelgen: require('../core/levelgen.js') }
+    : { levelgen: root.JNR.levelgen };
+  var api = factory(deps.levelgen);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.JNR = root.JNR || {}; root.JNR.levels = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  var LEVELS = [
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (LG) {
+  var STAGES = [
     {
       id: '1-1', name: 'Erste Schritte', welt: 1, weltName: 'Dämmerwiese',
-      mathe: false, reihe: null, seed: 1, // Level 1: reines Laufen, Springen, Sammeln
-      rows: [
-      '....................................................................................................',
-      '....................................................................................................',
-      '....................................................................................................',
-      '.......................................oo...........................................................',
-      '..................................oo..####...................o..............oC......................',
-      '.................................o..o.........ooC...........o.o.........oo.####.....................',
-      '...S....o.o.o.o.............................########...................########......o.o.o......G...',
-      '##################################..########################...#####################################',
-      '##################################..########################...#####################################'
-      ]
+      mathe: false, reihe: null, // Stufe 1: reines Laufen, Springen, Sammeln, keine Gefahren
+      gen: { minDifficulty: 1, maxDifficulty: 1, minSections: 14, maxSections: 18 }
     },
     {
       id: '1-2', name: 'Zahlenwiese', welt: 1, weltName: 'Dämmerwiese',
-      mathe: true, reihe: 2, seed: 1, // Federpilz, Dornen, Zielzahl: 2er-Reihe
-      rows: [
-      '..................................................................................................................................',
-      '..................................................................................................................................',
-      '...........................................................................................o........ooo...........................',
-      '.......................................................................................o...........#####..........................',
-      '.....................o..............o.o...o........................................o.....####....................o................',
-      '....................o.o........o.........o......o......o....o....o.......o....o......########...................o.o...............',
-      '...S....o.o....~..........o..^.....######.....C.......................C.....^....############...~........C..............o.....G...',
-      '####################...##################..########...###..###..################################################...###############',
-      '####################...##################..########...###..###..################################################...###############'
-      ]
+      mathe: true, reihe: 2, // Federpilz, Dornen, Zielzahl: 2er-Reihe
+      gen: { minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18 }
     }
   ];
 
-  var ORDER = LEVELS.map(function (l) { return l.id; });
+  var ORDER = STAGES.map(function (l) { return l.id; });
   function byId(id) {
-    for (var i = 0; i < LEVELS.length; i++) if (LEVELS[i].id === id) return LEVELS[i];
+    for (var i = 0; i < STAGES.length; i++) if (STAGES[i].id === id) return STAGES[i];
     return null;
   }
 
-  // Optionen des Spiels (rewards.defaultJnr().options) und Level-Metadaten -> Optionen für game.createGame
-  function gameOptions(meta, options) {
-    var aus = !meta.mathe || (options && options.mathe === 'aus');
-    return { mode: aus ? 'aus' : 'ziel', reihe: meta.reihe, seed: meta.seed };
+  // Erzeugt die ASCII-Zeilen fuer einen Lauf dieser Stufe. Gleicher seed -> exakt dasselbe Level.
+  function generateFor(id, seed) {
+    var meta = byId(id);
+    if (!meta) throw new Error('Unbekannte Stufe: ' + id);
+    return LG.generate(meta.gen, seed);
   }
 
-  return { LEVELS: LEVELS, ORDER: ORDER, byId: byId, gameOptions: gameOptions };
+  // Optionen des Spiels (rewards.defaultJnr().options) und Stufen-Metadaten -> Optionen für game.createGame
+  function gameOptions(meta, options, seed) {
+    var aus = !meta.mathe || (options && options.mathe === 'aus');
+    return { mode: aus ? 'aus' : 'ziel', reihe: meta.reihe, seed: seed };
+  }
+
+  return { STAGES: STAGES, ORDER: ORDER, byId: byId, generateFor: generateFor, gameOptions: gameOptions };
 });
