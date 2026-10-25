@@ -127,13 +127,15 @@ describe('rechnung (Tafel des Rechenwichts)', () => {
     for (let i = 0; i < 10; i++) expect(M.rechnung(7, a)).toEqual(M.rechnung(7, b));
   });
 
-  test('Text in der Pixelschrift: Faktor x Reihe = Ergebnis', () => {
+  test('Text in der Pixelschrift wie im Trainer: Reihe x Faktor = Ergebnis', () => {
     const r = { faktor: 8, reihe: 7, richtig: 56, falsch: 54 };
-    expect(M.rechnungText(r, false)).toBe('8×7=54');
-    expect(M.rechnungText(r, true)).toBe('8×7=56');
+    expect(M.rechnungText(r, false)).toBe('7×8=54');
+    expect(M.rechnungText(r, true)).toBe('7×8=56');
   });
 
   test('ungueltige Reihe wirft', () => {
     expect(() => M.rechnung(1, M.mulberry32(1))).toThrow();
+    expect(() => M.rechnung(11, M.mulberry32(1))).toThrow();
+    expect(() => M.rechnung(10, M.mulberry32(1))).not.toThrow();
   });
 });

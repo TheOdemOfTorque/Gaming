@@ -35,7 +35,7 @@
     var p = P.createPlayer(level.start.x, level.start.y);
     return {
       level: level, player: p, crystals: crystals,
-      enemies: GG.createEnemies(level, { reihe: opts.reihe, seed: opts.seed }),
+      enemies: GG.createEnemies(level, { mode: opts.mode || 'ziel', reihe: opts.reihe, seed: opts.seed }),
       totalGood: crystals.filter(function (c) { return c.good; }).length,
       funken: 0, richtig: 0, fehltreffer: 0,
       leben: LEBEN, energie: ENERGIE, unverwundbar: 0,

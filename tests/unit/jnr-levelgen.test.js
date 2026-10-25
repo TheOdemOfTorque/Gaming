@@ -104,7 +104,7 @@ describe('Rechenwichte im Generator (opts.gegner)', () => {
     });
   });
 
-  test('Laufstrecke liegt nie an Start, Ziel oder Laterne und nie auf einer Landestelle', () => {
+  test('Laufstrecke liegt nie an Start, Ziel oder Laterne und nie auf einem Kristallplatz', () => {
     SEEDS.forEach(seed => {
       const L = parseLevel(LG.generate(GEN, seed).rows);
       const marken = [L.start.tx, L.goal.tx].concat(L.checkpoints.map(c => c.tx));
@@ -113,7 +113,7 @@ describe('Rechenwichte im Generator (opts.gegner)', () => {
         marken.forEach(m => {
           expect(m < e.von - 3 || m > e.bis + 3).toBe(true);
         });
-        L.crystalSlots.filter(s => s.landung && s.ty === e.ty).forEach(s => {
+        L.crystalSlots.filter(s => s.ty === e.ty).forEach(s => {
           expect(s.tx < e.von || s.tx > e.bis).toBe(true);
         });
         L.spikes.forEach(s => expect(s.ty !== e.ty || s.tx < e.von - 1 || s.tx > e.bis + 1).toBe(true));

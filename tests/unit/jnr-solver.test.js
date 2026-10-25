@@ -112,7 +112,8 @@ describe('Greedy-Bot mit Rechenwichten', () => {
     ['zwei Wichte', ['..................................', 'S..........w...........w.........G', '##################################']],
   ])('%s: weicht dem Wicht aus oder stampft, ohne Energie an ihn zu verlieren', (name, rows) => {
     const L = parseLevel(rows);
-    const r = SOLVER.solve(L, { mode: 'aus' });
+    const r = SOLVER.solve(L, { mode: 'ziel', reihe: 2, seed: 1 });
+    expect(r.game.enemies.length).toBeGreaterThan(0);
     expect(r.won).toBe(true);
     // ohne falsche Zahlen und Dornen kann ein Fehltreffer nur vom Wicht kommen
     expect(r.game.fehltreffer).toBe(0);

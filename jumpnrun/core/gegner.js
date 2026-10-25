@@ -1,5 +1,5 @@
 // Lumo - Rechenwicht: kleines Wesen mit einer Tafel, auf der eine falsche Rechnung aus der
-// gewaehlten Reihe steht (z. B. 8×7=54). Es laeuft auf seiner Strecke (core/level.js strecke)
+// gewaehlten Reihe steht (z. B. 7×8=54). Es laeuft auf seiner Strecke (core/level.js strecke)
 // hin und her. Springt Lumo von oben drauf, dreht sich die Tafel und zeigt die richtige Rechnung,
 // danach verschwindet der Wicht. Beruehrung von der Seite kostet Energie (game.damage).
 // Reine Funktionen, kein DOM, Zufall nur ueber den Seed.
@@ -17,16 +17,19 @@
   var SPEED = 0.5;          // px je Schritt, ein Drittel von Lumos Laufgeschwindigkeit
   var STAMPF_TOL = 6;       // so tief duerfen Lumos Fuesse im Schritt davor schon unter der Oberkante sein
   var AUFGEDECKT = 70;      // Schritte, die die richtige Rechnung nach dem Stampfen sichtbar bleibt
+  var TAFEL_OBEN = 9, TAFEL_H = 13; // Tafel inklusive Rahmen: 9 px ueber der Box, 13 px hoch
   var SALZ = 0x5bd1e995;    // trennt den Zufall der Tafeln von dem der Kristalle
 
   function overlap(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
   }
 
-  // level.enemies kommt aus core/level.js. opts: { reihe, seed } wie game.createGame.
+  // level.enemies kommt aus core/level.js. opts: { mode, reihe, seed } wie game.createGame.
+  // Im Modus 'aus' (Zahlen aus) gibt es keine Wichte. Ohne gueltige Reihe (2..10) gilt die 2er-Reihe.
   function createEnemies(level, opts) {
     opts = opts || {};
-    var reihe = Number.isInteger(opts.reihe) && opts.reihe >= 2 && opts.reihe <= 12 ? opts.reihe : 2;
+    if (opts.mode === 'aus') return [];
+    var reihe = Number.isInteger(opts.reihe) && opts.reihe >= 2 && opts.reihe <= 10 ? opts.reihe : 2;
     var rnd = M.mulberry32(((opts.seed == null ? 1 : opts.seed) ^ SALZ) >>> 0);
     return (level.enemies || []).map(function (w) {
       return {
@@ -51,12 +54,23 @@
     else if (e.x >= e.maxX) { e.x = e.maxX; e.dir = -1; }
   }
 
+  // Die Tafel, wie index.html sie zeichnet: Text in der schmalen Schrift (4 px je Zeichen) plus 2 px
+  // Rand je Seite plus 1 px Rahmen, 13 px hoch, mittig ueber dem Wicht. Gehoert zur Stampfzone.
+  function tafelBox(e) {
+    var w = M.rechnungText(e.rechnung, false).length * 4 - 1 + 6;
+    return { x: e.x + EW / 2 - w / 2, y: e.y - TAFEL_OBEN, w: w, h: TAFEL_H };
+  }
+
   // p: Spieler nach dem Physikschritt, prevY: seine Hoehe davor.
-  // 'stampf': Lumo faellt und seine Fuesse waren eben noch ueber der Oberkante (ganze Box mit Tafel).
+  // 'stampf': Lumo faellt, seine Fuesse waren eben noch hoeher als STAMPF_TOL unter der Oberkante des
+  // Koerpers, und er beruehrt Koerper oder Tafel (Landen auf der Tafel zaehlt in ganzer Breite).
   // 'seite': die verzeihende 8x8-Box (wie bei den Dornen) beruehrt den Koerper. Sonst null.
   function contact(e, p, prevY) {
     if (e.state !== 'da') return null;
-    if (p.vy > 0 && prevY + P.H <= e.y + STAMPF_TOL && overlap(p.x, p.y, P.W, P.H, e.x, e.y, EW, EH)) return 'stampf';
+    if (p.vy > 0 && prevY + P.H <= e.y + STAMPF_TOL) {
+      var tb = tafelBox(e);
+      if (overlap(p.x, p.y, P.W, P.H, e.x, e.y, EW, EH) || overlap(p.x, p.y, P.W, P.H, tb.x, tb.y, tb.w, tb.h)) return 'stampf';
+    }
     if (overlap(p.x + 1, p.y + 2, 8, 8, e.x + 2, e.y + EH - KOERPER, EW - 4, KOERPER)) return 'seite';
     return null;
   }
@@ -64,7 +78,7 @@
   function stampf(e) { e.state = 'aufgedeckt'; e.timer = AUFGEDECKT; }
 
   return {
-    createEnemies: createEnemies, step: step, contact: contact, stampf: stampf,
+    createEnemies: createEnemies, step: step, contact: contact, stampf: stampf, tafelBox: tafelBox,
     EW: EW, EH: EH, SPEED: SPEED, AUFGEDECKT: AUFGEDECKT, STAMPF_TOL: STAMPF_TOL
   };
 });

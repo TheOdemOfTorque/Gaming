@@ -143,6 +143,14 @@ describe('Rechenwicht (w): Laufstrecke auf flachem Boden', () => {
     expect(W.enemies[0]).toMatchObject({ von: 8, bis: 15 });
   });
 
+  test('jeder Kristallplatz auf der Laufhoehe beendet die Strecke (Wichte laufen nie ueber Kristalle)', () => {
+    const L = parseLevel(withRow('S.......o.w...o....G'));
+    expect(L.enemies[0]).toMatchObject({ von: 9, bis: 13 });
+    // Kristalle in der Luft stoeren nicht
+    const H = parseLevel(withRow('S.........w........G', '........o...o.......'));
+    expect(H.enemies[0]).toMatchObject({ von: 4, bis: 15 });
+  });
+
   test('Kopffreiheit: niedrige Decke ueber dem Weg beendet die Strecke', () => {
     const L = parseLevel(withRow('S.........w........G', '.............#......'));
     expect(L.enemies[0]).toMatchObject({ von: 4, bis: 12 });

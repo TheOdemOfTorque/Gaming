@@ -111,7 +111,8 @@
   // und rechts davon, auf denen er laufen darf. Eine Kachel zaehlt, wenn sie flach ist (Luft, Boden
   // darunter, keine Dornen/Federpilze), ihre beiden Nachbarn ebenfalls flach sind (so bleibt die
   // Landestelle direkt hinter einer Gefahr frei, siehe LANDUNG), darueber 2 Kacheln Luft sind
-  // (Lumo kann drueberspringen oder draufspringen), sie keine Kristall-Landestelle ist und sie mehr
+  // (Lumo kann drueberspringen oder draufspringen), dort kein Kristallplatz liegt (Wichte laufen nie
+  // ueber Kristalle, auch nicht ueber Landestellen) und sie mehr
   // als ABSTAND_LATERNE Kacheln von Start, Ziel und jeder Laterne entfernt liegt.
   // Gibt { von, bis } (Kachelspalten) zurueck oder null, wenn (tx, ty) selbst nicht geht.
   function strecke(level, tx, ty) {
@@ -119,10 +120,9 @@
     function on(list, x) { for (var i = 0; i < list.length; i++) if (list[i].tx === x && list[i].ty === ty) return true; return false; }
     function flach(x) { return !solidAt(x, ty) && solidAt(x, ty + 1) && ty + 1 < level.h && !on(level.spikes, x) && !on(level.springs, x); }
     var marken = [level.start.tx, level.goal.tx].concat(level.checkpoints.map(function (c) { return c.tx; }));
-    var landungen = level.crystalSlots.filter(function (s) { return s.landung; });
     function geht(x) {
       if (x < 0 || x >= level.w || !flach(x) || !flach(x - 1) || !flach(x + 1)) return false;
-      if (solidAt(x, ty - 1) || solidAt(x, ty - 2) || on(landungen, x)) return false;
+      if (solidAt(x, ty - 1) || solidAt(x, ty - 2) || on(level.crystalSlots, x)) return false;
       for (var i = 0; i < marken.length; i++) if (Math.abs(x - marken[i]) <= ABSTAND_LATERNE) return false;
       return true;
     }

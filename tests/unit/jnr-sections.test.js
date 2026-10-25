@@ -56,3 +56,21 @@ describe('Abschnitts-Bibliothek (data/sections.js)', () => {
     });
   });
 });
+
+describe('Platz fuer Rechenwichte', () => {
+  const { parseLevel, strecke, MIN_STRECKE } = require('../../jumpnrun/core/level.js');
+  // Start auf der ersten Spalte, Ziel auf der ersten Spalte danach: genau wie die Laternen im echten Level
+  function laengsteStrecke(section) {
+    const rows = section.rows.map((r, y) => (r + (y >= 7 ? '#' : '.')).split(''));
+    const w = section.rows[0].length;
+    rows[6][0] = 'S'; rows[6][w] = 'G';
+    const L = parseLevel(rows.map(r => r.join('')));
+    let best = 0;
+    for (let x = 0; x < w; x++) { const st = strecke(L, x, 6); if (st) best = Math.max(best, st.bis - st.von + 1); }
+    return best;
+  }
+  test.each(['d1-lauf-a', 'd1-lauf-b', 'd1-lauf-c', 'd2-federpilz-a'])('%s hat eine kristallfreie flache Strecke fuer einen Wicht', (id) => {
+    const sec = D.SECTIONS.find(s => s.id === id);
+    expect(laengsteStrecke(sec)).toBeGreaterThanOrEqual(MIN_STRECKE);
+  });
+});

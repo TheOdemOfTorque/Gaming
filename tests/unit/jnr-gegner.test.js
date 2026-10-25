@@ -6,6 +6,7 @@ const P = require('../../jumpnrun/core/physics.js');
 const T = 16;
 const RIGHT = { left: false, right: true, jump: false };
 const NONE = { left: false, right: false, jump: false };
+const ZIEL = { mode: 'ziel', reihe: 2, seed: 1 };
 const FLAT = parseLevel([
   '....................',
   'S.........w........G',
@@ -42,8 +43,14 @@ describe('createEnemies', () => {
     expect(a.rechnung.falsch).not.toBe(a.rechnung.richtig);
   });
 
-  test('ohne gueltige Reihe (Zahlen aus) rechnet der Wicht in der 2er-Reihe', () => {
+  test('ohne gueltige Reihe (2..10) rechnet der Wicht in der 2er-Reihe', () => {
     expect(GG.createEnemies(FLAT, { seed: 1 })[0].rechnung.reihe).toBe(2);
+    expect(GG.createEnemies(FLAT, { seed: 1, reihe: 11 })[0].rechnung.reihe).toBe(2);
+  });
+
+  test('Modus "Zahlen aus": keine Wichte', () => {
+    expect(GG.createEnemies(FLAT, { mode: 'aus', reihe: 2, seed: 1 })).toEqual([]);
+    expect(G.createGame(FLAT, { mode: 'aus' }).enemies).toEqual([]);
   });
 
   test('mehrere Wichte bekommen nacheinander gezogene Rechnungen', () => {
@@ -87,7 +94,22 @@ describe('Bewegung', () => {
 });
 
 describe('contact: Stampfen von oben vs. Seitenkontakt', () => {
-  const e = { x: 100, y: 16, state: 'da' };
+  const e = { x: 100, y: 16, state: 'da', rechnung: { faktor: 10, reihe: 10, richtig: 100, falsch: 98 } };
+  test('tafelBox: so breit wie die gezeichnete Tafel (Text, Rand, Rahmen), mittig ueber dem Wicht', () => {
+    const b = GG.tafelBox(e);
+    expect(b.w).toBe('10×10=98'.length * 4 - 1 + 6);
+    expect(b.x + b.w / 2).toBe(e.x + GG.EW / 2);
+    expect(b.y).toBeLessThan(e.y);
+    expect(b.y + b.h).toBeGreaterThan(e.y);
+  });
+  test('Landen auf dem Tafelrand neben dem Koerper ist Stampfen, nie Seitentreffer', () => {
+    const b = GG.tafelBox(e);
+    const p = { x: b.x - P.W + 2, y: b.y - P.H + 2, vy: 3 };
+    expect(p.x + P.W).toBeLessThan(e.x); // der Koerper wird nicht beruehrt
+    expect(GG.contact(e, p, p.y - 3)).toBe('stampf');
+    const q = { x: b.x + b.w - 2, y: b.y - P.H + 2, vy: 3 };
+    expect(GG.contact(e, q, q.y - 3)).toBe('stampf');
+  });
   test('fallend von oben (Fuesse vorher ueber der Oberkante) ist Stampfen', () => {
     const p = { x: 101, y: 16 - P.H + 3, vy: 3 };
     expect(GG.contact(e, p, p.y - 3)).toBe('stampf');
@@ -116,14 +138,14 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
   });
 
   test('tick bewegt die Wichte', () => {
-    const g = G.createGame(FLAT, { mode: 'aus' });
+    const g = G.createGame(FLAT, ZIEL);
     const x0 = g.enemies[0].x;
     play(g, NONE, null, 10);
     expect(g.enemies[0].x).toBeCloseTo(x0 - 10 * GG.SPEED, 6);
   });
 
   test('Seitenkontakt: 1 Energie ueber damage mit Quelle gegner, Rueckstoss weg vom Wicht', () => {
-    const g = G.createGame(FLAT, { mode: 'aus' });
+    const g = G.createGame(FLAT, ZIEL);
     let hit = null;
     for (let i = 0; i < 600 && !hit; i++) {
       G.tick(g, RIGHT);
@@ -133,6 +155,20 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
     expect(g.player.vx).toBeLessThan(0);
     expect(g.enemies[0].state).toBe('da');
     expect(g.funken).toBe(0);
+  });
+
+  test('Landen auf dem Tafelrand im Spiel: Stampf, kein Schaden', () => {
+    const L = parseLevel([
+      '....................',
+      'S.........w........G',
+      '####################',
+    ]);
+    const g = G.createGame(L, { mode: 'ziel', reihe: 10, seed: 2 });
+    const e = g.enemies[0], b = GG.tafelBox(e), p = g.player;
+    p.x = b.x - P.W + 3; p.y = b.y - 20; p.vx = 0; p.vy = 0; p.onGround = false;
+    const ev = play(g, NONE, gm => gm.enemies[0].state !== 'da', 60);
+    expect(ev.some(x => x.type === 'stampf')).toBe(true);
+    expect(ev.some(x => x.type === 'schaden')).toBe(false);
   });
 
   function dropOnto(g) {
@@ -156,7 +192,7 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
   });
 
   test('Stampfen klappt auch waehrend der Unverwundbarkeit', () => {
-    const g = G.createGame(FLAT, { mode: 'aus' });
+    const g = G.createGame(FLAT, ZIEL);
     g.unverwundbar = 50;
     dropOnto(g);
     play(g, NONE, gm => gm.enemies[0].state !== 'da', 60);
@@ -165,7 +201,7 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
   });
 
   test('ein aufgedeckter oder verschwundener Wicht schadet nicht mehr', () => {
-    const g = G.createGame(FLAT, { mode: 'aus' });
+    const g = G.createGame(FLAT, ZIEL);
     dropOnto(g);
     play(g, NONE, gm => gm.enemies[0].state !== 'da', 60);
     const ev = play(g, RIGHT, gm => gm.status !== 'play', 900);
@@ -175,7 +211,7 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
   });
 
   test('cloneGame kopiert die Wichte tief (Bot-Vorausschau veraendert das Original nicht)', () => {
-    const g = G.createGame(FLAT, { mode: 'aus' });
+    const g = G.createGame(FLAT, ZIEL);
     const c = G.cloneGame(g);
     expect(c.enemies).not.toBe(g.enemies);
     expect(c.enemies[0]).not.toBe(g.enemies[0]);
