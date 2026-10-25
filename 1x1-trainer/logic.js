@@ -490,6 +490,31 @@ function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
   };
 }
 
+// Lernstand je Reihe fuer Lumo (Feld `lernstand` in jnr:init, Vertrag jumpnrun/core/host.js).
+// Wert je Reihe 2..10 = Mittel ueber die Faktoren 1..10 von min(consecutiveCorrect, 6) / 6,
+// also derselbe Leitner-Massstab wie im Statistik-Screen (6 richtige in Folge = gemeistert).
+// Ungesehene Faktoren zaehlen 0. Nur Reihen mit mindestens einer beantworteten Aufgabe
+// kommen ins Ergebnis. Gerundet auf 2 Stellen, mutiert nichts.
+const LERNSTAND_MASTERY = 6;
+function computeLernstand(questionStats) {
+  const out = {};
+  if (!questionStats || typeof questionStats !== 'object') return out;
+  for (let r = 2; r <= 10; r++) {
+    const row = questionStats[r];
+    if (!row || typeof row !== 'object') continue;
+    let sum = 0, seen = false;
+    for (let f = 1; f <= 10; f++) {
+      const q = row[f];
+      if (!q || typeof q !== 'object') continue;
+      if ((q.correct || 0) > 0 || (q.wrong || 0) > 0) seen = true;
+      const cc = typeof q.consecutiveCorrect === 'number' && isFinite(q.consecutiveCorrect) ? q.consecutiveCorrect : 0;
+      sum += Math.max(0, Math.min(cc, LERNSTAND_MASTERY)) / LERNSTAND_MASTERY;
+    }
+    if (seen) out[r] = Math.round((sum / 10) * 100) / 100;
+  }
+  return out;
+}
+
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
 // qCount=0 → max=3, qCount=20 → max=13, qCount=50 → max=18, qCount=100 → max=25.
 // Wird gecappt bei maxReihe (Großes 1×1 = 20).
@@ -644,7 +669,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime,
-                     applyKnobelResult, applyJnrResult,
+                     applyKnobelResult, applyJnrResult, computeLernstand,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

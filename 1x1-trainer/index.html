@@ -2013,7 +2013,10 @@ function openGame(gameId) {
         type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
       }, location.origin);
     } else if (gameId === 'jnr') {
-      frame.contentWindow.postMessage({ type: 'jnr:init', jnr: state.jnr }, location.origin);
+      // lernstand (logic.js) lässt Lumo die schwächsten geübten Reihen empfehlen.
+      frame.contentWindow.postMessage({
+        type: 'jnr:init', jnr: state.jnr, lernstand: computeLernstand(state.questionStats),
+      }, location.origin);
     }
   };
   frame.src = GAME_SRC[gameId];
