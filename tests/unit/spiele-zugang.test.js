@@ -67,7 +67,7 @@ describe('getGameAccess', () => {
     const state = baseState({ lastRoundDate: new Date(2026, 9, 24, 23, 50).toDateString() });
     const heute = new Date(2026, 9, 25, 0, 30).toDateString();
     expect(getGameAccess(state, 'knobel', heute)).toEqual({ spielbar: false, grund: 'keine_runde' });
-    // Runde um 00:10 am 25.10., Abfrage um 23:50 am selben Kalendertag (mehr als 24 h gibt es dort nie, aber 23 h 40 min Abstand).
+    // Runde um 00:10 am 25.10., Abfrage um 23:50 am selben Kalendertag (am 25-Stunden-Tag liegen real 24 h 40 min dazwischen).
     const s2 = baseState({ lastRoundDate: new Date(2026, 9, 25, 0, 10).toDateString() });
     expect(getGameAccess(s2, 'knobel', new Date(2026, 9, 25, 23, 50).toDateString()).spielbar).toBe(true);
   });

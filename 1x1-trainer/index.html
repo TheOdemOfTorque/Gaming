@@ -4253,6 +4253,8 @@ document.addEventListener('visibilitychange', () => {
   } else {
     if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
     else if (currentGame === 'jnr') startLumoTimer();
+    // Nach Mitternacht ist die Knobel-Freischaltung von gestern abgelaufen: Karten neu berechnen.
+    if (!currentGame) renderGamesBar();
     if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });
