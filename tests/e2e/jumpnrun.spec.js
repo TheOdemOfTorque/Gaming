@@ -10,6 +10,8 @@ test.use({
 
 const URL1 = '/jumpnrun/index.html?jnrLevel=1-1&jnrSeed=1';
 const state = page => page.evaluate(() => window.__jnr.state());
+// Tutorial schon gesehen (sonst startet der erste Menü-Klick das Mitmach-Tutorial)
+const tutorialGesehen = page => page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({ tutorialGesehen: true })));
 
 test('Seite lädt, Canvas ist sichtbar und gezeichnet', async ({ page }) => {
   const errors = [];
@@ -46,6 +48,7 @@ test('Debug-Parameter startet Level 1-1 ohne Menü', async ({ page }) => {
 });
 
 test('Ohne Parameter erscheint das Menü mit Level 1-1 offen und 1-2 gesperrt', async ({ page }) => {
+  await tutorialGesehen(page);
   await page.goto('/jumpnrun/index.html');
   await expect(page.locator('#menu')).toBeVisible();
   await expect(page.locator('button[data-level="1-1"]')).toBeEnabled();
@@ -193,6 +196,7 @@ test.describe('Lumo: Energie und Leben', () => {
   });
 
   test('Game-Over per Tastatur: Fokus auf „Nochmal“, Esc geht ins Menü, Enter spielt nochmal', async ({ page }) => {
+    await tutorialGesehen(page);
     await page.goto(URL1);
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
@@ -505,5 +509,186 @@ test.describe('Lumo: Rechenwicht', () => {
     expect(s.energie).toBe(2);
     expect(s.fehltreffer).toBe(1);
     expect(await page.evaluate(k => window.__jnr.enemies()[k].state, i)).toBe('da');
+  });
+});
+
+// ---------- Mitmach-Tutorial (core/tutorial.js, Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 5) ----------
+test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
+  test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+  const tut = page => page.evaluate(() => window.__jnr.state().tutorial);
+  const wartenAuf = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout, polling: 'raf' });
+  async function springen(page, haltenMs = 350) {
+    await page.keyboard.down('Space'); await page.waitForTimeout(haltenMs); await page.keyboard.up('Space');
+  }
+  // Wiederholt fn, bis der Tutorial-Schritt weiter ist (Fehlversuche kosten im Tutorial nichts)
+  async function bisSchritt(page, ziel, versuch, max = 6) {
+    for (let i = 0; i < max; i++) {
+      if ((await tut(page)).schritt === ziel) return;
+      await versuch();
+      try { await wartenAuf(page, z => window.__jnr.state().tutorial.schritt === z, ziel, 2500); return; } catch (e) { /* nochmal */ }
+    }
+    expect((await tut(page)).schritt).toBe(ziel);
+  }
+
+  test('erster Menü-Klick startet das Tutorial; per Tastatur bis zum Leuchtturm, dann weiter ins Level, ohne XP und ohne Lebensverlust', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto('/jumpnrun/index.html');
+    await page.focus('button[data-level="1-1"]');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tut-box')).toBeVisible();
+    await expect(page.locator('#tut-schritt')).toHaveText('Schritt 1 von 5');
+    await expect(page.locator('#tut-text')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.locator('#tut-text')).toContainText('Pfeiltaste'); // Laptop: Tasten statt Touch-Knöpfe
+    expect(await tut(page)).toMatchObject({ schritt: 'laufen', fertig: false });
+    await page.waitForTimeout(300);
+
+    // 1) laufen
+    await page.keyboard.down('ArrowRight');
+    await wartenAuf(page, () => window.__jnr.state().tutorial.schritt === 'springen');
+    await expect(page.locator('#tut-text')).toContainText('Leertaste');
+
+    // 2) über die Lücke springen (Spalten 9-10)
+    await bisSchritt(page, 'zahlen', async () => {
+      await page.keyboard.down('ArrowRight');
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 122 && s.x < 140; });
+      await springen(page);
+    });
+    await expect(page.locator('#tut-text')).toContainText('2er-Reihe');
+    await expect(page.locator('#tut-text')).toContainText('6'); // richtige Zahl der 2er-Reihe
+
+    // 3) die 6 einsammeln, über die 7 springen
+    await bisSchritt(page, 'wicht', async () => {
+      await page.keyboard.down('ArrowRight');
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 294 && s.x < 312; });
+      await springen(page);
+    });
+    expect((await state(page)).funken).toBeGreaterThanOrEqual(1);
+    await expect(page.locator('#tut-text')).toContainText('von oben');
+
+    // 4) von oben auf den Rechenwicht springen
+    await bisSchritt(page, 'ziel', async () => {
+      await page.keyboard.down('ArrowRight');
+      await wartenAuf(page, () => {
+        const s = window.__jnr.state(), e = window.__jnr.enemies()[0];
+        if (!e || e.state !== 'da' || !s.onGround) return false;
+        const gap = e.x - (s.x + 10);
+        return e.dir < 0 ? gap <= 52 && gap >= 40 : gap <= 28 && gap >= 8;
+      });
+      await springen(page, 500);
+    }, 10);
+    await expect(page.locator('#tut-text')).toContainText('richtige Rechnung');
+
+    // 5) zum Leuchtturm
+    await page.keyboard.down('ArrowRight');
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!', { timeout: 10000 });
+    await page.keyboard.up('ArrowRight');
+    const s = await state(page);
+    expect(s.leben).toBe(3);
+    expect(s.tutorialGesehen).toBe(true);
+    const gespeichert = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_jnr')));
+    expect(gespeichert.tutorialGesehen).toBe(true);
+    expect(gespeichert.levels).toEqual({}); // kein Levelfortschritt, keine XP aus dem Tutorial
+    expect(gespeichert.xpAwarded).toEqual({});
+
+    // Enter auf dem Hauptknopf: weiter ins gewählte Level
+    await expect(page.getByRole('button', { name: 'Jetzt richtig spielen' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tut-box')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1', tutorial: null });
+
+    // Beim nächsten Mal kommt kein Tutorial mehr
+    await page.reload();
+    await page.click('button[data-level="1-1"]');
+    await expect(page.locator('#tut-box')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1' });
+    expect(errors).toEqual([]);
+  });
+
+  test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await page.click('button[data-level="1-1"]');
+    await expect(page.locator('#tut-box')).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(page.locator('#tut-skip')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#tut-box')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1', tutorial: null, tutorialGesehen: true });
+    expect((await page.evaluate(() => JSON.parse(localStorage.getItem('henry_jnr')))).tutorialGesehen).toBe(true);
+  });
+
+  test('Überspringen über das Pausenmenü (Esc)', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrTutorial=1');
+    await expect(page.locator('#tut-box')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    await page.getByRole('button', { name: 'Tutorial überspringen' }).click();
+    await expect(page.locator('#menu')).toBeVisible(); // ohne gewähltes Level zurück ins Menü
+    await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial nochmal spielen');
+  });
+
+  test('„Tutorial nochmal spielen“ in Menü und Hilfe', async ({ page }) => {
+    await tutorialGesehen(page);
+    await page.goto('/jumpnrun/index.html');
+    await page.click('button[data-level="1-1"]');
+    await expect(page.locator('#tut-box')).toBeHidden(); // schon gesehen: kein Autostart
+    await page.goto('/jumpnrun/index.html');
+    await page.click('#btn-tutorial');
+    await expect(page.locator('#tut-box')).toBeVisible();
+    expect((await tut(page)).schritt).toBe('laufen');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: '? So spielst du' }).click();
+    await page.getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
+    expect(await tut(page)).toMatchObject({ schritt: 'laufen', index: 0 });
+    await page.goto('/jumpnrun/index.html');
+    await page.click('#btn-hilfe');
+    await page.locator('#msg').getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
+    await expect(page.locator('#tut-box')).toBeVisible();
+  });
+
+  test('Schlucht im Tutorial kostet kein Leben', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrTutorial=1');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.__jnr.debugFall());
+    await expect(page.locator('#tut-text')).toContainText('Schlucht');
+    const s = await state(page);
+    expect(s.leben).toBe(3);
+    await expect(page.locator('#leben')).toHaveAttribute('aria-label', 'Leben: 3 von 3');
+  });
+});
+
+test.describe('Lumo: Mitmach-Tutorial auf dem Handy', () => {
+  test('Touch-Gerät: Texte nennen die Knöpfe, der passende Knopf wird hervorgehoben', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrTutorial=1');
+    await expect(page.locator('#tut-text')).toContainText('▶');
+    await expect(page.locator('#btn-right')).toHaveClass(/zeig/);
+  });
+
+  test('Eingebettet: Überspringen meldet jnr:tutorial an den Trainer, nie jnr:result', async ({ page }) => {
+    await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+      contentType: 'text/html',
+      body: '<!DOCTYPE html><html><body><script>window.__got=[];addEventListener("message",e=>window.__got.push(e.data));</script>' +
+        '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+    }));
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await expect(frame.locator('#menu')).toBeVisible();
+    await sendTo(page, { type: 'jnr:init', jnr: {} });
+    await frame.locator('button[data-level="1-1"]').click();
+    await expect(frame.locator('#tut-box')).toBeVisible();
+    await frame.locator('#tut-skip').click();
+    await expect(frame.locator('#tut-box')).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__got.filter(m => m && m.type === 'jnr:tutorial')))
+      .toEqual([{ type: 'jnr:tutorial', gesehen: true }]);
+    const got = await page.evaluate(() => window.__got);
+    expect(got.filter(m => m && m.type === 'jnr:result')).toEqual([]);
+    // eingebettet kein localStorage-Schreiben, aber der Sitzungs-Fallback hält
+    expect(await page.evaluate(() => document.getElementById('f').contentWindow.localStorage.getItem('henry_jnr'))).toBeNull();
+    await sendTo(page, { type: 'jnr:init', jnr: {} }); // alter Trainer ohne Flag
+    await page.evaluate(() => { const w = document.getElementById('f').contentWindow; w.document.getElementById('btn-pause').click(); });
+    await frame.getByRole('button', { name: 'Levelauswahl' }).click();
+    await frame.locator('button[data-level="1-1"]').click();
+    await expect(frame.locator('#tut-box')).toBeHidden();
   });
 });

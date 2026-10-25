@@ -197,6 +197,33 @@
     .rw small { font-size: 11px; }
   }
 
+  /* Mitmach-Tutorial: Sprechblase unter dem Ziel-Chip, Knopf-Hervorhebung, Zeiger im Canvas */
+  #tut-box {
+    position: absolute; left: 50%; transform: translateX(-50%); top: calc(84px + var(--sat));
+    width: min(calc(100% - 24px), 620px); pointer-events: auto; padding: 10px 14px 12px; border-radius: 18px; z-index: 5;
+    background: rgba(255, 251, 235, .97); color: #1a1030; border: 3px solid #F59E0B;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, .45);
+  }
+  /* Sprechblasen-Spitze (zeigt nach unten zu Lumo) */
+  #tut-box::after {
+    content: ''; position: absolute; left: 28%; bottom: -12px; border: 9px solid transparent;
+    border-top-color: #F59E0B; border-bottom: 0;
+  }
+  #tut-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  #tut-schritt { font-size: 13px; font-weight: 800; letter-spacing: .4px; color: #92400e; text-transform: uppercase; }
+  #tut-skip {
+    min-height: 40px; padding: 4px 14px; border-radius: 12px; border: 2px solid #6C63FF; background: #fff;
+    color: #3b2f99; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  #tut-skip:focus-visible, #btn-tutorial:focus-visible { outline: 4px solid #6C63FF; outline-offset: 2px; }
+  #tut-text { margin: 0; font-size: 17px; line-height: 1.4; font-weight: 600; }
+  @media (max-width: 560px) { #tut-box { top: calc(124px + var(--sat)); } #tut-text { font-size: 16px; } }
+  @media (max-height: 420px) { #tut-box { top: calc(74px + var(--sat)); padding: 6px 12px 8px; } #tut-text { font-size: 15px; } }
+  @media (min-width: 1000px) and (min-height: 560px) { #tut-box { top: calc(110px + var(--sat)); } #tut-text { font-size: 21px; } }
+  .btn.zeig { animation: zeig 1s ease-in-out infinite; border-color: #fde68a; }
+  @keyframes zeig { 0%, 100% { box-shadow: 0 0 0 0 rgba(253, 230, 138, .9); } 50% { box-shadow: 0 0 0 12px rgba(253, 230, 138, 0); } }
+  @media (prefers-reduced-motion: reduce) { .btn.zeig { animation: none; box-shadow: 0 0 0 6px rgba(253, 230, 138, .8); } }
+
   /* Hochformat-Hinweis */
   #portrait-hint {
     position: absolute; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center;
@@ -225,6 +252,10 @@
     <div id="ziel-live" class="sr-only" aria-live="polite"></div>
     <div id="vital-live" class="sr-only" aria-live="polite"></div>
     <div id="tipp" class="hidden"></div>
+    <div id="tut-box" class="hidden" role="region" aria-label="Tutorial">
+      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Überspringen</button></div>
+      <p id="tut-text" aria-live="polite"></p>
+    </div>
     <div id="topbtns">
       <button class="iconbtn" id="btn-sound" aria-label="Ton an oder aus">♪</button>
       <button class="iconbtn" id="btn-pause" aria-label="Pause">❚❚</button>
@@ -253,6 +284,7 @@
           <label class="opt"><input type="checkbox" id="opt-farbhilfe"> Farbhilfe (goldene Kristalle sind richtig)</label>
           <p class="sub" style="margin-top:8px">Tastatur: Pfeile oder A/D laufen, Leertaste springt, P pausiert.</p>
           <button class="big" id="btn-hilfe">? So spielst du</button>
+          <button class="big" id="btn-tutorial">Tutorial nochmal spielen</button>
         </div>
       </div>
     </div>
@@ -295,6 +327,7 @@
 <script src="core/rewards.js"></script>
 <script src="core/gegner.js"></script>
 <script src="core/game.js"></script>
+<script src="core/tutorial.js"></script>
 <script src="core/camera.js"></script>
 <script src="core/host.js"></script>
 <script src="core/reihenwahl.js"></script>
@@ -306,7 +339,7 @@
 (function () {
   'use strict';
   var J = window.JNR, T = 16, VW = 256, VH = 144;
-  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport, CAM = J.camera, RW = J.reihenwahl;
+  var R = J.rewards, GM = J.game, LV = J.levels, H = J.host, VP = J.viewport, CAM = J.camera, RW = J.reihenwahl, TU = J.tutorial;
   var $ = function (id) { return document.getElementById(id); };
   var embedded = H.isEmbedded(window);
   var STORE = 'henry_jnr';
@@ -326,6 +359,7 @@
   var dbgLevel = qs.get('jnrLevel');
   var dbgSeed = qs.get('jnrSeed') != null ? parseInt(qs.get('jnrSeed'), 10) : null;
   var dbgReihe = qs.get('jnrReihe') != null ? parseInt(qs.get('jnrReihe'), 10) : null; // überspringt die Reihenwahl
+  var dbgTutorial = qs.get('jnrTutorial') === '1'; // startet direkt das Mitmach-Tutorial
 
   // ---------- Reihenwahl-Zustand (flüchtig, nie im Spielstand) ----------
   var lernstand = null;   // aus jnr:init (nur eingebettet), sonst null: keine Empfehlung
@@ -420,6 +454,7 @@
   function bindZone(el, onDown, onMove, onUp) {
     el.addEventListener('pointerdown', function (e) {
       e.preventDefault(); ensureAudio();
+      if (e.pointerType === 'touch' || e.pointerType === 'pen') setGeraet('touch');
       try { el.setPointerCapture(e.pointerId); } catch (x) { /* ok */ }
       onDown(e); setBtnVisual();
     });
@@ -441,6 +476,7 @@
   var RW_KEYS = { ArrowLeft: 'links', ArrowRight: 'rechts', ArrowUp: 'hoch', ArrowDown: 'runter' };
   window.addEventListener('keydown', function (e) {
     ensureAudio();
+    if (KEYMAP[e.code] && mode === 'play') setGeraet('tasten');
     if (mode === 'reihenwahl') {
       if (RW_KEYS[e.code]) { rwSelect(RW.naechsteReihe(rwSel, RW_KEYS[e.code]), true); e.preventDefault(); }
       else if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'Space') {
@@ -504,13 +540,14 @@
       b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
       b.innerHTML = '<span>' + l.id + ' · ' + l.name + '<small>' + (l.mathe ? 'Zielzahl: ' + l.reihe + 'er-Reihe' : 'Laufen, Springen, Sammeln') +
         '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
-      b.addEventListener('click', function () { ensureAudio(); b.blur(); startLevel(l.id); });
+      b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
       box.appendChild(b);
     });
     $('opt-einfach').checked = einfach();
     $('opt-mathe').checked = jnr.options.mathe === 'ziel';
     $('opt-farbhilfe').checked = jnr.options.farbhilfe;
     document.body.classList.toggle('einfach', einfach());
+    $('btn-tutorial').textContent = jnr.tutorialGesehen ? 'Tutorial nochmal spielen' : 'Tutorial spielen';
   }
   function bindOpt(id, fn) { $(id).addEventListener('change', function (e) { fn(e.target.checked); save(); buildMenu(); }); }
   bindOpt('opt-einfach', function (v) { jnr.options.steuerung = v ? 'einfach' : 'standard'; });
@@ -518,7 +555,7 @@
   bindOpt('opt-farbhilfe', function (v) { jnr.options.farbhilfe = v; });
 
   function showMenu() {
-    stopTipp();
+    stopTipp(); tutAus();
     mode = 'menu'; game = null;
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
     $('menu').classList.remove('hidden');
@@ -551,6 +588,7 @@
   // fest: Reihe, die vorgewählt sein soll (Nochmal / Level neu starten = gerade gespielte Reihe)
   function showReihenwahl(id, fest) {
     var m = LV.byId(id); if (!m) return showMenu();
+    tutAus();
     mode = 'reihenwahl'; rwLevel = id; game = null;
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
@@ -611,6 +649,7 @@
   // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl.
   function startLevel(id, reihe) {
     meta = LV.byId(id); if (!meta) return showMenu();
+    tutAus();
     if (!RW.istReihe(reihe) && RW.istReihe(dbgReihe)) reihe = dbgReihe;
     if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id);
     if (RW.istReihe(reihe)) letzteReihe = reihe;
@@ -685,12 +724,107 @@
     '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
     '</div>';
   function showHilfe(back) {
-    showMsg('So spielst du', HILFE, [{ text: 'Verstanden', main: true, esc: true, fn: back }]);
+    showMsg('So spielst du', HILFE, [
+      { text: 'Verstanden', main: true, esc: true, fn: back },
+      { text: 'Tutorial nochmal spielen', fn: function () { startTutorial(tut ? tutWeiter : null); } }
+    ]);
   }
   $('btn-hilfe').addEventListener('click', function () {
     ensureAudio(); $('btn-hilfe').blur();
     showHilfe(function () { $('msg').classList.add('hidden'); });
   });
+
+  // ---------- Mitmach-Tutorial (core/tutorial.js) ----------
+  // Startet automatisch vor dem ersten Level, das das Kind im Menü wählt (TU.sollAutomatischStarten),
+  // sonst über "Tutorial nochmal spielen" in Menü und Hilfe oder ?jnrTutorial=1. Es läuft im
+  // Übungsmodus: keine Leben weg, kein XP, kein jnr:result, kein Levelfortschritt. Fertig oder
+  // übersprungen setzt jnr.tutorialGesehen (standalone in henry_jnr, eingebettet per jnr:tutorial an
+  // den Trainer und als Fallback in sessionStorage, siehe Vertrag in core/host.js).
+  var TUT_SESSION = 'henry_jnr_tutorial';
+  var TUT_META = { id: 'tutorial', name: 'Tutorial', mathe: true, reihe: 2 };
+  var tut = null, tutWeiter = null, tutLevel = null;
+  var coarseMQ = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+  var reducedMQ = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+  var geraet = coarseMQ && coarseMQ.matches ? 'touch' : 'tasten';
+  function setGeraet(g) { if (geraet !== g) { geraet = g; if (tut) renderTut(); } }
+  function sitzungGesehen() { try { return sessionStorage.getItem(TUT_SESSION) === '1'; } catch (e) { return false; } }
+  function markTutorialGesehen() {
+    try { sessionStorage.setItem(TUT_SESSION, '1'); } catch (e) { /* gesperrt: egal */ }
+    if (jnr.tutorialGesehen) return;
+    jnr.tutorialGesehen = true;
+    save();
+    if (embedded) {
+      try { window.parent.postMessage(H.buildTutorialMessage(), location.origin); } catch (e) { /* kein Parent */ }
+    }
+  }
+  // Menü-Klick auf ein Level: beim ersten Mal zuerst das Tutorial, danach geht es mit dem Level weiter.
+  function levelWahl(id) {
+    if (TU.sollAutomatischStarten(jnr, sitzungGesehen())) startTutorial(function () { startLevel(id); });
+    else startLevel(id);
+  }
+  // weiter: was nach dem Tutorial kommt (z.B. das gewählte Level); null = Levelauswahl
+  function startTutorial(weiter) {
+    stopTipp(); tutAus();
+    var reihe = RW.vorauswahl(lernstand, letzteReihe, 2);
+    meta = TUT_META; tutWeiter = weiter || null;
+    level = J.level.parseLevel(TU.LEVEL); tutLevel = level;
+    var o = TU.gameOptions(reihe);
+    game = GM.createGame(level, o);
+    tut = TU.create();
+    cam = CAM.computeCameraTarget(game.player.x, J.physics.W, game.player.facing, VW);
+    keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
+    particles.forEach(function (q) { q.life = 0; });
+    shake = 0; squash = 0; acc = 0;
+    $('menu').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
+    $('ziel-intro').classList.add('hidden');
+    $('hud').classList.remove('hidden');
+    document.body.classList.toggle('einfach', einfach());
+    setZielChip(o);
+    aktReihe = o.reihe;
+    updateHud();
+    $('tut-box').classList.remove('hidden');
+    renderTut();
+    mode = 'play';
+    onOrient();
+  }
+  function renderTut() {
+    if (!tut) return;
+    $('tut-schritt').textContent = tut.fertig ? 'Fertig' : TU.fortschritt(tut);
+    $('tut-text').textContent = TU.text(tut, { geraet: geraet, einfach: einfach(), reihe: aktReihe });
+    var id = TU.schritt(tut), touch = geraet === 'touch' && !tut.fertig;
+    $('btn-right').classList.toggle('zeig', touch && id === 'laufen' && !einfach());
+    $('btn-halt').classList.toggle('zeig', touch && id === 'laufen' && einfach());
+    $('btn-jump').classList.toggle('zeig', touch && (id === 'springen' || id === 'zahlen' || id === 'wicht'));
+  }
+  // Blendet das Tutorial aus (ohne es als gesehen zu markieren)
+  function tutAus() {
+    if (!tut && $('tut-box').classList.contains('hidden')) return;
+    tut = null; tutLevel = null;
+    $('tut-box').classList.add('hidden');
+    ['btn-right', 'btn-halt', 'btn-jump'].forEach(function (b) { $(b).classList.remove('zeig'); });
+  }
+  function tutorialWeiter() {
+    var w = tutWeiter; tutWeiter = null; tutAus();
+    if (w) w(); else showMenu();
+  }
+  function tutorialUeberspringen() { markTutorialGesehen(); tutorialWeiter(); }
+  function tutorialFertig() {
+    mode = 'won'; sfx.ziel(); markTutorialGesehen();
+    keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
+    renderTut();
+    var weiter = tutWeiter;
+    setTimeout(function () {
+      if (mode !== 'won' || !tut) return;
+      showMsg('Tutorial geschafft!', '<p style="margin:0">' + TU.text(tut, {}) + '</p>' +
+        '<p style="margin:8px 0 0;font-size:14px;opacity:.85">Das Tutorial findest du jederzeit wieder unter „? So spielst du“.</p>', [
+        { text: weiter ? 'Jetzt richtig spielen' : 'Zur Levelauswahl', main: true, fn: tutorialWeiter },
+        { text: 'Tutorial nochmal', fn: function () { startTutorial(weiter); } },
+        { text: 'Levelauswahl', esc: true, fn: showMenu }
+      ]);
+    }, 900);
+  }
+  $('tut-skip').addEventListener('click', function () { ensureAudio(); tutorialUeberspringen(); });
+  $('btn-tutorial').addEventListener('click', function () { ensureAudio(); $('btn-tutorial').blur(); startTutorial(null); });
 
   // ---------- Pause / Ende ----------
   // Tastatur in Dialogen: Enter loest den Hauptknopf aus (er hat den Fokus), Esc den Knopf mit esc: true.
@@ -716,6 +850,15 @@
     showPauseMsg();
   }
   function showPauseMsg() {
+    if (tut) {
+      showMsg('Pause', 'Lumo wartet auf dich. Das ist das Tutorial: hier verlierst du nichts.', [
+        { text: 'Weiter', main: true, esc: true, fn: resume },
+        { text: 'Tutorial überspringen', fn: tutorialUeberspringen },
+        { text: 'Tutorial neu starten', fn: function () { startTutorial(tutWeiter); } },
+        { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } }
+      ]);
+      return;
+    }
     showMsg('Pause', 'Lumo wartet auf dich.', [
       { text: 'Weiter', main: true, esc: true, fn: resume },
       { text: 'Level neu starten', fn: nochmal },
@@ -726,6 +869,7 @@
   function resume() {
     if (mode !== 'pause') return;
     $('msg').classList.add('hidden'); mode = 'play'; last = 0; acc = 0;
+    if (tut) return;
     if (!tippFertig) showTipp(0);
   }
   // Nochmal und "Level neu starten" verhalten sich gleich: bei Mathe-Stufen über die Reihenwahl,
@@ -735,7 +879,7 @@
     else startLevel(meta.id);
   }
   function endByTime() {
-    stopTipp();
+    stopTipp(); tutAus();
     mode = 'ended'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
     $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
@@ -799,6 +943,7 @@
       else if (m.kind === 'timeup') endByTime();
       else if (m.kind === 'init') {
         jnr = m.jnr;
+        if (sitzungGesehen()) jnr.tutorialGesehen = true; // Fallback, falls der Trainer jnr:tutorial nicht kennt
         lernstand = m.lernstand;
         if (mode === 'reihenwahl') showReihenwahl(rwLevel); // Empfehlung nachziehen
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
@@ -1104,7 +1249,35 @@
     ctx.save(); ctx.translate(sx, 0);
     var camX = Math.round(cam);
     drawBackground(camX, t); drawTiles(camX); drawEntities(camX, t); drawWichte(camX, t, false); drawLumo(camX, t); drawWichte(camX, t, true); drawParticles(camX);
+    if (tut) drawTutorial(camX, t);
     ctx.restore();
+  }
+  // Tutorial: Lichtvorhang an der Grenze des Schritts und ein Pfeil über dem, was jetzt dran ist
+  function drawTutorial(camX, t) {
+    var still = reducedMQ && reducedMQ.matches;
+    var gx = TU.grenzeX(tut);
+    if (isFinite(gx)) {
+      var x = Math.round(gx - camX);
+      if (x > -4 && x < VW + 4) {
+        for (var y = 0; y < 7 * T; y += 4) {
+          var on = still || ((y >> 2) + (t >> 3)) % 3 !== 0;
+          ctx.fillStyle = on ? 'rgba(165,180,252,.55)' : 'rgba(165,180,252,.2)';
+          ctx.fillRect(x, y, 2, 2);
+        }
+      }
+    }
+    var z = TU.zeiger(tut, game);
+    if (!z) return;
+    var bob = still ? 0 : Math.round(Math.sin(t / 8) * 2);
+    var zx = Math.round(z.x - camX), zy = Math.round(z.y) - 4 + bob;
+    if (zx < -8 || zx > VW + 8) return;
+    // Pfeil nach unten: Spitze bei (zx, zy), dunkler Rand für Kontrast
+    for (var r = 0; r < 5; r++) {
+      ctx.fillStyle = '#1a1030'; ctx.fillRect(zx - 5 + r, zy - 6 + r, 11 - 2 * r, 1);
+    }
+    ctx.fillStyle = '#1a1030'; ctx.fillRect(zx - 3, zy - 12, 7, 7);
+    for (r = 0; r < 4; r++) { ctx.fillStyle = '#fde68a'; ctx.fillRect(zx - 3 + r, zy - 6 + r, 7 - 2 * r, 1); }
+    ctx.fillStyle = '#fde68a'; ctx.fillRect(zx - 2, zy - 11, 5, 6);
   }
   function drawMenuBackdrop(t) { drawBackground(t / 2, t); ctx.fillStyle = '#16a34a'; ctx.fillRect(0, 136, VW, 8); ctx.fillStyle = '#4ade80'; ctx.fillRect(0, 136, VW, 2); }
 
@@ -1124,6 +1297,11 @@
         cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
       }
       else if (e.type === 'verloren') { lose(); }
+      else if (e.type === 'zurueck') {
+        // Übungsmodus (Tutorial): kein Leben weg
+        spawn(e.x + 5, Math.min(e.y + 6, VH - 4), 8, '#a5b4fc', 1.1, 0.4); updateHud();
+        if (e.grund === 'abgrund') { shake = 6; cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW); }
+      }
       else if (e.type === 'stampf') {
         sfx.stampf(); squash = 6;
         spawn(e.x + J.gegner.EW / 2, e.y + J.gegner.EH - 4, 10, '#2dd4bf', 1.0, 0.4);
@@ -1132,7 +1310,7 @@
       }
       else if (e.type === 'feder') { sfx.feder(); spawn(p.x + 5, p.y + 12, 6, '#f472b6', 0.9, 0.2); }
       else if (e.type === 'checkpoint') { sfx.checkpoint(); spawn(level.checkpoints[e.index].tx * T + 8, level.checkpoints[e.index].ty * T + 2, 8, '#F59E0B', 1, 0.3); }
-      else if (e.type === 'ziel') { win(); }
+      else if (e.type === 'ziel') { if (tut) tutorialFertig(); else win(); }
     }
   }
   function frame(ts) {
@@ -1146,6 +1324,7 @@
       var steps = 0;
       while (acc >= DT && steps < 5) {
         if (mode === 'play') GM.tick(game, getInput());
+        if (mode === 'play' && tut && TU.tick(tut, game)) renderTut();
         if (mode === 'play' && game.events.length) handleEvents(game.events);
         stepParticles(); if (squash > 0) squash--; if (shake > 0) shake--;
         acc -= DT; steps++;
@@ -1162,18 +1341,21 @@
   layout();
   window.__jnr = {
     state: function () {
-      if (!game) return { mode: mode };
+      if (!game) return { mode: mode, tutorial: null, tutorialGesehen: jnr.tutorialGesehen };
       var p = game.player;
       return {
         mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
         reihe: aktReihe, status: game.status, t: game.t, fehltreffer: game.fehltreffer,
-        leben: game.leben, energie: game.energie, unverwundbar: game.unverwundbar
+        leben: game.leben, energie: game.energie, unverwundbar: game.unverwundbar,
+        tutorial: tut ? { schritt: TU.schritt(tut), index: tut.index, hinweis: tut.hinweis, fertig: tut.fertig } : null,
+        tutorialGesehen: jnr.tutorialGesehen
       };
     },
     // Nur fuer Tests: Lumo in die Schlucht versetzen (kostet im naechsten Schritt ein Leben).
     debugFall: function () { if (game) { game.player.y = level.h * T + 40; game.unverwundbar = 0; } },
     debugSet: function (o) { if (game) Object.keys(o).forEach(function (k) { game[k] = o[k]; }); if (game) updateHud(); },
     start: startLevel,
+    startTutorial: function () { startTutorial(null); },
     // Debug/Tests: Kristalle lesen und Lumo an eine Kachel setzen (z.B. um die 100 anzusehen)
     crystals: function () { return game ? game.crystals.map(function (c) { return { tx: c.tx, ty: c.ty, value: c.value, good: c.good }; }) : []; },
     goal: function () { return level ? { tx: level.goal.tx, ty: level.goal.ty } : null; },
@@ -1197,7 +1379,9 @@
     reihenwahl: function () { return mode === 'reihenwahl' ? { level: rwLevel, sel: rwSel, empfohlen: RW.empfehlungen(lernstand) } : null; }
   };
   document.body.classList.toggle('einfach', einfach());
-  if (dbgLevel && LV.byId(dbgLevel)) {
+  if (dbgTutorial) {
+    startTutorial(null);
+  } else if (dbgLevel && LV.byId(dbgLevel)) {
     $('menu').classList.add('hidden');
     startLevel(dbgLevel);
   } else {

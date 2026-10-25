@@ -240,3 +240,23 @@ describe('Automatischer Start', () => {
     expect(TU.sollAutomatischStarten(null, false)).toBe(true);
   });
 });
+
+describe('Zeiger auf das Ziel des Schritts', () => {
+  test('springen zeigt auf die Lücke, zahlen auf die richtige Zahl, wicht auf den Wicht, ziel auf den Leuchtturm', () => {
+    const s = neu(2);
+    expect(TU.zeiger(s.tut, s.game)).toBeNull(); // laufen: kein Zeiger
+    s.tut.index = 1;
+    expect(TU.zeiger(s.tut, s.game).x).toBe(((TU.LUECKE.von + TU.LUECKE.bis + 1) / 2) * T);
+    s.tut.index = 2;
+    const k = TU.kristalle(2)[0];
+    expect(TU.zeiger(s.tut, s.game)).toEqual({ x: k.tx * T + 8, y: k.ty * T - 2 });
+    s.game.crystals[0].state = 'weg';
+    expect(TU.zeiger(s.tut, s.game)).toBeNull(); // eingesammelt: weiter nach rechts, kein Zeiger
+    s.tut.index = 3;
+    const e = s.game.enemies[0];
+    expect(TU.zeiger(s.tut, s.game).x).toBe(e.x + 6);
+    expect(TU.zeiger(s.tut, s.game).y).toBeLessThan(e.y);
+    s.tut.index = 4;
+    expect(TU.zeiger(s.tut, s.game).x).toBe(s.level.goal.tx * T + 8);
+  });
+});

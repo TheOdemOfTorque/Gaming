@@ -31,6 +31,7 @@ const ASSETS = [
   '../jumpnrun/core/levelgen.js',
   '../jumpnrun/core/viewport.js',
   '../jumpnrun/core/camera.js',
+  '../jumpnrun/core/tutorial.js',
   '../knobel/fonts/AtkinsonHyperlegible-Regular.woff2',
   '../knobel/fonts/AtkinsonHyperlegible-Bold.woff2',
 ];

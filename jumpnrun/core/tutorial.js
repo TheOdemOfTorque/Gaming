@@ -100,6 +100,22 @@
     return vorher !== tut.index + '|' + tut.hinweis + '|' + tut.lob;
   }
 
+  // Wohin ein kleiner Pfeil ueber der Welt zeigt (Weltkoordinaten in px, Spitze unten), oder null.
+  function zeiger(tut, g) {
+    var id = schritt(tut);
+    if (tut.fertig || id === 'laufen') return null;
+    if (id === 'springen') return { x: ((LUECKE.von + LUECKE.bis + 1) / 2) * T, y: KRISTALL_TY * T };
+    if (id === 'zahlen') {
+      var c = g.crystals[0];
+      return c && c.state === 'da' ? { x: c.tx * T + 8, y: c.ty * T - 2 } : null;
+    }
+    if (id === 'wicht') {
+      var e = g.enemies[0];
+      return e && e.state === 'da' ? { x: e.x + 6, y: e.y - 12 } : null;
+    }
+    return { x: g.level.goal.tx * T + 8, y: (g.level.goal.ty - 1) * T - 2 };
+  }
+
   // ctx: { geraet: 'touch' | 'tasten', einfach: bool (Lumo laeuft von selbst), reihe }
   function schrittText(id, ctx, r) {
     var touch = ctx.geraet === 'touch', k = kristalle(r);
@@ -146,6 +162,6 @@
   return {
     LEVEL: LEVEL, LUECKE: LUECKE, SEED: SEED, SCHRITTE: SCHRITTE,
     kristalle: kristalle, gameOptions: gameOptions, create: create, schritt: schritt, fortschritt: fortschritt,
-    grenzeX: grenzeX, tick: tick, text: text, sollAutomatischStarten: sollAutomatischStarten
+    grenzeX: grenzeX, tick: tick, zeiger: zeiger, text: text, sollAutomatischStarten: sollAutomatischStarten
   };
 });
