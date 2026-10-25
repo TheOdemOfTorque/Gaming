@@ -157,6 +157,9 @@ test.describe('Knobelwerkstatt', () => {
   test.describe('Querformat auf dem Telefon (kurze Seite < 520px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
+    // Firefox unterstuetzt isMobile-Geraete-Emulation grundsaetzlich nicht
+    // (Playwright-Einschraenkung, nichts mit dieser Funktion zu tun).
+    test.skip(({ browserName }) => browserName === 'firefox', 'isMobile wird in Firefox nicht unterstuetzt');
 
     test('zeigt den Dreh-Hinweis und verdeckt das unspielbare Raetsel (Stufe 5, groesste Mauer)', async ({ page }) => {
       await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=5&seed=1');
@@ -183,6 +186,7 @@ test.describe('Knobelwerkstatt', () => {
   test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 520px): weiterhin spielbar', () => {
     const { defaultBrowserType, ...geraet } = devices['iPad (gen 7) landscape'];
     test.use(geraet);
+    test.skip(({ browserName }) => browserName === 'firefox', 'isMobile wird in Firefox nicht unterstuetzt');
 
     test('kein Dreh-Hinweis, Rechenkaefige-Zellen bleiben mindestens 44px (Stufe 5, 6x6)', async ({ page }) => {
       await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
@@ -199,6 +203,22 @@ test.describe('Knobelwerkstatt', () => {
       await expect(page.locator('#rotate-hint')).toBeHidden();
       const box = await page.locator('#board.mauer .stone').first().boundingBox();
       expect(box.height).toBeGreaterThanOrEqual(44);
+    });
+  });
+
+  test.describe('Tastatur: verarbeitete Tasten rufen preventDefault auf (Firefox-Schnellsuche)', () => {
+    test('Ziffern, Rücktaste, Entf und Pfeiltasten sind defaultPrevented', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=1&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      await page.locator('#board [data-r="0"][data-c="0"]').click();
+      const tasten = ['1', 'Backspace', 'Delete', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+      for (const taste of tasten) {
+        const prevented = await page.evaluate((key) => new Promise((resolve) => {
+          document.addEventListener('keydown', (ev) => resolve(ev.defaultPrevented), { once: true, capture: false });
+          document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        }), taste);
+        expect.soft(prevented, `Taste ${taste}`).toBe(true);
+      }
     });
   });
 

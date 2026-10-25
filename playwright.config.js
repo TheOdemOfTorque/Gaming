@@ -1,4 +1,4 @@
-const { defineConfig } = require('@playwright/test');
+const { defineConfig, devices } = require('@playwright/test');
 const PORT = process.env.PW_PORT || 8080;
 module.exports = defineConfig({
   testDir: './tests/e2e',
@@ -9,6 +9,10 @@ module.exports = defineConfig({
     // bypassen page.route(). Wichtig für mocked E2E (Issue #28 Strategie B).
     serviceWorkers: 'block',
   },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+  ],
   webServer: {
     command: `python3 -m http.server ${PORT} --directory .`,
     cwd: __dirname,

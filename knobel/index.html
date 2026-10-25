@@ -731,9 +731,10 @@ h1 { margin: 0; font-size: 26px; }
     if (/^[0-9]$/.test(ev.key)) {
       var d = +ev.key;
       if (cur.modus === 'kaefige' && (d < 1 || d > cur.puzzle.n)) return;
+      ev.preventDefault();
       pressKey(d);
     } else if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); pressKey('del'); }
-    else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') $('t-notes').click();
+    else if (ev.key.toLowerCase() === 'n' && cur.modus === 'kaefige') { ev.preventDefault(); $('t-notes').click(); }
     else if (ev.key === 'ArrowUp') { ev.preventDefault(); moveSel(-1, 0); }
     else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveSel(1, 0); }
     else if (ev.key === 'ArrowLeft') { ev.preventDefault(); moveSel(0, -1); }
