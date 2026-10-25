@@ -122,6 +122,38 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#status')).toContainText('Tipp');
   });
 
+  for (const vp of [{ name: 'iPhone', width: 390, height: 844 }, { name: 'Desktop', width: 1280, height: 800 }]) {
+    test(`Rechenzeichen der Zahlenmauer sind gut lesbar (${vp.name})`, async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=3&seed=1');
+      const stone = page.locator('#board.mauer .stone[data-op]').first();
+      await expect(stone).toBeVisible();
+      const op = await stone.evaluate((el) => {
+        const s = getComputedStyle(el, '::before');
+        return { size: parseFloat(s.fontSize), weight: parseInt(s.fontWeight, 10), content: s.content };
+      });
+      expect(op.content).toMatch(/[×+]/);
+      expect(op.size).toBeGreaterThanOrEqual(18);
+      expect(op.weight).toBeGreaterThanOrEqual(700);
+    });
+
+    test(`Rechenzeichen ueberdeckt die Zahl im Stein nicht (${vp.name}, groesste Mauer)`, async ({ page }) => {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=5&seed=1');
+      await expect(page.locator('#board.mauer .stone').first()).toBeVisible();
+      const overlaps = await page.$$eval('#board.mauer .stone[data-op]', (stones) => stones.filter((el) => {
+        const text = [...el.childNodes].find((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!text) return false;
+        const r = document.createRange(); r.selectNodeContents(text);
+        const num = r.getBoundingClientRect();
+        const s = getComputedStyle(el, '::before');
+        const opRight = el.getBoundingClientRect().left + parseFloat(s.left) + parseFloat(s.fontSize) * 0.75;
+        return num.left < opRight;
+      }).map((el) => el.textContent.trim()));
+      expect(overlaps).toEqual([]);
+    });
+  }
+
   test.describe('Querformat auf dem Telefon (kurze Seite < 520px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
