@@ -164,6 +164,14 @@ describe('satzFuer: Saetze aus der Zustandstabelle', () => {
     const r = K.rechnungFuer({ op: 'mul' }, [3, null, 12]);
     expect(K.satzFuer(r, { modus: 'mauer' })).toBe('Malnehmen: Welche Zahl fehlt noch?');
   });
+  test('Mauerstein vollstaendig und richtig', () => {
+    const r = K.rechnungFuer({ op: 'mul' }, [3, 4, 12]);
+    expect(K.satzFuer(r, { modus: 'mauer' })).toBe('Stein fertig.');
+  });
+  test('Mauerstein vollstaendig und falsch', () => {
+    const r = K.rechnungFuer({ op: 'mul' }, [3, 4, 10]);
+    expect(K.satzFuer(r, { modus: 'mauer' })).toBe('Das stimmt noch nicht.');
+  });
   test('doppelte Zahl ueberschreibt den Satz', () => {
     const r = K.rechnungFuer({ op: '×', ziel: 8 }, [4, 1, null]);
     expect(K.satzFuer(r, { modus: 'kaefig', dublette: 3 })).toBe('Die 3 steht in dieser Zeile schon.');

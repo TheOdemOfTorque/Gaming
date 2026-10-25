@@ -699,7 +699,10 @@ h1 { margin: 0; font-size: 26px; }
       gl.appendChild(g === null ? slotSpan(i === r.lueckeIndex) : textSpan(g));
     });
     gl.appendChild(textSpan('=', 'o'));
-    gl.appendChild(r.ergebnisIstLuecke ? slotSpan(true) : textSpan(r.ergebnis, 'ziel'));
+    // ergebnis kann auch ausserhalb von ergebnisIstLuecke null sein (Umkehraufgabe,
+    // bei der zusaetzlich das Ergebnis der Partnerbeziehung noch unbekannt ist) --
+    // dann trotzdem eine Luecke zeigen statt eines leeren Textknotens.
+    gl.appendChild(r.ergebnis === null ? slotSpan(r.ergebnisIstLuecke) : textSpan(r.ergebnis, 'ziel'));
     if (r.erfuellt) gl.appendChild(textSpan('✓', 'ok2'));
     return gl;
   }

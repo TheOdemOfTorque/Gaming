@@ -291,6 +291,7 @@
     if (r.op === '=') return 'Diese Zahl ist geschenkt.';
     var wort = OP_WORT[r.op];
     if (kontext.modus === 'mauer') {
+      if (r.vollstaendig) return r.erfuellt ? 'Stein fertig.' : 'Das stimmt noch nicht.';
       if (r.ergebnisIstLuecke) return wort + ': ' + r.glieder[0] + ' ' + OP_KLEIN[r.op] + ' ' + r.glieder[1] + ' ergibt …';
       return wort + ': Welche Zahl fehlt noch?';
     }
