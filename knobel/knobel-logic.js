@@ -224,6 +224,71 @@
     return cageZiel(k.op, vals) === k.ziel;
   }
 
+  // Baut die Rechnung fuer den Rechenstreifen aus einem Kaefig oder einem
+  // Mauerstein und den aktuell eingetragenen Werten (null = leer).
+  // Kaefig: aufgabe = { op: '+'|'×'|'−'|'÷'|'=', ziel }, eingaben = n Zellenwerte.
+  // Mauerstein: aufgabe = { op: 'mul'|'add' }, eingaben = [quelleA, quelleB, ergebnis].
+  // Bei voll ausgefuelltem, falschem Kaefig zeigt "ergebnis" das tatsaechlich
+  // Gerechnete (nicht die Zielzahl), damit der Satz beides gegenueberstellen kann.
+  function rechnungFuer(aufgabe, eingaben) {
+    var op = aufgabe.op;
+    if (op === 'mul' || op === 'add') {
+      var a = eingaben[0], b = eingaben[1], ergebnis = eingaben[2];
+      var glieder = [a, b];
+      var lueckeIndex = null, ergebnisIstLuecke = false, vollstaendig, erfuellt = null, computed = null;
+      if (a === null || b === null) {
+        lueckeIndex = a === null ? 0 : 1;
+        vollstaendig = false;
+      } else {
+        computed = op === 'mul' ? a * b : a + b;
+        if (ergebnis === null) { ergebnisIstLuecke = true; vollstaendig = false; }
+        else { vollstaendig = true; erfuellt = computed === ergebnis; }
+      }
+      return { op: op === 'mul' ? '×' : '+', glieder: glieder, ziel: null, ergebnis: ergebnis, computed: computed,
+        lueckeIndex: lueckeIndex, ergebnisIstLuecke: ergebnisIstLuecke, vollstaendig: vollstaendig, erfuellt: erfuellt };
+    }
+    var ziel = aufgabe.ziel;
+    if (op === '=') {
+      var wert = eingaben[0] === undefined ? null : eingaben[0];
+      var voll = wert !== null;
+      return { op: '=', glieder: [], ziel: ziel, ergebnis: ziel, computed: voll ? wert : null,
+        lueckeIndex: null, ergebnisIstLuecke: !voll, vollstaendig: voll, erfuellt: voll ? wert === ziel : null };
+    }
+    var vals = eingaben.slice();
+    if ((op === '−' || op === '÷') && vals[0] !== null && vals[1] !== null) {
+      vals = [Math.max(vals[0], vals[1]), Math.min(vals[0], vals[1])];
+    }
+    var nullIdx = vals.indexOf(null);
+    if (nullIdx === -1) {
+      var berechnet = cageZiel(op, vals);
+      return { op: op, glieder: vals, ziel: ziel, ergebnis: berechnet === ziel ? ziel : berechnet, computed: berechnet,
+        lueckeIndex: null, ergebnisIstLuecke: false, vollstaendig: true, erfuellt: berechnet === ziel };
+    }
+    return { op: op, glieder: vals, ziel: ziel, ergebnis: ziel, computed: null,
+      lueckeIndex: nullIdx, ergebnisIstLuecke: false, vollstaendig: false, erfuellt: null };
+  }
+
+  var OP_WORT = { '+': 'Zusammenzählen', '×': 'Malnehmen', '−': 'Abziehen', '÷': 'Teilen' };
+  var OP_KLEIN = { '+': 'plus', '×': 'mal', '−': 'minus', '÷': 'geteilt durch' };
+
+  // Satz unter der Rechnung im Rechenstreifen, passend zu rechnungFuer()s Ergebnis.
+  // kontext.dublette: Ziffer, die in Zeile/Spalte schon vorkommt (ueberschreibt alles andere).
+  function satzFuer(r, kontext) {
+    kontext = kontext || {};
+    if (kontext.dublette !== undefined && kontext.dublette !== null) {
+      return 'Die ' + kontext.dublette + ' steht in dieser Zeile schon.';
+    }
+    if (r.op === '=') return 'Diese Zahl ist geschenkt.';
+    var wort = OP_WORT[r.op];
+    if (kontext.modus === 'mauer') {
+      if (r.ergebnisIstLuecke) return wort + ': ' + r.glieder[0] + ' ' + OP_KLEIN[r.op] + ' ' + r.glieder[1] + ' ergibt …';
+      return wort + ': Welche Zahl fehlt noch?';
+    }
+    if (!r.vollstaendig) return wort + ': Welche Zahl fehlt noch?';
+    if (r.erfuellt) return 'Käfig fertig.';
+    return 'Das ergibt ' + r.computed + ', gesucht ist ' + r.ziel + '.';
+  }
+
   function zellenZusammenhaengend(zellen) {
     if (!zellen.length) return false;
     var key = function (z) { return z[0] + ',' + z[1]; };
@@ -651,7 +716,8 @@
     mulberry32: mulberry32, randInt: randInt, shuffle: shuffle, pick: pick,
     buildPyramid: buildPyramid, solvePyramid: solvePyramid,
     logicSolvePyramid: logicSolvePyramid, generatePyramid: generatePyramid,
-    cageZiel: cageZiel, cageOk: cageOk, zellenZusammenhaengend: zellenZusammenhaengend,
+    cageZiel: cageZiel, cageOk: cageOk, rechnungFuer: rechnungFuer, satzFuer: satzFuer,
+    zellenZusammenhaengend: zellenZusammenhaengend,
     solveCages: solveCages, logicSolveCages: logicSolveCages, generateCages: generateCages,
     generatePuzzle: generatePuzzle, checkSolution: checkSolution, findHint: findHint,
     istFest: istFest, festerWert: festerWert, kaefigFuer: kaefigFuer,
