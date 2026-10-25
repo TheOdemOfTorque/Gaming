@@ -15,7 +15,7 @@ describe('assignCrystals', () => {
     cr.forEach((c, i) => { expect(c.tx).toBe(s[i].tx); expect(c.ty).toBe(s[i].ty); });
   });
 
-  test.each([2, 3, 5, 7, 9, 10])('Reihe %i: gute Zahlen sind Vielfache, falsche nie', (r) => {
+  test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])('Reihe %i: gute Zahlen sind Vielfache, falsche nie', (r) => {
     const cr = M.assignCrystals(slots(24), { reihe: r, seed: 5, mode: 'ziel' });
     cr.forEach(c => {
       expect(c.value).toBeGreaterThan(0);
