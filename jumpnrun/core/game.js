@@ -1,19 +1,20 @@
 // Lumo - Spielsimulation (ein Schritt = 1/60 s). Reine Funktionen: Physik, Kristalle, Gefahren,
 // Energie und Leben, Checkpoints, Ziel. Browser und Replay-Tests nutzen exakt denselben Code.
 //
-// Schaden: jede Quelle (falscher Kristall, Dornen, spaeter Gegner) ruft damage(g, quelle, richtung)
+// Schaden: jede Quelle (falscher Kristall, Dornen, Rechenwicht von der Seite) ruft damage(g, quelle, richtung)
 // auf. Das kostet 1 Energie, stoesst zurueck und macht INVULN Schritte unverwundbar. Energie 0 oder
 // ein Sturz in den Abgrund kosten ein Leben (loseLife), ohne Leben ist der Lauf verloren.
 (function (root, factory) {
   var deps = (typeof module === 'object' && module.exports)
-    ? { physics: require('./physics.js'), mathgen: require('./mathgen.js'), collision: require('./collision.js') }
-    : { physics: root.JNR.physics, mathgen: root.JNR.mathgen, collision: root.JNR.collision };
-  var api = factory(deps.physics, deps.mathgen, deps.collision);
+    ? { physics: require('./physics.js'), mathgen: require('./mathgen.js'), collision: require('./collision.js'), gegner: require('./gegner.js') }
+    : { physics: root.JNR.physics, mathgen: root.JNR.mathgen, collision: root.JNR.collision, gegner: root.JNR.gegner };
+  var api = factory(deps.physics, deps.mathgen, deps.collision, deps.gegner);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.JNR = root.JNR || {}; root.JNR.game = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (P, M, C) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (P, M, C, GG) {
   var T = C.TILE;
   var SPRING_V = 6.8;
+  var STAMPF_V = 4.4; // Abprall nach dem Draufspringen auf einen Rechenwicht
   var KNOCK_X = 2.2, KNOCK_Y = 2.8;
   var LEBEN = 3, ENERGIE = 3;
   var INVULN = 60; // ca. 1 s unverwundbar nach Schaden oder Respawn
@@ -34,6 +35,7 @@
     var p = P.createPlayer(level.start.x, level.start.y);
     return {
       level: level, player: p, crystals: crystals,
+      enemies: GG.createEnemies(level, { reihe: opts.reihe, seed: opts.seed }),
       totalGood: crystals.filter(function (c) { return c.good; }).length,
       funken: 0, richtig: 0, fehltreffer: 0,
       leben: LEBEN, energie: ENERGIE, unverwundbar: 0,
@@ -94,6 +96,7 @@
     g.t++;
     if (g.unverwundbar > 0) g.unverwundbar--;
     var p = g.player, L = g.level;
+    var prevY = p.y;
     var r = P.step(p, input, L);
     if (r.jumped) g.events.push({ type: 'sprung' });
     if (r.landed) g.events.push({ type: 'landung' });
@@ -115,6 +118,21 @@
         g.events.push({ type: 'falsch', index: i });
         damage(g, 'kristall', (p.x + P.W / 2) < (c.tx * T + T / 2) ? -1 : 1);
         if (g.status !== 'play') return g;
+      }
+    }
+
+    // Rechenwichte: laufen, von oben gestampft decken sie die richtige Rechnung auf, von der Seite schaden sie
+    for (var e = 0; e < g.enemies.length; e++) {
+      var en = g.enemies[e];
+      GG.step(en);
+      var kontakt = GG.contact(en, p, prevY);
+      if (kontakt === 'stampf') {
+        GG.stampf(en);
+        g.funken++;
+        p.vy = -STAMPF_V; p.onGround = false; p.canCut = false;
+        g.events.push({ type: 'stampf', index: e, x: en.x, y: en.y, rechnung: en.rechnung });
+      } else if (kontakt === 'seite') {
+        if (damage(g, 'gegner', awayFrom(p, en.x + GG.EW / 2)) && g.status !== 'play') return g;
       }
     }
 
@@ -158,6 +176,7 @@
     var c = Object.assign({}, g);
     c.player = Object.assign({}, g.player);
     c.crystals = g.crystals.map(function (k) { return Object.assign({}, k); });
+    c.enemies = g.enemies.map(function (e) { return Object.assign({}, e); }); // rechnung bleibt unveraendert und wird geteilt
     c.spawn = { x: g.spawn.x, y: g.spawn.y };
     c.events = [];
     return c;
