@@ -94,24 +94,30 @@ h1 { margin: 0; font-size: 26px; }
 #status.good { color: var(--ok); }
 #area { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; overflow-y: auto; }
 
-/* Zahlenmauer */
-#board.mauer { display: grid; gap: 6px 0; width: 100%; }
-.stone { position: relative; height: var(--sh, 52px); margin: 0 3px; border-radius: 10px; background: var(--card-hi);
-  border: 2px solid transparent; font-size: 22px; font-weight: 600; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 3px 0 rgba(0,0,0,.35); }
-.stone.fest { background: rgba(108,99,255,.28); color: #fff; }
-.stone.hint { background: rgba(245,158,11,.22); }
+/* Zahlenmauer: Rechenzeichen sitzt als Kreis in der Fuge, direkt unter dem
+   Ergebnisstein (nicht mehr als Prefix im Stein selbst). */
+#board.mauer { display: grid; gap: 14px 0; width: 100%; }
+.stone { position: relative; height: var(--sh, 52px); margin: 0 3px; border-radius: 10px; background: var(--feld);
+  color: var(--kreide); border: 2px solid transparent; font-size: 22px; font-weight: 700; display: flex;
+  align-items: center; justify-content: center; }
+.stone.op-mal { --c: var(--mal); } .stone.op-plus { --c: var(--plus); }
+.stone.fest { background: #353176; }
+.stone.hint { box-shadow: inset 0 0 0 999px rgba(245,158,11,.22); }
 .stone.big { font-size: 17px; }
-/* Platz links fuer das Rechenzeichen, damit es die Zahl nicht ueberdeckt */
-.stone[data-op] { padding-left: clamp(22px, calc(var(--sh, 52px) * .5), 30px); padding-right: 4px; }
-.stone[data-op]::before { position: absolute; top: 50%; left: 6px; transform: translateY(-50%);
-  font-size: clamp(18px, calc(var(--sh, 52px) * .42), 26px); font-weight: 800; line-height: 1; color: var(--accent-hi); }
-.stone[data-op="mul"]::before { content: "×"; }
-.stone[data-op="add"]::before { content: "+"; }
-.stone.sel { border-color: var(--gold); background: rgba(245,158,11,.18); }
+.stone-op { position: absolute; bottom: -13px; left: 50%; transform: translate(-50%, 50%); z-index: 2;
+  width: clamp(18px, calc(var(--sh, 52px) * .46), 26px); height: clamp(18px, calc(var(--sh, 52px) * .46), 26px);
+  border-radius: 50%; background: var(--c); color: #141233; font-size: clamp(12px, calc(var(--sh, 52px) * .32), 18px);
+  font-weight: 700; display: grid; place-items: center; line-height: 1; }
+.stone.sel { outline: 3px solid var(--wahl); outline-offset: -4px; }
+.stone.quelle { border-color: var(--qc, var(--c)); }
 .stone.err, .cell.err { border-color: var(--err); }
 .stone.err::after, .cell.err::after { content: "✕"; position: absolute; top: 1px; right: 5px; font-size: 12px; color: var(--err); }
-.stone.top.done { background: var(--gold); color: #1b1200; }
+.stone.top.done { box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--gut) 25%, transparent); }
+.legende { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; font-size: 14px; color: var(--leise); padding: 2px 0; }
+.legende[hidden] { display: none; }
+.legende span { display: flex; align-items: center; gap: 6px; }
+.legende .op-sym { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c); color: #141233; font-weight: 700; font-size: 13px; }
 
 /* Rechenkaefige: Kaefig als Flaeche, Felder stossen luecken­los aneinander,
    aussen ein 4px Rand in der Rechenfarbe, dazwischen eine feine dunkle Linie. */
@@ -228,6 +234,7 @@ h1 { margin: 0; font-size: 26px; }
   <div id="rule"></div>
   <div id="status" role="status" aria-live="polite"></div>
   <div id="area"><div id="board" role="group"></div></div>
+  <div id="legende" class="legende" hidden></div>
   <div id="tools">
     <button class="tool" id="t-notes" aria-pressed="false">Notizen</button>
     <button class="tool" id="t-undo">Rückgängig</button>
@@ -390,7 +397,10 @@ h1 { margin: 0; font-size: 26px; }
           s.dataset.r = r; s.dataset.c = c;
           s.style.gridColumn = (r + 2 * c + 1) + ' / span 2';
           s.style.gridRow = (p.n - r);
-          if (r >= 1) s.dataset.op = p.regeln[r];
+          if (r >= 1) {
+            s.dataset.op = p.regeln[r];
+            s.classList.add(OP_KLASSE[p.regeln[r] === 'mul' ? '×' : '+']);
+          }
           if (r === p.n - 1) s.classList.add('top');
           b.appendChild(s);
         }
@@ -423,7 +433,31 @@ h1 { margin: 0; font-size: 26px; }
       var t = ev.target.closest('[data-r]');
       if (t) selectCell(+t.dataset.r, +t.dataset.c);
     };
+    renderLegende();
     renderAll();
+  }
+
+  var OP_NAME = { '×': 'malnehmen', '+': 'zusammenzählen' };
+  function renderLegende() {
+    var el = $('legende');
+    if (cur.modus !== 'mauer') { el.hidden = true; el.innerHTML = ''; return; }
+    var vorkommend = [];
+    cur.puzzle.regeln.forEach(function (regel) {
+      var sym = regel === 'mul' ? '×' : regel === 'add' ? '+' : null;
+      if (sym && vorkommend.indexOf(sym) === -1) vorkommend.push(sym);
+    });
+    el.innerHTML = '';
+    vorkommend.forEach(function (sym) {
+      var span = document.createElement('span');
+      var kreis = document.createElement('span');
+      kreis.className = 'op-sym';
+      kreis.style.setProperty('--c', sym === '×' ? 'var(--mal)' : 'var(--plus)');
+      kreis.textContent = sym;
+      span.appendChild(kreis);
+      span.appendChild(document.createTextNode(OP_NAME[sym]));
+      el.appendChild(span);
+    });
+    el.hidden = vorkommend.length === 0;
   }
 
   function buildPad() {
@@ -481,10 +515,29 @@ h1 { margin: 0; font-size: 26px; }
   var STRUKTUR_KLASSEN = ['bt', 'br', 'bb', 'bl', 'top', 'k', 'ft', 'fl',
     'op-plus', 'op-mal', 'op-minus', 'op-geteilt', 'op-eins'];
 
+  // Quellsteine (und ggf. das Ergebnis darueber bei fehlendem unteren Stein)
+  // fuer den gewaehlten Stein: key -> Farb-Var fuer den Rand.
+  function quellenFuerAuswahl() {
+    var out = {};
+    if (!cur || cur.modus !== 'mauer' || !cur.sel) return out;
+    var p = cur.puzzle, r = cur.sel[0], c = cur.sel[1];
+    var farbe = function (regel) { return regel === 'mul' ? 'var(--mal)' : 'var(--plus)'; };
+    if (r >= 1) {
+      out[key(r - 1, c)] = farbe(p.regeln[r]);
+      out[key(r - 1, c + 1)] = farbe(p.regeln[r]);
+    }
+    if (r + 1 < p.n) {
+      var oben = r + 1, istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
+      out[key(oben, nc)] = farbe(p.regeln[oben]);
+    }
+    return out;
+  }
+
   function renderAll() {
     var p = cur.puzzle, modus = cur.modus;
     var res = L.checkSolution(modus, p, cur.eingabe);
     var selKaefig = (modus === 'kaefige' && cur.sel) ? L.kaefigFuer(p, cur.sel[0], cur.sel[1]) : null;
+    var quellen = quellenFuerAuswahl();
     $('board').querySelectorAll('[data-r]').forEach(function (el) {
       var r = +el.dataset.r, c = +el.dataset.c, kk = key(r, c);
       var fest = L.istFest(modus, p, r, c), hint = !!cur.hinweise[kk];
@@ -501,8 +554,17 @@ h1 { margin: 0; font-size: 26px; }
       if (v && String(v).length >= 4) cls.push('big');
       if (cur.solved && (modus === 'kaefige' || el.classList.contains('top'))) cls.push('done');
       if (selKaefig && selKaefig === L.kaefigFuer(p, r, c)) cls.push('cagesel');
+      if (quellen[kk]) { cls.push('quelle'); el.style.setProperty('--qc', quellen[kk]); }
+      else el.style.removeProperty('--qc');
       el.className = cls.join(' ');
       el.innerHTML = '';
+      if (modus === 'mauer' && r >= 1) {
+        var kreis = document.createElement('span');
+        kreis.className = 'stone-op';
+        kreis.setAttribute('aria-hidden', 'true');
+        kreis.textContent = p.regeln[r] === 'mul' ? '×' : '+';
+        el.appendChild(kreis);
+      }
       if (modus === 'kaefige') {
         var k = L.kaefigFuer(p, r, c);
         var fc = labelZelle(k);
@@ -798,7 +860,7 @@ h1 { margin: 0; font-size: 26px; }
     } else {
       // Zahlenmauer: Steinhoehe an die verfuegbare Hoehe anpassen, sonst
       // reisst eine fixe Hoehe im Querformat die Werkzeugleiste unter sich.
-      var n = cur.puzzle.n, gap = 6;
+      var n = cur.puzzle.n, gap = 14;
       var avail = a.clientHeight - gap * (n - 1);
       var sh = Math.max(30, Math.min(52, Math.floor(avail / n)));
       $('board').style.setProperty('--sh', sh + 'px');
