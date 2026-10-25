@@ -54,11 +54,13 @@
   #ziel-intro {
     position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); pointer-events: none;
     padding: .35em .8em; border-radius: 26px; background: rgba(13, 13, 43, .82); border: 3px solid #fde68a;
-    color: #fff; font-weight: 900; text-align: center; white-space: nowrap;
-    font-size: clamp(28px, calc(2.6vw + 4.2vh), 84px); text-shadow: 0 3px 0 rgba(0, 0, 0, .4);
+    color: #fff; font-weight: 900; text-align: center; line-height: 1.1;
+    width: max-content; max-width: calc(100vw - 24px); overflow-wrap: break-word;
+    font-size: clamp(24px, min(calc(2.6vw + 4.2vh), 8.5vw), 84px); text-shadow: 0 3px 0 rgba(0, 0, 0, .4);
     animation: ziel-intro 2s ease-out both;
   }
-  #ziel-intro b { color: var(--amber); }
+  #ziel-intro b { color: var(--amber); white-space: nowrap; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   @keyframes ziel-intro {
     0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
     15% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
@@ -180,10 +182,11 @@
 
   <div id="hud" class="hidden">
     <div id="hud-mitte">
-      <div id="ziel" role="status"></div>
+      <div id="ziel"></div>
       <div id="funken">✦ 0</div>
     </div>
     <div id="ziel-intro" class="hidden" aria-hidden="true"></div>
+    <div id="ziel-live" class="sr-only" aria-live="polite"></div>
     <div id="topbtns">
       <button class="iconbtn" id="btn-sound" aria-label="Ton an oder aus">♪</button>
       <button class="iconbtn" id="btn-pause" aria-label="Pause">❚❚</button>
@@ -217,7 +220,7 @@
   </div>
 
   <div id="reihenwahl" class="overlay hidden">
-    <div class="card" role="dialog" aria-labelledby="rw-titel">
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="rw-titel">
       <h1 id="rw-titel">Welche Reihe <span>sammelst du?</span></h1>
       <p class="sub" id="rw-sub"></p>
       <div id="rw-grid" role="group" aria-label="Zahlenreihe wählen"></div>
@@ -403,8 +406,7 @@
         if (f && (f.id === 'rw-zurueck' || f.id === 'rw-hilfe-btn')) return;
         e.preventDefault(); rwStart(rwSel);
       } else if (e.code === 'Escape') { e.preventDefault(); showMenu(); }
-      else if (/^Digit([2-9])$/.test(e.code)) { rwSelect(parseInt(e.code.slice(5), 10), true); e.preventDefault(); }
-      else if (e.code === 'Digit0' || e.code === 'Digit1') { rwSelect(10, true); e.preventDefault(); }
+      else if (RW.tasteZuReihe(e.code)) { rwSelect(RW.tasteZuReihe(e.code), true); e.preventDefault(); }
       return;
     }
     if (e.code === 'KeyP' || e.code === 'Escape') {
@@ -494,7 +496,8 @@
     $('rw-los').textContent = 'Los mit der ' + RW.chipReihe(reihe);
     $('rw-hilfe').innerHTML = rwHilfeHtml(reihe);
   }
-  function showReihenwahl(id) {
+  // fest: Reihe, die vorgewählt sein soll (Nochmal / Level neu starten = gerade gespielte Reihe)
+  function showReihenwahl(id, fest) {
     var m = LV.byId(id); if (!m) return showMenu();
     mode = 'reihenwahl'; rwLevel = id; game = null;
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
@@ -514,7 +517,7 @@
       grid.appendChild(b);
     });
     $('reihenwahl').classList.remove('hidden');
-    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe), true);
+    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, fest), true);
   }
   function rwStart(reihe) {
     if (mode !== 'reihenwahl' || !RW.istReihe(reihe)) return;
@@ -527,6 +530,7 @@
   $('rw-hilfe-btn').addEventListener('click', function () {
     var h = $('rw-hilfe'), open = h.classList.toggle('hidden') === false;
     $('rw-hilfe-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open && h.scrollIntoView) h.scrollIntoView({ block: 'nearest' });
   });
 
   // ---------- Zielansage + Ziel-Chip ----------
@@ -534,6 +538,7 @@
   function showZielIntro(reihe) {
     var el = $('ziel-intro');
     el.innerHTML = 'Sammle die <b>' + RW.chipReihe(reihe) + '</b>';
+    $('ziel-live').textContent = J.mathgen.targetLabel(reihe); // einmal vorlesen, nicht bei jedem Kristall
     el.classList.add('hidden'); void el.offsetWidth; el.classList.remove('hidden'); // Animation neu starten
     clearTimeout(introTimer);
     introTimer = setTimeout(function () { el.classList.add('hidden'); }, 2000);
@@ -544,9 +549,8 @@
       z.className = '';
       z.innerHTML = '<span class="z-reihe"></span><span class="z-zahl"></span>';
       z.querySelector('.z-reihe').textContent = RW.chipReihe(o.reihe);
-      z.setAttribute('aria-label', J.mathgen.targetLabel(o.reihe));
     } else {
-      z.className = 'aus'; z.removeAttribute('aria-label');
+      z.className = 'aus';
       z.textContent = 'Sammle alle Funken';
     }
   }
@@ -601,7 +605,7 @@
     mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause();
     showMsg('Pause', 'Lumo wartet auf dich.', [
       { text: 'Weiter', main: true, fn: resume },
-      { text: 'Level neu starten', fn: function () { startLevel(meta.id, aktReihe); } }, // gleiche Reihe, ohne Wahl
+      { text: 'Level neu starten', fn: nochmal },
       { text: 'Levelauswahl', fn: showMenu }
     ]);
   }
@@ -609,10 +613,16 @@
     if (mode !== 'pause') return;
     $('msg').classList.add('hidden'); mode = 'play'; last = 0; acc = 0;
   }
+  // Nochmal und "Level neu starten" verhalten sich gleich: bei Mathe-Stufen über die Reihenwahl,
+  // vorgewählt ist die gerade gespielte Reihe (ein Tipp oder Enter genügt).
+  function nochmal() {
+    if (LV.brauchtReihenwahl(meta, jnr.options)) showReihenwahl(meta.id, aktReihe);
+    else startLevel(meta.id);
+  }
   function endByTime() {
     mode = 'ended'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
-    $('hud').classList.add('hidden');
+    $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
     showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
   }
 
@@ -638,7 +648,7 @@
       (res.xp > 0 ? ' · +' + res.xp + ' XP' : '') + '</div>';
     var btns = [];
     if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next); } });
-    btns.push({ text: 'Nochmal', main: !next, fn: function () { startLevel(meta.id); } });
+    btns.push({ text: 'Nochmal', main: !next, fn: nochmal });
     btns.push({ text: 'Levelauswahl', fn: showMenu });
     setTimeout(function () { if (mode === 'won') showMsg('Geschafft!', rows, btns); }, 900);
   }
@@ -684,15 +694,30 @@
     8: ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
     9: ['01110', '10001', '10001', '01111', '00001', '00010', '01100']
   };
+  // Schmale 3-px-Ziffern für dreistellige Zahlen (die 100 der 10er-Reihe), siehe mathgen.anzeigeSchrift
+  var FONT_SCHMAL = {
+    0: ['111', '101', '101', '101', '101', '101', '111'],
+    1: ['010', '110', '010', '010', '010', '010', '111'],
+    2: ['111', '001', '001', '111', '100', '100', '111'],
+    3: ['111', '001', '001', '111', '001', '001', '111'],
+    4: ['101', '101', '101', '111', '001', '001', '001'],
+    5: ['111', '100', '100', '111', '001', '001', '111'],
+    6: ['111', '100', '100', '111', '101', '101', '111'],
+    7: ['111', '001', '001', '010', '010', '010', '010'],
+    8: ['111', '101', '101', '111', '101', '101', '111'],
+    9: ['111', '101', '101', '111', '001', '001', '111']
+  };
   function drawNumber(str, cx, cy, col, outline) {
-    var w = str.length * 6 - 1, x0 = Math.round(cx - w / 2), y0 = Math.round(cy - 3.5);
+    var a = J.mathgen.anzeigeSchrift(str), schmal = a.schrift === 'schmal';
+    var font = schmal ? FONT_SCHMAL : FONT, gw = schmal ? 3 : 5, step = gw + 1;
+    var w = a.breite, x0 = Math.round(cx - w / 2), y0 = Math.round(cy - 3.5);
     for (var pass = 0; pass < 2; pass++) {
       ctx.fillStyle = pass === 0 ? outline : col;
       for (var i = 0; i < str.length; i++) {
-        var g = FONT[str[i]];
-        for (var r = 0; r < 7; r++) for (var c = 0; c < 5; c++) {
+        var g = font[str[i]];
+        for (var r = 0; r < 7; r++) for (var c = 0; c < gw; c++) {
           if (g[r][c] !== '1') continue;
-          var px = x0 + i * 6 + c, py = y0 + r;
+          var px = x0 + i * step + c, py = y0 + r;
           if (pass === 0) { ctx.fillRect(px - 1, py, 3, 1); ctx.fillRect(px, py - 1, 1, 3); }
           else ctx.fillRect(px, py, 1, 1);
         }
@@ -928,6 +953,14 @@
       return { mode: mode, level: meta.id, reihe: aktReihe, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken, status: game.status, t: game.t, fehltreffer: game.fehltreffer };
     },
     start: startLevel,
+    // Debug/Tests: Kristalle lesen und Lumo an eine Kachel setzen (z.B. um die 100 anzusehen)
+    crystals: function () { return game ? game.crystals.map(function (c) { return { tx: c.tx, ty: c.ty, value: c.value, good: c.good }; }) : []; },
+    goal: function () { return level ? { tx: level.goal.tx, ty: level.goal.ty } : null; },
+    teleport: function (tx, ty) {
+      if (!game) return;
+      var p = game.player; p.x = tx * T; p.y = ty * T; p.vx = 0; p.vy = 0;
+      cam = CAM.computeCameraTarget(p.x, J.physics.W, p.facing, VW);
+    },
     reihenwahl: function () { return mode === 'reihenwahl' ? { level: rwLevel, sel: rwSel, empfohlen: RW.empfehlungen(lernstand) } : null; }
   };
   document.body.classList.toggle('einfach', einfach());

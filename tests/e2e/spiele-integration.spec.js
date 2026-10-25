@@ -140,7 +140,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
 
   test('Lumo bekommt den Lernstand aus den Leitner-Serien und empfiehlt die schwächste geübte Reihe', async ({ page }) => {
     const qs = (cc, correct, wrong) => ({ correct, wrong, consecutiveCorrect: cc });
-    const questionStats = { 3: {}, 8: { 1: qs(1, 1, 2), 2: qs(0, 0, 1) } };
+    const questionStats = { 3: {}, 8: { 1: qs(1, 1, 2), 2: qs(0, 0, 1), 3: qs(0, 1, 1) } };
     for (let f = 1; f <= 10; f++) questionStats[3][f] = qs(5, 5, 0);
     const base = migrateState(defaultState());
     const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } } });

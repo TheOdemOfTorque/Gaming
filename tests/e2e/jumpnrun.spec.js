@@ -232,3 +232,94 @@ test('Eingebettet: Lernstand aus jnr:init markiert die schwächsten Reihen und w
   await frame.locator('#rw-los').click();
   await expect(frame.locator('#ziel .z-reihe')).toHaveText('7er-Reihe');
 });
+
+// ---------- Review-Nachbesserungen Reihenwahl ----------
+test('Zielansage passt im Hochformat 390 px ganz ins Bild', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(URL2 + '&jnrReihe=7');
+  const intro = page.locator('#ziel-intro');
+  await expect(intro).toBeVisible();
+  const b = await intro.boundingBox();
+  expect(b.x).toBeGreaterThanOrEqual(0);
+  expect(b.x + b.width).toBeLessThanOrEqual(390);
+  // Text ist nicht abgeschnitten: Inhalt nicht breiter als die Box
+  const overflow = await intro.evaluate(el => el.scrollWidth - el.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+});
+
+test('Ziffern: 1 wählt nichts, 0 die 10er-Reihe, Ziffernblock geht auch', async ({ page }) => {
+  await page.goto(URL2);
+  await expect(page.locator('#reihenwahl')).toBeVisible();
+  await page.keyboard.press('Digit1');
+  await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '2');
+  await page.keyboard.press('Numpad5');
+  await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '5');
+  await page.keyboard.press('Digit0');
+  await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '10');
+});
+
+test('Zähler im Ziel-Chip wird nicht live vorgelesen, Dialog ist modal', async ({ page }) => {
+  await page.goto(URL2);
+  await expect(page.locator('#reihenwahl .card')).toHaveAttribute('aria-modal', 'true');
+  await page.locator('#rw-grid .rw[data-reihe="7"]').click();
+  await expect(page.locator('#ziel')).not.toHaveAttribute('role', /status|alert/);
+  await expect(page.locator('#ziel')).not.toHaveAttribute('aria-live', /.+/);
+  await expect(page.locator('#ziel-live')).toHaveText('Sammle die 7er-Reihe');
+});
+
+test('Die 100 der 10er-Reihe passt in ihren Kristall (schmale Ziffern)', async ({ page }) => {
+  await page.goto('/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=3&jnrReihe=10');
+  const cr = await page.evaluate(() => window.__jnr.crystals());
+  expect(cr.filter(c => !c.good).every(c => c.value <= 99)).toBe(true);
+  expect(cr.some(c => c.value === 100)).toBe(true);
+});
+
+const harness = (page) => page.route('**/jumpnrun-harness.html', route => route.fulfill({
+  contentType: 'text/html',
+  body: '<!DOCTYPE html><html><body><iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+}));
+const sendTo = (page, m) => page.evaluate(msg => document.getElementById('f').contentWindow.postMessage(msg, location.origin), m);
+const INIT12 = { type: 'jnr:init', level: '1-2', jnr: { levels: { '1-1': { medals: 2, bestTimeMs: 1, bestFunken: 1 } } }, lernstand: { 7: 0.3, 9: 0.45 } };
+
+test('Neustart wählt die gerade gespielte Reihe vor, nicht die Empfehlung', async ({ page }) => {
+  await harness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  await expect(frame.locator('#menu')).toBeVisible();
+  await sendTo(page, INIT12);
+  await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
+  await expect(frame.locator('#ziel .z-reihe')).toHaveText('4er-Reihe');
+  await frame.locator('#btn-pause').click();
+  await frame.getByRole('button', { name: 'Level neu starten' }).click();
+  await expect(frame.locator('#reihenwahl')).toBeVisible();
+  await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '4');
+});
+
+test('Nochmal nach dem Ziel wählt die gerade gespielte Reihe vor', async ({ page }) => {
+  await harness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  await expect(frame.locator('#menu')).toBeVisible();
+  await sendTo(page, INIT12);
+  await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
+  // Lumo direkt vor den Leuchtturm setzen
+  await page.evaluate(() => {
+    const w = document.getElementById('f').contentWindow;
+    w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1);
+  });
+  await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click({ timeout: 5000 });
+  await expect(frame.locator('#reihenwahl')).toBeVisible();
+  await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '4');
+});
+
+test('Spielzeit-Ende während der Reihenwahl blendet die Auswahl aus', async ({ page }) => {
+  await harness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  await expect(frame.locator('#menu')).toBeVisible();
+  await sendTo(page, INIT12);
+  await expect(frame.locator('#reihenwahl')).toBeVisible();
+  await sendTo(page, { type: 'jnr:timeup' });
+  await expect(frame.locator('#reihenwahl')).toBeHidden();
+  await expect(frame.locator('#msg')).toContainText('Spielzeit vorbei');
+});
