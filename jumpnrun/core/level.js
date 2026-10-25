@@ -12,6 +12,7 @@
   else { root.JNR = root.JNR || {}; root.JNR.level = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (C, P) {
   var T = C.TILE;
+  var LANDUNG = 3; // Kacheln hinter einer Gefahr, in denen ein Kristall als Landestelle gilt
   var CHARS = {
     '.': 'Luft', '#': 'Boden', 'S': 'Start', 'G': 'Ziel', 'C': 'Checkpoint',
     'o': 'Kristallplatz', '^': 'Dornen', '~': 'Federpilz'
@@ -65,6 +66,24 @@
     function byXY(a, b) { return a.tx - b.tx || a.ty - b.ty; }
     cps.sort(byXY); slots.sort(byXY);
 
+    // Landestelle: Kristall auf Boden, bis LANDUNG Kacheln hinter Dornen, Federpilz, Luecke oder
+    // Hoehenwechsel. Dort kommt Lumo nach einem Pflichtsprung auf; eine falsche Zahl waere kaum zu
+    // vermeiden (mathgen.js setzt dort nur richtige Zahlen).
+    function solidAt(x, y) { return x >= 0 && x < w && y >= 0 && y < h && solid[y * w + x] === 1; }
+    function hazardAt(list, x, y) {
+      for (var i = 0; i < list.length; i++) if (list[i].tx === x && list[i].ty === y) return true;
+      return false;
+    }
+    slots.forEach(function (sl) {
+      sl.landung = false;
+      if (!groundBelow(sl)) return;
+      for (var k = 1; k <= LANDUNG && sl.tx - k >= 0; k++) {
+        var x = sl.tx - k;
+        if (solidAt(x, sl.ty) || !solidAt(x, sl.ty + 1) ||
+            hazardAt(spikes, x, sl.ty) || hazardAt(springs, x, sl.ty)) { sl.landung = true; return; }
+      }
+    });
+
     return {
       w: w, h: h, solid: solid,
       start: standPos(starts[0].tx, starts[0].ty),
@@ -76,5 +95,5 @@
     };
   }
 
-  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos };
+  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos, LANDUNG: LANDUNG };
 });

@@ -88,3 +88,21 @@ describe('Zielzahl-Text', () => {
     expect(M.isMultiple(54, 7)).toBe(false);
   });
 });
+
+describe('Landestellen bekommen nie eine falsche Zahl', () => {
+  const slots = Array.from({ length: 24 }, (_, i) => ({ tx: i, ty: 1, landung: i % 3 === 0 }));
+  test('ueber 200 Seeds ist jede Landestelle eine richtige Zahl', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const r = M.assignCrystals(slots, { reihe: 7, seed, mode: 'ziel' });
+      r.forEach((c, i) => { if (slots[i].landung) expect(c.good).toBe(true); });
+    }
+  });
+  test('genug andere Plaetze: Verhaeltnis gut : falsch bleibt 3 : 1', () => {
+    const r = M.assignCrystals(slots, { reihe: 7, seed: 5, mode: 'ziel' });
+    expect(r.filter(c => !c.good)).toHaveLength(6);
+  });
+  test('nur Landestellen: keine falsche Zahl', () => {
+    const only = slots.map(s => ({ ...s, landung: true }));
+    expect(M.assignCrystals(only, { reihe: 7, seed: 5, mode: 'ziel' }).every(c => c.good)).toBe(true);
+  });
+});

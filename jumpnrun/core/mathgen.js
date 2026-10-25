@@ -43,7 +43,7 @@
     });
   }
 
-  // slots: [{tx, ty}]. opts: { reihe, seed, mode: 'ziel' | 'aus', ratio = 3 }
+  // slots: [{tx, ty, landung?}]. opts: { reihe, seed, mode: 'ziel' | 'aus', ratio = 3 }
   function assignCrystals(slots, opts) {
     var mode = opts.mode || 'ziel';
     if (mode === 'aus') {
@@ -56,8 +56,10 @@
     var n = slots.length;
     var nWrong = Math.round(n / (ratio + 1));
 
-    // Welche Plätze falsch sind, entscheidet der Seed.
-    var order = shuffle(slots.map(function (_, i) { return i; }), rnd);
+    // Welche Plätze falsch sind, entscheidet der Seed. Landestellen (slot.landung, siehe level.js)
+    // bekommen nie eine falsche Zahl; reichen die übrigen Plätze nicht, gibt es weniger falsche.
+    var order = shuffle(slots.map(function (_, i) { return i; }), rnd)
+      .filter(function (i) { return !slots[i].landung; });
     var wrongIdx = {};
     order.slice(0, nWrong).forEach(function (i) { wrongIdx[i] = true; });
 
