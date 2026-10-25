@@ -119,6 +119,22 @@ h1 { margin: 0; font-size: 26px; }
 .legende .op-sym { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
   background: var(--c); color: #141233; font-weight: 700; font-size: 13px; }
 
+/* Rechenstreifen: schreibt die Aufgabe des gewaehlten Kaefigs/Steins als
+   normale Rechnung aus, mit Luecken fuer die fehlenden Zahlen. */
+.streifen { border-radius: 12px; background: var(--tafel); padding: 6px 12px; border-left: 6px solid var(--c, var(--leise)); }
+.streifen[hidden] { display: none; }
+.streifen .gl { display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  font-size: clamp(16px, calc(var(--bs, 300px) * .07), 24px); font-weight: 700; min-height: 1.2em; line-height: 1.2; }
+.streifen .o { color: var(--c, var(--leise)); }
+.streifen .ziel { color: var(--c, var(--leise)); }
+.streifen .ok2 { color: var(--gut); }
+.streifen .slot { width: 24px; height: 26px; border-radius: 6px; border: 2px dashed var(--leise); display: inline-block; }
+.streifen .slot.jetzt { border-style: solid; border-color: var(--wahl); }
+.streifen .wort { font-size: 13px; color: var(--leise); margin-top: 2px; line-height: 1.25; }
+.streifen .wort.fehler { color: var(--fehler); }
+.streifen.flash { animation: streifen-gut .15s ease-out; }
+@keyframes streifen-gut { from { background: color-mix(in srgb, var(--gut) 40%, var(--tafel)); } to { background: var(--tafel); } }
+
 /* Rechenkaefige: Kaefig als Flaeche, Felder stossen luecken­los aneinander,
    aussen ein 4px Rand in der Rechenfarbe, dazwischen eine feine dunkle Linie. */
 #board.kaefige { display: grid; width: var(--bs); height: var(--bs); background: var(--tafel);
@@ -180,7 +196,7 @@ h1 { margin: 0; font-size: 26px; }
    oder ueberlappendes Layout zu riskieren. Das Menue (nur eine scrollbare
    Liste) bleibt davon unberuehrt, ebenso Tablets und Desktop. */
 #rotate-hint { display: none; }
-@media (orientation: landscape) and (max-height: 519.98px) {
+@media (orientation: landscape) and (max-height: 559.98px) {
   #game.on { visibility: hidden; }
   #game.on ~ #rotate-hint { display: flex; }
 }
@@ -234,6 +250,12 @@ h1 { margin: 0; font-size: 26px; }
   <div id="rule"></div>
   <div id="status" role="status" aria-live="polite"></div>
   <div id="area"><div id="board" role="group"></div></div>
+  <div id="streifen" class="streifen" role="status" aria-live="polite" hidden>
+    <div>
+      <div class="gl" id="streifen-gl"></div>
+      <div class="wort" id="streifen-wort"></div>
+    </div>
+  </div>
   <div id="legende" class="legende" hidden></div>
   <div id="tools">
     <button class="tool" id="t-notes" aria-pressed="false">Notizen</button>
@@ -340,6 +362,7 @@ h1 { margin: 0; font-size: 26px; }
     var el = $('status');
     el.textContent = text || '';
     el.className = kind || '';
+    el.hidden = !text;
   }
 
   function emptyInput(modus, p) {
@@ -356,13 +379,13 @@ h1 { margin: 0; font-size: 26px; }
       modus: modus, stufe: stufe, seed: seed, puzzle: p,
       eingabe: opt.eingabe || emptyInput(modus, p), notizen: opt.notizen || {}, hinweise: opt.hinweise || {},
       tipps: opt.tipps || 0, sek: opt.sek || 0, tagesraetsel: !!opt.tagesraetsel,
-      sel: null, notizModus: false, undo: [], marks: {}, conflicts: {}, solved: false
+      sel: null, notizModus: false, undo: [], marks: {}, conflicts: {}, solved: false, streifenZustand: {}
     };
     persistRun();
     buildBoard();
     buildPad();
     show('game');
-    say(modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.');
+    say('');
     $('title').textContent = NAMEN[modus] + ' · Stufe ' + stufe + (cur.tagesraetsel ? ' · Tagesrätsel' : '');
     $('rule').textContent = modus === 'mauer'
       ? 'Zahlen von ' + p.fmin + ' bis ' + p.fmax + ' stehen in der untersten Reihe. × multipliziert, + addiert.'
@@ -481,6 +504,8 @@ h1 { margin: 0; font-size: 26px; }
   function cellEl(r, c) { return $('board').querySelector('[data-r="' + r + '"][data-c="' + c + '"]'); }
 
   // Rechnung + Satz fuer den Rechenstreifen, zum aktuell gewaehlten Feld/Stein.
+  function bekannteAnzahl(eingaben) { return eingaben.filter(function (v) { return v !== null; }).length; }
+
   function aktuelleRechnung() {
     if (!cur || !cur.sel) return null;
     var p = cur.puzzle, modus = cur.modus, r = cur.sel[0], c = cur.sel[1];
@@ -489,27 +514,31 @@ h1 { margin: 0; font-size: 26px; }
       var werte = k.zellen.map(function (z) { return L.wirksam(modus, p, cur.eingabe, z[0], z[1]); });
       var rechnung = L.rechnungFuer(k, werte);
       var dub = UI.dubletteWarnung && cur.conflicts[key(r, c)] ? cur.eingabe[r][c] : null;
-      return { rechnung: rechnung, satz: L.satzFuer(rechnung, { modus: 'kaefig', dublette: dub }) };
+      var satz = L.satzFuer(rechnung, { modus: 'kaefig', dublette: dub });
+      return { rechnung: rechnung, satz: satz, fehlerhaft: !!dub || (rechnung.vollstaendig && rechnung.erfuellt === false) };
     }
-    // Mauerstein: eigene Relation (r hat Quellen r-1,c / r-1,c+1), sonst falls
-    // dieser Stein als Quelle fehlt, die Relation darueber als Umkehraufgabe.
-    var regeln = p.regeln, rechnung, dub2 = null;
+    // Mauerstein: eigene Relation (r hat Quellen r-1,c / r-1,c+1) und, falls
+    // dieser Stein selbst Quelle einer Relation darueber ist, die Umkehraufgabe.
+    // Gewaehlt wird, welche Relation mehr bekannte Zahlen hat (hilfreicher);
+    // bei Gleichstand gewinnt die eigene Relation.
+    var regeln = p.regeln, kandidaten = [];
     if (r >= 1) {
       var a = L.wirksam(modus, p, cur.eingabe, r - 1, c), b = L.wirksam(modus, p, cur.eingabe, r - 1, c + 1);
       var erg = L.wirksam(modus, p, cur.eingabe, r, c);
-      rechnung = L.rechnungFuer({ op: regeln[r] }, [a, b, erg]);
-    } else if (r + 1 < p.n) {
-      var oben = r + 1;
-      var istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
+      kandidaten.push([a, b, erg, regeln[r]]);
+    }
+    if (r + 1 < p.n) {
+      var oben = r + 1, istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
       var quelleA = L.wirksam(modus, p, cur.eingabe, r, nc), quelleB = L.wirksam(modus, p, cur.eingabe, r, nc + 1);
       var ergebnis = L.wirksam(modus, p, cur.eingabe, oben, nc);
-      var eingaben = istLinks ? [L.wirksam(modus, p, cur.eingabe, r, c), quelleB, ergebnis]
-        : [quelleA, L.wirksam(modus, p, cur.eingabe, r, c), ergebnis];
-      rechnung = L.rechnungFuer({ op: regeln[oben] }, eingaben);
-    } else {
-      rechnung = L.rechnungFuer({ op: 'add' }, [null, null, null]);
+      kandidaten.push([quelleA, quelleB, ergebnis, regeln[oben]]);
     }
-    return { rechnung: rechnung, satz: L.satzFuer(rechnung, { modus: 'mauer', dublette: dub2 }) };
+    if (!kandidaten.length) kandidaten.push([null, null, null, 'add']);
+    kandidaten.sort(function (x, y) { return bekannteAnzahl(y.slice(0, 3)) - bekannteAnzahl(x.slice(0, 3)); });
+    var beste = kandidaten[0];
+    var rechnung2 = L.rechnungFuer({ op: beste[3] }, [beste[0], beste[1], beste[2]]);
+    var satz2 = L.satzFuer(rechnung2, { modus: 'mauer' });
+    return { rechnung: rechnung2, satz: satz2, fehlerhaft: rechnung2.vollstaendig && rechnung2.erfuellt === false };
   }
 
   var STRUKTUR_KLASSEN = ['bt', 'br', 'bb', 'bl', 'top', 'k', 'ft', 'fl',
@@ -526,7 +555,8 @@ h1 { margin: 0; font-size: 26px; }
       out[key(r - 1, c)] = farbe(p.regeln[r]);
       out[key(r - 1, c + 1)] = farbe(p.regeln[r]);
     }
-    if (r + 1 < p.n) {
+    var eigenerWert = L.wirksam('mauer', p, cur.eingabe, r, c);
+    if (r + 1 < p.n && eigenerWert === null) {
       var oben = r + 1, istLinks = c < p.n - oben, nc = istLinks ? c : c - 1;
       out[key(oben, nc)] = farbe(p.regeln[oben]);
     }
@@ -601,8 +631,61 @@ h1 { margin: 0; font-size: 26px; }
       el.setAttribute('aria-label', lab);
     });
     $('t-hint').textContent = 'Tipp' + (cur.tipps ? ' (' + cur.tipps + ')' : '');
+    renderStreifen();
     return res;
   }
+
+  var FARBE_OP = { '+': 'var(--plus)', '×': 'var(--mal)', '−': 'var(--minus)', '÷': 'var(--geteilt)', '=': 'var(--leise)' };
+  function textSpan(text, cls) {
+    var s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = text;
+    return s;
+  }
+  function slotSpan(jetzt) {
+    var s = document.createElement('span');
+    s.className = 'slot' + (jetzt ? ' jetzt' : '');
+    return s;
+  }
+
+  // Rechenstreifen: schreibt die Aufgabe des gewaehlten Kaefigs/Steins als
+  // Rechnung mit Luecken aus (Spec "Knobelwerkstatt UI-Design", Zustandstabelle).
+  function renderStreifen() {
+    var wrap = $('streifen'), gl = $('streifen-gl'), wort = $('streifen-wort');
+    if (!cur || cur.solved) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    gl.innerHTML = '';
+    if (!cur.sel) {
+      wrap.style.removeProperty('--c');
+      wort.textContent = cur.modus === 'mauer' ? 'Tippe einen leeren Stein an.' : 'Tippe ein leeres Feld an.';
+      wort.className = 'wort';
+      cur.streifenZustand = {};
+      return;
+    }
+    var ar = aktuelleRechnung(), r = ar.rechnung;
+    wrap.style.setProperty('--c', FARBE_OP[r.op] || 'var(--leise)');
+    r.glieder.forEach(function (g, i) {
+      if (i > 0) gl.appendChild(textSpan(r.op, 'o'));
+      gl.appendChild(g === null ? slotSpan(i === r.lueckeIndex) : textSpan(g));
+    });
+    gl.appendChild(textSpan('=', 'o'));
+    gl.appendChild(r.ergebnisIstLuecke ? slotSpan(true) : textSpan(r.ergebnis, 'ziel'));
+    if (r.erfuellt) gl.appendChild(textSpan('✓', 'ok2'));
+    wort.textContent = ar.satz;
+    wort.className = 'wort' + (ar.fehlerhaft ? ' fehler' : '');
+    // Einziger Bewegungsmoment: kurz in --gut aufleuchten, wenn diese Aufgabe
+    // gerade (neu) richtig geloest wurde. prefers-reduced-motion deaktiviert
+    // die Animation bereits global (siehe @media-Regel oben).
+    var sk = key(cur.sel[0], cur.sel[1]);
+    cur.streifenZustand = cur.streifenZustand || {};
+    if (r.erfuellt && !cur.streifenZustand[sk]) {
+      wrap.classList.remove('flash');
+      void wrap.offsetWidth;
+      wrap.classList.add('flash');
+    }
+    cur.streifenZustand[sk] = !!r.erfuellt;
+  }
+
   function labelZelle(k) {
     var best = k.zellen[0];
     k.zellen.forEach(function (z) { if (z[0] < best[0] || (z[0] === best[0] && z[1] < best[1])) best = z; });
@@ -670,8 +753,8 @@ h1 { margin: 0; font-size: 26px; }
     cur.conflicts = {};
     res.konflikte.forEach(function (z) { cur.conflicts[key(z[0], z[1])] = true; });
     if (UI.dubletteWarnung && cur.modus === 'kaefige' && cur.conflicts[key(r, c)]) {
-      var v = cur.eingabe[r][c];
-      say('Die ' + v + ' steht in dieser Zeile schon.', 'bad');
+      // Satz steht jetzt im Rechenstreifen (satzFuer mit dublette), #status bleibt leer.
+      say('');
     } else if (res.richtig) {
       renderAll(); persistRun(); onSolved(); return;
     } else if (res.vollstaendig) {

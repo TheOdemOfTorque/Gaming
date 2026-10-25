@@ -228,6 +228,64 @@ test.describe('Knobelwerkstatt', () => {
     }
   });
 
+  test.describe('Rechenstreifen', () => {
+    test('ist eine aria-live="polite"-Region und zeigt Platzhaltertext ohne Auswahl', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=1&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      const streifen = page.locator('#streifen');
+      await expect(streifen).toHaveAttribute('aria-live', 'polite');
+      await expect(streifen).toBeVisible();
+      await expect(page.locator('#streifen-wort')).toHaveText('Tippe ein leeres Feld an.');
+    });
+
+    test('zeigt die Rechnung des gewaehlten Kaefigs mit Luecke und wechselt beim Fertigstellen auf Haekchen', async ({ page }) => {
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=1&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      const plan = await page.evaluate(() => {
+        const { puzzle, modus } = window.__knobel.cur, L = window.__knobel.L;
+        for (const k of puzzle.kaefige) {
+          if (k.op === '=' || k.zellen.length < 2) continue;
+          if (k.zellen.every((z) => !L.istFest(modus, puzzle, z[0], z[1])))
+            return k.zellen.map((z) => ({ r: z[0], c: z[1], wert: puzzle.loesung[z[0]][z[1]] }));
+        }
+        return null;
+      });
+      test.skip(!plan, 'kein passender Mehrfeld-Kaefig in diesem Raetsel');
+      await page.locator(`#board [data-r="${plan[0].r}"][data-c="${plan[0].c}"]`).click();
+      await expect(page.locator('#streifen-gl .slot')).not.toHaveCount(0);
+      for (const z of plan) {
+        await page.locator(`#board [data-r="${z.r}"][data-c="${z.c}"]`).click();
+        await page.locator(`#pad .key[data-k="${z.wert}"]`).click();
+      }
+      await expect(page.locator('#streifen-gl .ok2')).toHaveText('✓');
+      await expect(page.locator('#streifen-wort')).toHaveText('Käfig fertig.');
+    });
+
+    test('prefers-reduced-motion: Aufleuchten entfaellt, Haekchen und Text bleiben', async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=1&seed=1');
+      await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
+      const plan = await page.evaluate(() => {
+        const { puzzle, modus } = window.__knobel.cur, L = window.__knobel.L;
+        for (const k of puzzle.kaefige) {
+          if (k.op === '=' || k.zellen.length < 2) continue;
+          if (k.zellen.every((z) => !L.istFest(modus, puzzle, z[0], z[1])))
+            return k.zellen.map((z) => ({ r: z[0], c: z[1], wert: puzzle.loesung[z[0]][z[1]] }));
+        }
+        return null;
+      });
+      test.skip(!plan, 'kein passender Mehrfeld-Kaefig in diesem Raetsel');
+      for (const z of plan) {
+        await page.locator(`#board [data-r="${z.r}"][data-c="${z.c}"]`).click();
+        await page.locator(`#pad .key[data-k="${z.wert}"]`).click();
+      }
+      const animName = await page.locator('#streifen').evaluate((el) => getComputedStyle(el).animationName);
+      expect(animName).toBe('none');
+      await expect(page.locator('#streifen-gl .ok2')).toHaveText('✓');
+      await expect(page.locator('#streifen-wort')).toHaveText('Käfig fertig.');
+    });
+  });
+
   test.describe('Zahlenmauer: gewaehlter Stein markiert seine Quellsteine (Akzeptanzkriterium 6)', () => {
     test('Stufe 3: Quellsteine unter dem gewaehlten Ergebnisstein werden markiert', async ({ page }) => {
       await page.goto('/knobel/index.html?debug=1&modus=mauer&stufe=3&seed=1');
@@ -256,7 +314,7 @@ test.describe('Knobelwerkstatt', () => {
     });
   });
 
-  test.describe('Querformat auf dem Telefon (kurze Seite < 520px): Dreh-Hinweis statt Raetsel', () => {
+  test.describe('Querformat auf dem Telefon (kurze Seite < 560px): Dreh-Hinweis statt Raetsel', () => {
     const { defaultBrowserType, ...geraet } = devices['iPhone 13 landscape'];
     test.use(geraet);
     // Firefox unterstuetzt isMobile-Geraete-Emulation grundsaetzlich nicht
@@ -285,7 +343,7 @@ test.describe('Knobelwerkstatt', () => {
     });
   });
 
-  test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 520px): weiterhin spielbar', () => {
+  test.describe('Querformat auf Tablet/Desktop (kurze Seite >= 560px): weiterhin spielbar', () => {
     const { defaultBrowserType, ...geraet } = devices['iPad (gen 7) landscape'];
     test.use(geraet);
     test.skip(({ browserName }) => browserName === 'firefox', 'isMobile wird in Firefox nicht unterstuetzt');
@@ -324,16 +382,16 @@ test.describe('Knobelwerkstatt', () => {
     });
   });
 
-  test.describe('Grenzfall an der 520px-Schwelle (breiter Desktop-Browser, kein Telefon)', () => {
-    test('knapp unter der Schwelle (900x519): Dreh-Hinweis greift, bevor Zellen zu klein wuerden', async ({ page }) => {
-      await page.setViewportSize({ width: 900, height: 519 });
+  test.describe('Grenzfall an der 560px-Schwelle (breiter Desktop-Browser, kein Telefon)', () => {
+    test('knapp unter der Schwelle (900x559): Dreh-Hinweis greift, bevor Zellen zu klein wuerden', async ({ page }) => {
+      await page.setViewportSize({ width: 900, height: 559 });
       await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
       await expect(page.locator('#board.kaefige .cell').first()).toBeAttached();
       await expect(page.locator('#rotate-hint')).toBeVisible();
     });
 
-    test('knapp ueber der Schwelle (900x520): kein Dreh-Hinweis, Zellen bleiben >= 44px', async ({ page }) => {
-      await page.setViewportSize({ width: 900, height: 520 });
+    test('knapp ueber der Schwelle (900x560): kein Dreh-Hinweis, Zellen bleiben >= 44px', async ({ page }) => {
+      await page.setViewportSize({ width: 900, height: 560 });
       await page.goto('/knobel/index.html?debug=1&modus=kaefige&stufe=5&seed=1');
       await expect(page.locator('#board.kaefige .cell').first()).toBeVisible();
       await expect(page.locator('#rotate-hint')).toBeHidden();
