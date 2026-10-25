@@ -1,4 +1,4 @@
-const { applyKnobelResult, applyJnrResult, migrateState } = require('../../1x1-trainer/logic.js');
+const { applyKnobelResult, applyJnrResult, applyJnrTutorial, migrateState } = require('../../1x1-trainer/logic.js');
 const { computeKnobelXP } = require('../../knobel/knobel-logic.js');
 const { mergeResult, xpFor } = require('../../jumpnrun/core/rewards.js');
 
@@ -122,5 +122,31 @@ describe('applyJnrResult', () => {
     const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
     expect(Number.isFinite(next.xp)).toBe(true);
     expect(next.xp).toBe(50);
+  });
+});
+
+describe('applyJnrTutorial (Nachricht jnr:tutorial, Vertrag jumpnrun/core/host.js)', () => {
+  test('merkt sich, dass das Lumo-Tutorial gesehen wurde, und lässt den Rest von jnr stehen', () => {
+    const state = stateWithKnobelJnr({ xp: 12 });
+    state.jnr.levels['1-1'] = { medals: 2, bestTimeMs: 1, bestFunken: 3 };
+    const next = applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: true });
+    expect(next.jnr.tutorialGesehen).toBe(true);
+    expect(next.jnr.levels['1-1'].medals).toBe(2);
+    expect(next.xp).toBe(12); // das Tutorial bringt keine XP
+  });
+  test('verändert den Eingabe-State nicht', () => {
+    const state = stateWithKnobelJnr({});
+    applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: true });
+    expect(state.jnr.tutorialGesehen).toBe(false);
+  });
+  test('ohne gesehen: true bleibt alles, wie es ist', () => {
+    const state = stateWithKnobelJnr({});
+    expect(applyJnrTutorial(state, { type: 'jnr:tutorial' })).toBe(state);
+    expect(applyJnrTutorial(state, { type: 'jnr:tutorial', gesehen: 'ja' })).toBe(state);
+  });
+  test('das Flag übersteht ein späteres jnr:result', () => {
+    let state = applyJnrTutorial(stateWithKnobelJnr({}), { type: 'jnr:tutorial', gesehen: true });
+    state = applyJnrResult(state, { type: 'jnr:result', level: '1-1', medaillen: 1, funken: 1, xp: 30 }, mergeResult, xpFor).state;
+    expect(state.jnr.tutorialGesehen).toBe(true);
   });
 });

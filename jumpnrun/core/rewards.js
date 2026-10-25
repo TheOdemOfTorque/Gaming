@@ -29,7 +29,8 @@
 
   function defaultOptions() { return { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true }; }
   function defaultJnr() {
-    return { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {}, options: defaultOptions() };
+    // tutorialGesehen: das Mitmach-Tutorial (core/tutorial.js) lief schon einmal durch oder wurde uebersprungen
+    return { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {}, options: defaultOptions(), tutorialGesehen: false };
   }
 
   function num(v, lo, hi, dflt) {
@@ -54,6 +55,7 @@
       Object.keys(raw.xpAwarded).forEach(function (id) { if (raw.xpAwarded[id] === true) j.xpAwarded[id] = true; });
     }
     j.funkenTotal = Math.round(num(raw.funkenTotal, 0, 1e9, 0));
+    j.tutorialGesehen = raw.tutorialGesehen === true;
     j.lastLevel = typeof raw.lastLevel === 'string' && /^\d+-\d+$/.test(raw.lastLevel) ? raw.lastLevel : null;
     var o = raw.options;
     if (o && typeof o === 'object') {

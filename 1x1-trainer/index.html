@@ -2054,6 +2054,10 @@ window.addEventListener('message', (e) => {
     Object.assign(state, next);
     saveState();
     updateHomeUI();
+  } else if (e.data.type === 'jnr:tutorial') {
+    // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
+    Object.assign(state, applyJnrTutorial(state, e.data));
+    saveState();
   }
 });
 
