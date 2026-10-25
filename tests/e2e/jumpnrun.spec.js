@@ -149,6 +149,119 @@ test('Pause stoppt die Simulation', async ({ page }) => {
   expect(b.t).toBe(a.t);
 });
 
+test.describe('Lumo: Energie und Leben', () => {
+  test('HUD zeigt 3 Leben und 3 Energie oben links', async ({ page }) => {
+    await page.goto(URL1);
+    await expect(page.locator('#leben span')).toHaveCount(3);
+    await expect(page.locator('#leben span.weg')).toHaveCount(0);
+    await expect(page.locator('#energie i')).toHaveCount(3);
+    await expect(page.locator('#energie i.leer')).toHaveCount(0);
+    const box = await page.locator('#vital').boundingBox();
+    expect(box.y).toBeLessThan(40);
+    expect(box.x).toBeLessThan(60);
+    const s = await state(page);
+    expect(s).toMatchObject({ leben: 3, energie: 3 });
+  });
+
+  test('Sturz kostet ein Leben, HUD zieht nach, Energie wieder voll', async ({ page }) => {
+    await page.goto(URL1);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ energie: 1 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#leben span.weg')).toHaveCount(1);
+    await expect(page.locator('#energie i.leer')).toHaveCount(0);
+    const s = await state(page);
+    expect(s).toMatchObject({ mode: 'play', leben: 2, energie: 3 });
+  });
+
+  test('alle Leben weg: Game-Over mit Stand, „Nochmal“ startet neu, „Zum Menü“ geht ins Menü', async ({ page }) => {
+    await page.goto(URL1);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1, funken: 4 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
+    await expect(page.locator('#msg-body')).toContainText('3 Funken'); // der Sturz kostet einen Funken
+    await expect(page.locator('#msg-body')).toContainText('Kristallen gesammelt');
+    expect((await state(page)).mode).toBe('lost');
+    await page.getByRole('button', { name: 'Nochmal' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3, energie: 3, funken: 0 });
+
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await page.getByRole('button', { name: 'Zum Menü' }).click();
+    await expect(page.locator('#menu')).toBeVisible();
+    expect((await state(page)).mode).toBe('menu');
+  });
+
+  test('Game-Over per Tastatur: Fokus auf „Nochmal“, Esc geht ins Menü, Enter spielt nochmal', async ({ page }) => {
+    await page.goto(URL1);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
+    await expect(page.getByRole('button', { name: 'Nochmal' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menu')).toBeVisible();
+    expect((await state(page)).mode).toBe('menu');
+
+    await page.click('button[data-level="1-1"]');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Nochmal' })).toBeFocused();
+    await page.evaluate(() => document.activeElement.blur());
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#msg')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3 });
+  });
+
+  test('Lebensverlust wird per Live-Region angesagt, die Leben/Energie-Box selbst ist nicht live', async ({ page }) => {
+    await page.goto(URL1);
+    await expect(page.locator('#vital')).not.toHaveAttribute('aria-live', /.*/);
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.__jnr.debugFall());
+    await expect(page.locator('#vital-live')).toContainText('Noch 2 Leben');
+    await expect(page.locator('#leben')).toHaveAttribute('aria-label', 'Leben: 2 von 3');
+  });
+
+  test('Hinweis zu Leben/Energie: Pause unterbricht ihn, nach „Weiter“ kommt er wieder', async ({ page }) => {
+    await page.goto(URL1);
+    await expect(page.locator('#tipp')).toBeVisible();
+    await page.click('#btn-pause');
+    await expect(page.locator('#tipp')).toBeHidden();
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.locator('#tipp')).toBeVisible();
+  });
+
+  test('Hilfe im Menü erklärt Energie und Leben', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await page.click('#btn-hilfe');
+    await expect(page.locator('#msg-body')).toContainText('Energie');
+    await expect(page.locator('#msg-body')).toContainText('Leben');
+    await expect(page.locator('#msg-body')).toContainText('Schlucht');
+    await page.getByRole('button', { name: 'Verstanden' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
+    await expect(page.locator('#menu')).toBeVisible();
+  });
+
+  test('Eingebettet: verlorener Lauf sendet kein jnr:result', async ({ page }) => {
+    await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+      contentType: 'text/html',
+      body: '<!DOCTYPE html><html><body><script>window.__got=[];addEventListener("message",e=>window.__got.push(e.data));</script>' +
+        '<iframe id="f" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+    }));
+    await page.goto('/jumpnrun-harness.html');
+    const fw = () => page.evaluate(fn => document.getElementById('f').contentWindow.__jnr[fn](), 'state');
+    await page.waitForFunction(() => document.getElementById('f').contentWindow.__jnr);
+    await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'jnr:init', level: '1-1', jnr: {} }, location.origin));
+    await page.waitForTimeout(200);
+    expect((await fw()).mode).toBe('play');
+    await page.evaluate(() => { const j = document.getElementById('f').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
+    await page.waitForTimeout(1200);
+    expect((await fw()).mode).toBe('lost');
+    const got = await page.evaluate(() => window.__got);
+    expect(got.filter(m => m && m.type === 'jnr:result')).toEqual([]);
+  });
+});
+
 // ---------- Reihenwahl + Ziel-Chip (Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 2) ----------
 const URL2 = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1';
 

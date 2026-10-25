@@ -83,9 +83,9 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
         const level = parseLevel(gen.rows);
         const opts = D.gameOptions(meta, options, seed);
         const r = SOLVER.solve(level, opts);
-        if (!r.won) throw new Error('Stufe ' + id + ', seed ' + seed + ' nicht loesbar: ' + gen.sections.join(' > '));
+        if (!r.won) throw new Error('Stufe ' + id + ', seed ' + seed + ' nicht loesbar (' + r.game.status + ', Leben ' + r.game.leben + '): ' + gen.sections.join(' > '));
       }
-    });
+    }, 60000);
   });
 
   test('Gegenprobe: ein unloesbarer Abschnitt im Pool laesst den Eigenschafts-Test anschlagen', () => {

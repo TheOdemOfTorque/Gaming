@@ -32,7 +32,7 @@ describe('parseLevel: gültige Level', () => {
     expect(L.springs).toEqual([{ tx: 6, ty: 2 }]);
   });
   test('Kristallplätze sind nach x (dann y) sortiert', () => {
-    expect(L.crystalSlots).toEqual([{ tx: 2, ty: 1 }, { tx: 5, ty: 1 }]);
+    expect(L.crystalSlots.map(c => ({ tx: c.tx, ty: c.ty }))).toEqual([{ tx: 2, ty: 1 }, { tx: 5, ty: 1 }]);
   });
   test('Spezialzeichen sind selbst nicht fest', () => {
     expect(L.solid[2 * 10 + 8]).toBe(0);
@@ -71,4 +71,35 @@ describe('parseLevel: Fehler werden sprechend gemeldet', () => {
 
 test('CHARS dokumentiert alle Zeichen', () => {
   expect(Object.keys(CHARS).sort()).toEqual(['#', '.', '^', 'C', 'G', 'S', 'o', '~'].sort());
+});
+
+describe('Landestellen (falsche Zahlen dort waeren kaum zu vermeiden)', () => {
+  const land = rows => parseLevel(rows).crystalSlots.map(c => c.landung);
+  test('nur die Kachel direkt dahinter zaehlt', () => {
+    const L = require('../../jumpnrun/core/level.js');
+    expect(L.LANDUNG).toBe(1);
+  });
+  test('Platz direkt hinter Dornen ist Landestelle', () => {
+    expect(land(['..........', '.S..^o...G', '##########'])).toEqual([true]);
+  });
+  test('Platz direkt hinter einer Luecke ist Landestelle', () => {
+    expect(land(['..........', '.S...o...G', '###..#####'])).toEqual([true]);
+  });
+  test('Platz direkt hinter einem Federpilz ist Landestelle', () => {
+    expect(land(['..........', '.S..~o...G', '##########'])).toEqual([true]);
+  });
+  test('Platz auf der ersten Kachel einer Stufe nach oben ist Landestelle', () => {
+    expect(land(['..........', '....o....G', '.S..######', '##########'])).toEqual([true]);
+  });
+  test('zweite Kachel hinter der Gefahr ist keine Landestelle mehr', () => {
+    expect(land(['..........', '.S.^.o...G', '##########'])).toEqual([false]);
+    expect(land(['..........', '.S.~.o...G', '##########'])).toEqual([false]);
+    expect(land(['..........', '.....o...G', '.S..######', '##########'])).toEqual([false]);
+  });
+  test('Platz auf flachem Boden ohne Gefahr davor ist keine Landestelle', () => {
+    expect(land(['..........', '.S...o...G', '##########'])).toEqual([false]);
+  });
+  test('Platz in der Luft ist keine Landestelle', () => {
+    expect(land(['..........', '.....o....', '.S.......G', '##########'])).toEqual([false]);
+  });
 });
