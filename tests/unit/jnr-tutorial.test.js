@@ -120,13 +120,15 @@ describe('Schritte', () => {
     expect(s.game.leben).toBe(G.LEBEN);
   });
 
-  test('zahlen: ohne die richtige Zahl hält die Grenze Lumo vor dem Wicht auf (Hinweis grenze)', () => {
+  test('zahlen: ohne die richtige Zahl kommt Lumo nicht am Wicht vorbei, sondern zurück vor die Zahl (Hinweis nochmal)', () => {
     const s = biszuZahlen();
     const k = TU.kristalle(2);
     setze(s, k[1].tx + 1); // hinter beiden Kristallen, die richtige nicht gesammelt
-    for (let i = 0; i < 240; i++) schritt(s, RIGHT);
-    expect(s.game.player.x + P.W).toBeLessThanOrEqual(TU.grenzeX(s.tut));
-    expect(s.tut.hinweis).toBe('grenze');
+    let maxX = 0;
+    bis(s, RIGHT, () => { maxX = Math.max(maxX, s.game.player.x); return s.tut.hinweis === 'nochmal'; }, 240);
+    expect(maxX + P.W).toBeLessThanOrEqual(TU.grenzeX(s.tut));
+    expect(s.tut.hinweis).toBe('nochmal');
+    expect(s.game.player.x).toBeLessThan(k[0].tx * T);
     expect(TU.schritt(s.tut)).toBe('zahlen');
   });
 
@@ -154,15 +156,16 @@ describe('Schritte', () => {
     expect(TU.schritt(s.tut)).toBe('wicht');
     const e = s.game.enemies[0];
     const p = s.game.player;
+    e.x = e.minX + 40; e.dir = -1; s.game.unverwundbar = 0; // läuft auf Lumo zu
     p.x = e.x - 8; p.y = e.y + 4; p.vx = 0; p.vy = 0;
     bis(s, NONE, () => s.tut.hinweis === 'seite', 30);
     expect(s.tut.hinweis).toBe('seite');
-    // drüber hinaus bis zum Ziel laufen geht nicht
-    setze(s, s.level.goal.tx - 3);
-    for (let i = 0; i < 200; i++) schritt(s, RIGHT);
-    expect(s.game.status).toBe('play');
+    // am Wicht vorbei bis zum Ziel laufen geht nicht: an der Grenze geht es zurück vor den Wicht
+    s.game.unverwundbar = 0;
+    setze(s, s.level.goal.tx - 5);
+    for (let i = 0; i < 200; i++) { schritt(s, RIGHT); expect(s.game.status).toBe('play'); if (s.tut.hinweis === 'nochmal') break; }
     expect(TU.schritt(s.tut)).toBe('wicht');
-    expect(s.tut.hinweis).toBe('grenze');
+    expect(s.tut.hinweis).toBe('nochmal');
   });
 
   test('wicht ist geschafft nach dem Draufspringen; Lob nennt die richtige Rechnung', () => {
@@ -258,5 +261,61 @@ describe('Zeiger auf das Ziel des Schritts', () => {
     expect(TU.zeiger(s.tut, s.game).y).toBeLessThan(e.y);
     s.tut.index = 4;
     expect(TU.zeiger(s.tut, s.game).x).toBe(s.level.goal.tx * T + 8);
+  });
+});
+
+describe('Kein Festhängen (Einfach-Steuerung: Lumo läuft immer nach rechts)', () => {
+  const T16 = 16;
+  test('über die richtige Zahl gesprungen: an der Grenze zurück vor die Zahl, Hinweis nochmal', () => {
+    const s = neu(2);
+    s.tut.index = TU.SCHRITTE.indexOf('zahlen');
+    const k = TU.kristalle(2)[0];
+    setze(s, k.tx + 2); // hinter der 6, sie liegt noch da
+    bis(s, RIGHT, () => s.tut.hinweis === 'nochmal', 400);
+    expect(s.tut.hinweis).toBe('nochmal');
+    expect(s.game.player.x).toBeLessThan(k.tx * T16);
+    expect(s.game.crystals[0].state).toBe('da');
+    expect(TU.text(s.tut, { geraet: 'touch', reihe: 2 })).toMatch(/^Nochmal!/);
+  });
+
+  test('über den Wicht gesprungen: an der Grenze zurück vor den Wicht; die Grenze liegt am Ende seiner Strecke', () => {
+    const s = neu(2);
+    s.tut.index = TU.SCHRITTE.indexOf('wicht');
+    const e = s.game.enemies[0];
+    expect(TU.grenzeX(s.tut)).toBeLessThanOrEqual(e.maxX + 12 + 1);
+    const p = s.game.player; p.x = e.maxX + 14; p.y = e.y; p.vx = 0; p.vy = 0;
+    e.x = e.minX; e.dir = 1;
+    bis(s, RIGHT, () => s.tut.hinweis === 'nochmal', 200);
+    expect(s.tut.hinweis).toBe('nochmal');
+    expect(s.game.player.x + 10).toBeLessThan(e.minX);
+  });
+
+  test.each([1, 2, 3, 4, 5])('Eingabe immer rechts mit Sprüngen zu zufälligen Zeitpunkten: Tutorial wird fertig (Seed %i)', (seed) => {
+    const s = neu(3);
+    s.tut = TU.create({ einfach: true });
+    const rnd = M.mulberry32(seed);
+    let halten = 0;
+    const ok = bis(s, () => {
+      if (halten > 0) halten--; else if (rnd() < 0.03) halten = 5 + Math.floor(rnd() * 25);
+      return { left: false, right: true, jump: halten > 0 };
+    }, () => s.tut.fertig, 60000);
+    expect(ok).toBe(true);
+    expect(s.game.leben).toBe(G.LEBEN);
+  });
+
+  test('Einfach-Steuerung: laufen bleibt mindestens 1,5 s stehen, damit der Text lesbar ist', () => {
+    const s = neu(2);
+    s.tut = TU.create({ einfach: true });
+    let n = 0;
+    bis(s, (i) => { n = i; return RIGHT; }, () => TU.schritt(s.tut) !== 'laufen', 400);
+    expect(n).toBeGreaterThanOrEqual(89);
+    expect(s.game.player.x).toBeLessThan(TU.LUECKE.von * T16); // noch vor der Lücke
+  });
+});
+
+describe('Texte (Nachbesserung)', () => {
+  test('autsch sagt, dass man im Training kein Leben verliert', () => {
+    const t = Object.assign(TU.create(), { index: 2, hinweis: 'autsch' });
+    expect(TU.text(t, { geraet: 'touch', reihe: 2 })).toContain('Hier im Training verlierst du kein Leben.');
   });
 });

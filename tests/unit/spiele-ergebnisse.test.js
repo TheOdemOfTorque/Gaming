@@ -150,3 +150,20 @@ describe('applyJnrTutorial (Nachricht jnr:tutorial, Vertrag jumpnrun/core/host.j
     expect(state.jnr.tutorialGesehen).toBe(true);
   });
 });
+
+describe('Lumo-Tutorial über die ganze Kette (Trainer-State -> jnr:init -> Lumo)', () => {
+  const H = require('../../jumpnrun/core/host.js');
+  const TU = require('../../jumpnrun/core/tutorial.js');
+  test('v13-Spielstand ohne tutorialGesehen: Tutorial kommt; nach jnr:tutorial nicht mehr', () => {
+    const alt = migrateState({ _version: 13, jnr: { v: 1, levels: { '1-1': { medals: 1, bestTimeMs: 9, bestFunken: 2 } }, lastLevel: '1-1', funkenTotal: 2, xpAwarded: { '1-1': true },
+      options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true } } });
+    expect(alt.jnr.tutorialGesehen).toBeUndefined(); // Migration fasst bestehende jnr nicht an
+    const init1 = H.parseHostMessage({ type: 'jnr:init', jnr: alt.jnr });
+    expect(init1.jnr.tutorialGesehen).toBe(false); // Default aus sanitizeJnr
+    expect(TU.sollAutomatischStarten(init1.jnr, false)).toBe(true);
+    const neu = applyJnrTutorial(alt, H.buildTutorialMessage());
+    const init2 = H.parseHostMessage({ type: 'jnr:init', jnr: neu.jnr });
+    expect(TU.sollAutomatischStarten(init2.jnr, false)).toBe(false);
+    expect(init2.jnr.levels['1-1'].medals).toBe(1);
+  });
+});

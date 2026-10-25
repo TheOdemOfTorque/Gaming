@@ -212,7 +212,7 @@
   #tut-kopf { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
   #tut-schritt { font-size: 13px; font-weight: 800; letter-spacing: .4px; color: #92400e; text-transform: uppercase; }
   #tut-skip {
-    min-height: 40px; padding: 4px 14px; border-radius: 12px; border: 2px solid #6C63FF; background: #fff;
+    min-height: 44px; min-width: 44px; padding: 4px 14px; border-radius: 12px; border: 2px solid #6C63FF; background: #fff;
     color: #3b2f99; font-size: 15px; font-weight: 700; cursor: pointer;
   }
   #tut-skip:focus-visible, #btn-tutorial:focus-visible { outline: 4px solid #6C63FF; outline-offset: 2px; }
@@ -770,7 +770,7 @@
     level = J.level.parseLevel(TU.LEVEL); tutLevel = level;
     var o = TU.gameOptions(reihe);
     game = GM.createGame(level, o);
-    tut = TU.create();
+    tut = TU.create({ einfach: einfach() });
     cam = CAM.computeCameraTarget(game.player.x, J.physics.W, game.player.facing, VW);
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     particles.forEach(function (q) { q.life = 0; });

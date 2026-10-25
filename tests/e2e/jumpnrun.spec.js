@@ -551,7 +551,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     // 2) über die Lücke springen (Spalten 9-10)
     await bisSchritt(page, 'zahlen', async () => {
       await page.keyboard.down('ArrowRight');
-      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 122 && s.x < 140; });
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 250 && s.x < 268; });
       await springen(page);
     });
     await expect(page.locator('#tut-text')).toContainText('2er-Reihe');
@@ -560,7 +560,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     // 3) die 6 einsammeln, über die 7 springen
     await bisSchritt(page, 'wicht', async () => {
       await page.keyboard.down('ArrowRight');
-      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 294 && s.x < 312; });
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 422 && s.x < 440; });
       await springen(page);
     });
     expect((await state(page)).funken).toBeGreaterThanOrEqual(1);
@@ -603,6 +603,32 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     await expect(page.locator('#tut-box')).toBeHidden();
     expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1' });
     expect(errors).toEqual([]);
+  });
+
+  test('Einfach-Steuerung (Lumo läuft von selbst): nur mit der Leertaste bis zum Leuchtturm, kein Festhängen', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({ options: { steuerung: 'einfach' } })));
+    await page.goto('/jumpnrun/index.html?jnrTutorial=1');
+    await expect(page.locator('#tut-text')).toContainText('von selbst');
+    await wartenAuf(page, () => window.__jnr.state().tutorial.schritt === 'springen');
+    await bisSchritt(page, 'zahlen', async () => {
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 250 && s.x < 268; });
+      await springen(page);
+    }, 8);
+    await bisSchritt(page, 'wicht', async () => {
+      await wartenAuf(page, () => { const s = window.__jnr.state(); return s.onGround && s.x >= 422 && s.x < 440; });
+      await springen(page);
+    }, 8);
+    await bisSchritt(page, 'ziel', async () => {
+      await wartenAuf(page, () => {
+        const s = window.__jnr.state(), e = window.__jnr.enemies()[0];
+        if (!e || e.state !== 'da' || !s.onGround) return false;
+        const gap = e.x - (s.x + 10);
+        return e.dir < 0 ? gap <= 52 && gap >= 40 : gap <= 28 && gap >= 8;
+      }, undefined, 15000);
+      await springen(page, 500);
+    }, 10);
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!', { timeout: 15000 });
+    expect((await state(page)).leben).toBe(3);
   });
 
   test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {

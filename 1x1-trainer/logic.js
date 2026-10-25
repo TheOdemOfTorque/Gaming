@@ -199,7 +199,9 @@ var STATE_MIGRATIONS = [
   (s) => {
     if (!s.knobel) s.knobel = { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } };
     if (!s.jnr) {
-      // tutorialGesehen: Lumos Mitmach-Tutorial (jnr:tutorial); fehlt es in aelteren Staenden, gilt false
+      // tutorialGesehen: Lumos Mitmach-Tutorial (jnr:tutorial). Nur fuer neu angelegte jnr; ein bestehendes
+      // jnr ohne das Feld (v12/v13-Staende) bleibt unangetastet. Den Default false liefert dann
+      // JNR.rewards.sanitizeJnr beim Lesen von jnr:init im Spiel.
       s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
                 options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
                 tutorialGesehen: false };
