@@ -18,6 +18,17 @@
 //       (noch) nicht kennt: Lumo merkt sich das Flag zusaetzlich in sessionStorage (`henry_jnr_tutorial`),
 //       damit es in derselben Browser-Sitzung nicht bei jedem Oeffnen wieder startet.
 //
+//   Spiel -> Trainer, bei jedem Wechsel in den aktiven Spielmodus oder heraus (createAktivMelder):
+//     parent.postMessage({ type: 'jnr:aktiv', aktiv: true|false }, location.origin)
+//       aktiv  true nur in mode 'play' (ein Level oder das Mitmach-Tutorial laeuft), false in Menue/
+//              Levelauswahl, Reihenwahl, Pause-Dialog (auch Hilfe daraus, Dreh-Hinweis), Game Over,
+//              Gewonnen-Dialog und nach jnr:timeup. Die Hilfe im Menue bleibt mode 'menu'.
+//       Der Trainer laesst die Stern-Zeit nur laufen, solange aktiv true ist (lumoTimerSollLaufen in
+//       1x1-trainer/logic.js; Herkunft wie bei jnr:result geprueft). Lumo meldet seinen ersten Stand
+//       sofort beim Start und den aktuellen Stand nochmals als Antwort auf jedes jnr:init. Ein Lumo,
+//       das (z.B. aus einem alten Cache) nie jnr:aktiv sendet, laesst die Zeit wie frueher durchlaufen.
+//       Standalone (ohne Parent) sendet Lumo nichts.
+//
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
 //     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
@@ -81,11 +92,31 @@
     return null;
   }
 
+  function buildAktivMessage(aktiv) { return { type: 'jnr:aktiv', aktiv: !!aktiv }; }
+
+  // Aktiv gespielt wird nur in mode 'play' (Level oder Tutorial), siehe Vertrag oben.
+  function istAktiv(mode) { return mode === 'play'; }
+
+  // Meldet den Aktivzustand ueber send(msg), aber nur bei einem Wechsel (der erste Aufruf meldet
+  // immer). immer = true meldet den aktuellen Stand erneut (Antwort auf jnr:init).
+  function createAktivMelder(send) {
+    var letzter = null;
+    return {
+      melde: function (mode, immer) {
+        var a = istAktiv(mode);
+        if (a === letzter && !immer) return false;
+        letzter = a;
+        send(buildAktivMessage(a));
+        return true;
+      }
+    };
+  }
+
   function isTrustedMessage(event, ownOrigin, parentWindow) {
     return !!event && event.origin === ownOrigin && event.source === parentWindow;
   }
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

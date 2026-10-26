@@ -410,6 +410,13 @@
   var canvas = $('c'), ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   ctx.imageSmoothingEnabled = false;
   var mode = 'menu'; // menu | reihenwahl | play | pause | won | lost | ended
+  // Jeder Moduswechsel geht über setMode: eingebettet meldet Lumo dem Trainer per jnr:aktiv, ob gerade
+  // aktiv gespielt wird (nur dann läuft die Stern-Zeit, Vertrag in core/host.js). Standalone: nichts.
+  var aktivMelder = H.createAktivMelder(function (msg) {
+    if (!embedded) return;
+    try { window.parent.postMessage(msg, location.origin); } catch (e) { /* kein Parent */ }
+  });
+  function setMode(m) { mode = m; aktivMelder.melde(mode); }
   var meta = null, level = null, game = null;
   var cam = 0, shake = 0, squash = 0, animT = 0, lastY = 0;
   var particles = [];
@@ -556,7 +563,7 @@
 
   function showMenu() {
     stopTipp(); tutAus();
-    mode = 'menu'; game = null;
+    setMode('menu'); game = null;
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('reihenwahl').classList.add('hidden');
     $('menu').classList.remove('hidden');
     buildMenu();
@@ -589,7 +596,7 @@
   function showReihenwahl(id, fest) {
     var m = LV.byId(id); if (!m) return showMenu();
     tutAus();
-    mode = 'reihenwahl'; rwLevel = id; game = null;
+    setMode('reihenwahl'); rwLevel = id; game = null;
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
     $('ziel-intro').classList.add('hidden');
@@ -671,7 +678,7 @@
     updateHud();
     if (o.mode === 'ziel') showZielIntro(o.reihe); else $('ziel-intro').classList.add('hidden');
     showTipp(o.mode === 'ziel' ? 2200 : 0);
-    mode = 'play';
+    setMode('play');
     jnr.lastLevel = id;
     onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
   }
@@ -784,7 +791,7 @@
     updateHud();
     $('tut-box').classList.remove('hidden');
     renderTut();
-    mode = 'play';
+    setMode('play');
     onOrient();
   }
   function renderTut() {
@@ -809,7 +816,7 @@
   }
   function tutorialUeberspringen() { markTutorialGesehen(); tutorialWeiter(); }
   function tutorialFertig() {
-    mode = 'won'; sfx.ziel(); markTutorialGesehen();
+    setMode('won'); sfx.ziel(); markTutorialGesehen();
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
     renderTut();
     var weiter = tutWeiter;
@@ -846,7 +853,7 @@
   function msgOffen() { return !$('msg').classList.contains('hidden'); }
   function pause() {
     if (mode !== 'play') return;
-    mode = 'pause'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); stopTipp();
+    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); stopTipp();
     showPauseMsg();
   }
   function showPauseMsg() {
@@ -868,7 +875,7 @@
   }
   function resume() {
     if (mode !== 'pause') return;
-    $('msg').classList.add('hidden'); mode = 'play'; last = 0; acc = 0;
+    $('msg').classList.add('hidden'); setMode('play'); last = 0; acc = 0;
     if (tut) return;
     if (!tippFertig) showTipp(0);
   }
@@ -880,7 +887,7 @@
   }
   function endByTime() {
     stopTipp(); tutAus();
-    mode = 'ended'; keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
+    setMode('ended'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
     $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
     showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
@@ -888,7 +895,7 @@
 
   // Alle Leben weg: kein XP, kein jnr:result, kein Fortschritt (vgl. rewards.shouldReport).
   function lose() {
-    mode = 'lost'; stopTipp();
+    setMode('lost'); stopTipp();
     $('vital-live').textContent = 'Alle Leben verbraucht.';
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
     var st = GM.stats(game);
@@ -907,7 +914,7 @@
   }
 
   function win() {
-    mode = 'won';
+    setMode('won');
     var st = GM.stats(game);
     var res = R.buildResult(meta.id, st, jnr);
     var d = res.details;
@@ -953,6 +960,7 @@
           if (actx && actx.state === 'suspended') actx.resume();
           if (m.level) startLevel(m.level); else showMenu();
         }
+        aktivMelder.melde(mode, true); // Antwort auf jnr:init: aktueller Stand für den Trainer
       }
     });
   }

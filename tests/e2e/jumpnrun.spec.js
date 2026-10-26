@@ -718,3 +718,44 @@ test.describe('Lumo: Mitmach-Tutorial auf dem Handy', () => {
     await expect(frame.locator('#tut-box')).toBeHidden();
   });
 });
+
+test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () => {
+  const aktivHarness = (page) => page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><body><script>window.__aktiv = []; window.addEventListener("message", function (e) {' +
+      ' if (e.data && e.data.type === "jnr:aktiv") window.__aktiv.push(e.data.aktiv); });</script>' +
+      '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  const aktiv = page => page.evaluate(() => window.__aktiv.slice());
+  const letztes = async page => { const a = await aktiv(page); return a[a.length - 1]; };
+  const fs = page => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+
+  test('Menü meldet nicht aktiv, Level und Tutorial aktiv, Pause, Game Over und timeup nicht aktiv', async ({ page }) => {
+    await aktivHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    await expect.poll(() => aktiv(page)).toEqual([false]); // Startstand: Menü
+    await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true } });
+    await expect.poll(() => aktiv(page)).toEqual([false, false]); // Antwort auf jnr:init
+    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await expect.poll(() => letztes(page)).toBe(true);
+    await sendTo(page, { type: 'jnr:pause' });
+    await expect.poll(() => letztes(page)).toBe(false);
+    expect((await fs(page)).mode).toBe('pause');
+
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.startTutorial());
+    await expect.poll(() => letztes(page)).toBe(true); // Tutorial zählt als aktives Spiel
+
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-1'));
+    await page.evaluate(() => { const j = document.getElementById('f').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
+    await expect.poll(async () => (await fs(page)).mode).toBe('lost');
+    expect(await letztes(page)).toBe(false);
+
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-1'));
+    await expect.poll(() => letztes(page)).toBe(true);
+    await sendTo(page, { type: 'jnr:timeup' });
+    await expect.poll(() => letztes(page)).toBe(false);
+    // Nur Wechsel werden gemeldet (Tutorial -> Level bleibt aktiv: keine Meldung), dazu je eine
+    // Antwort auf jedes jnr:init (beim Direktstart also zweimal true).
+    expect(await aktiv(page)).toEqual([false, false, true, true, false, true, false, true, false]);
+  });
+});
