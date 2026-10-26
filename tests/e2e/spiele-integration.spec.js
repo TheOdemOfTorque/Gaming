@@ -178,6 +178,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('.game-card[data-game="jnr"] button').click();
     const frame = page.frameLocator('#game-frame');
     await expect(frame.locator('#menu')).toBeVisible();
+    // Der Trainer reicht keine Debug-Parameter durch: im iframe gibt es kein window.__jnr
+    expect(await page.evaluate(() => typeof document.getElementById('game-frame').contentWindow.__jnr)).toBe('undefined');
     await expect.poll(() => page.evaluate(() => lumoAktiv)).toEqual({ meldet: true, aktiv: false });
     expect(await stehtFuer(2300)).toBe(600); // Menü: steht
 

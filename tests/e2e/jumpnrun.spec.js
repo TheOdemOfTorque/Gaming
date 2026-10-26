@@ -49,7 +49,7 @@ test('Debug-Parameter startet Level 1-1 ohne Menü', async ({ page }) => {
 
 test('Ohne Parameter erscheint das Menü mit Level 1-1 offen und 1-2 gesperrt', async ({ page }) => {
   await tutorialGesehen(page);
-  await page.goto('/jumpnrun/index.html');
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
   await expect(page.locator('#menu')).toBeVisible();
   await expect(page.locator('button[data-level="1-1"]')).toBeEnabled();
   await expect(page.locator('button[data-level="1-2"]')).toBeDisabled();
@@ -236,7 +236,7 @@ test.describe('Lumo: Energie und Leben', () => {
   });
 
   test('Hilfe im Menü erklärt Energie und Leben', async ({ page }) => {
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-hilfe');
     await expect(page.locator('#msg-body')).toContainText('Energie');
     await expect(page.locator('#msg-body')).toContainText('Leben');
@@ -446,7 +446,7 @@ test.describe('Lumo: Rechenwicht', () => {
   const URLW = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1&jnrReihe=7';
 
   test('Hilfe erklärt den Rechenwicht (draufspringen, Seite kostet Energie)', async ({ page }) => {
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-hilfe');
     await expect(page.locator('#msg-body')).toContainText('Rechenwicht');
     await expect(page.locator('#msg-body')).toContainText('von oben');
@@ -533,7 +533,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
   test('erster Menü-Klick startet das Tutorial; per Tastatur bis zum Leuchtturm, dann weiter ins Level, ohne XP und ohne Lebensverlust', async ({ page }) => {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.focus('button[data-level="1-1"]');
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeVisible();
@@ -632,7 +632,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
   });
 
   test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('button[data-level="1-1"]');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Tab');
@@ -655,10 +655,10 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
 
   test('„Tutorial nochmal spielen“ in Menü und Hilfe', async ({ page }) => {
     await tutorialGesehen(page);
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('button[data-level="1-1"]');
     await expect(page.locator('#tut-box')).toBeHidden(); // schon gesehen: kein Autostart
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-tutorial');
     await expect(page.locator('#tut-box')).toBeVisible();
     expect((await tut(page)).schritt).toBe('laufen');
@@ -667,7 +667,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     await page.getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
     await expect(page.locator('#msg')).toBeHidden();
     expect(await tut(page)).toMatchObject({ schritt: 'laufen', index: 0 });
-    await page.goto('/jumpnrun/index.html');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-hilfe');
     await page.locator('#msg').getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
     await expect(page.locator('#tut-box')).toBeVisible();
@@ -757,5 +757,16 @@ test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () =
     // Nur Wechsel werden gemeldet (Tutorial -> Level bleibt aktiv: keine Meldung), dazu je eine
     // Antwort auf jedes jnr:init (beim Direktstart also zweimal true).
     expect(await aktiv(page)).toEqual([false, false, true, true, false, true, false, true, false]);
+  });
+});
+
+test.describe('Debug-Hilfen nur mit Debug-Parameter', () => {
+  test('ohne Parameter gibt es kein window.__jnr, mit ?jnrDebug=1 schon', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await expect(page.locator('#menu')).toBeVisible();
+    expect(await page.evaluate(() => typeof window.__jnr)).toBe('undefined');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
+    await expect(page.locator('#menu')).toBeVisible();
+    expect(await page.evaluate(() => typeof window.__jnr.state)).toBe('function');
   });
 });

@@ -48,6 +48,10 @@
 //                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
 //                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
 //
+//   Debug-Hilfen (window.__jnr) gibt es nur mit einem Debug-Parameter in der URL (debugErlaubt):
+//   ?jnrDebug=1 oder einer der Debug-Parameter jnrLevel, jnrSeed, jnrReihe, jnrTutorial=1. Der Trainer
+//   laedt Lumo ohne Parameter, im Trainer gibt es also keine Debug-Hilfen.
+//
 //   Im eingebetteten Modus schreibt das Spiel NICHT in localStorage. Standalone speichert es unter
 //   `henry_jnr` (siehe rewards.js, Form wie state.jnr in der Spec).
 (function (root, factory) {
@@ -112,11 +116,18 @@
     };
   }
 
+  // search: location.search ('?jnrDebug=1&...'). true, wenn window.__jnr bereitgestellt werden darf.
+  function debugErlaubt(search) {
+    var q = new URLSearchParams(search || '');
+    return q.get('jnrDebug') === '1' || q.get('jnrTutorial') === '1' ||
+      q.has('jnrLevel') || q.has('jnrSeed') || q.has('jnrReihe');
+  }
+
   function isTrustedMessage(event, ownOrigin, parentWindow) {
     return !!event && event.origin === ownOrigin && event.source === parentWindow;
   }
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

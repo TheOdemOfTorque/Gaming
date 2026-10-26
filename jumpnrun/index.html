@@ -1347,7 +1347,8 @@
 
   // ---------- Start ----------
   layout();
-  window.__jnr = {
+  // Debug-Hilfen nur mit Debug-Parameter in der URL (H.debugErlaubt, z. B. ?jnrDebug=1), nie im Trainer.
+  if (H.debugErlaubt(location.search)) window.__jnr = {
     state: function () {
       if (!game) return { mode: mode, tutorial: null, tutorialGesehen: jnr.tutorialGesehen };
       var p = game.player;

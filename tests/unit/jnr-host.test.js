@@ -140,3 +140,18 @@ describe('jnr:aktiv (Stern-Zeit laeuft nur im aktiven Spiel)', () => {
     expect(H.parseHostMessage({ type: 'jnr:aktiv', aktiv: true })).toBeNull();
   });
 });
+
+describe('debugErlaubt (window.__jnr nur mit Debug-Parameter)', () => {
+  test('ohne Parameter oder mit fremden Parametern: keine Debug-Hilfen', () => {
+    expect(H.debugErlaubt('')).toBe(false);
+    expect(H.debugErlaubt('?foo=1')).toBe(false);
+    expect(H.debugErlaubt('?jnrDebug=0')).toBe(false);
+    expect(H.debugErlaubt('?jnrTutorial=0')).toBe(false);
+    expect(H.debugErlaubt(undefined)).toBe(false);
+  });
+  test('jnrDebug=1 und die bestehenden Debug-Parameter schalten frei', () => {
+    ['?jnrDebug=1', '?jnrLevel=1-1', '?jnrSeed=3', '?jnrReihe=7', '?jnrTutorial=1', 'jnrDebug=1', '?a=1&jnrSeed=1'].forEach((q) => {
+      expect(H.debugErlaubt(q)).toBe(true);
+    });
+  });
+});
