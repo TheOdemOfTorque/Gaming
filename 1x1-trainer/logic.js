@@ -453,6 +453,34 @@ function tickStarTime(state) {
   return { state: Object.assign({}, state, { gameSecondsLeft: left }), abgelaufen: left === 0 };
 }
 
+// Stern-Zeit beim Spielstart: ohne laufenden Block wird ein Stern zu 10 Minuten.
+// index.html ruft das erst auf, wenn das Spiel im iframe wirklich geladen ist
+// (spielGeladen), damit ein offline kaputtes Spiel keinen Stern kostet.
+// Tests: tests/unit/spiel-start.test.js
+function sternZeitEinloesen(state, gameId) {
+  const rule = GAME_RULES[gameId];
+  if (!rule || !rule.kostetSternZeit) return { state, abgezogen: false };
+  if ((state.gameSecondsLeft || 0) > 0 || (state.stars || 0) <= 0) return { state, abgezogen: false };
+  return { state: Object.assign({}, state, { stars: state.stars - 1, gameSecondsLeft: 600 }), abgezogen: true };
+}
+
+// Hat das Spiel im (Same-Origin-)iframe seine Skripte geladen? win = frame.contentWindow
+// nach dem load-Event. Eine Netz-Fehlerseite ist fremder Origin: der Zugriff wirft.
+const SPIEL_MERKMAL = { jnr: (w) => !!(w.JNR && w.JNR.host), knobel: (w) => !!w.KnobelLogic };
+function spielGeladen(gameId, win) {
+  const merkmal = SPIEL_MERKMAL[gameId];
+  if (!merkmal || !win) return false;
+  try { return merkmal(win); } catch (e) { return false; }
+}
+
+// Lokales Kalenderdatum 'YYYY-MM-DD' (Knobel rechnet seinen Tages-XP-Deckel genauso,
+// knobel/index.html heute()). toISOString wäre UTC und kippt in DE um 0-2 Uhr falsch.
+function lokalesDatum(d) {
+  const t = d || new Date();
+  const p = (x) => (x < 10 ? '0' : '') + x;
+  return t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate());
+}
+
 // ── SPIEL-ERGEBNISSE (Knobelwerkstatt + Lumo) ───────────────────────────────
 // Beide Funktionen bekommen die XP-Rechenfunktion des jeweiligen Spiels
 // injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. xpFor/mergeResult
@@ -696,6 +724,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime,
+                     sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,

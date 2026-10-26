@@ -1999,17 +1999,26 @@ function openGame(gameId) {
   if (!access.spielbar) return;
 
   const rule = GAME_RULES[gameId];
-  if (rule.kostetSternZeit && state.gameSecondsLeft <= 0) {
-    state.stars--;
-    state.gameSecondsLeft = 600;
-  }
-  saveState();
-  updateHomeUI();
-
   currentGame = gameId;
   const frame = document.getElementById('game-frame');
   document.getElementById('game-overlay-timer').classList.remove('show');
   frame.onload = () => {
+    // Ein verspätetes load des about:blank aus closeGame() überspringen.
+    try { if (frame.contentWindow.location.href === 'about:blank') return; } catch (e) { /* Fehlerseite */ }
+    frame.onload = null; // nur der erste echte load zählt (Stern höchstens einmal)
+    // Stern und Timer erst, wenn das Spiel wirklich geladen ist: offline ohne
+    // gecachte Spieldateien (oder Netz-Fehlerseite) kostet das Öffnen nichts.
+    if (!spielGeladen(gameId, frame.contentWindow)) {
+      showToast('📡 Das Spiel braucht einmal Internet zum Laden.');
+      closeGame();
+      return;
+    }
+    if (rule.kostetSternZeit) {
+      Object.assign(state, sternZeitEinloesen(state, gameId).state);
+      saveState();
+      updateHomeUI();
+      startLumoTimer();
+    }
     if (gameId === 'knobel') {
       frame.contentWindow.postMessage({
         type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
@@ -2023,8 +2032,6 @@ function openGame(gameId) {
   };
   frame.src = GAME_SRC[gameId];
   document.getElementById('game-overlay').classList.add('active');
-
-  if (rule.kostetSternZeit) startLumoTimer();
 }
 
 function closeGame() {
@@ -2044,7 +2051,7 @@ window.addEventListener('message', (e) => {
   if (!e.data || typeof e.data !== 'object') return;
 
   if (e.data.type === 'knobel:result') {
-    const heute = new Date().toISOString().slice(0, 10);
+    const heute = lokalesDatum(); // wie Knobels eigener Tages-XP-Deckel (lokaler Kalendertag)
     const { state: next } = applyKnobelResult(state, e.data, heute, KnobelLogic.computeKnobelXP);
     Object.assign(state, next);
     saveState();
