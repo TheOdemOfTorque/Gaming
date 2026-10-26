@@ -117,3 +117,21 @@ describe('tickStarTime', () => {
     expect(input.gameSecondsLeft).toBe(5);
   });
 });
+
+describe('rundeSchaltetKnobelFrei', () => {
+  const { rundeSchaltetKnobelFrei } = require('../../1x1-trainer/logic.js');
+
+  test('Runde ohne eine beantwortete Aufgabe (z.B. Blitz-Timeout) schaltet nicht frei', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'blitz', correct: 0, wrong: 0 })).toBe(false);
+  });
+
+  test('eine richtige oder eine falsche Antwort reicht', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 1, wrong: 0 })).toBe(true);
+    expect(rundeSchaltetKnobelFrei({ mode: 'turnier', correct: 0, wrong: 1 })).toBe(true);
+  });
+
+  test('fehlende Zaehler oder kein Spiel gelten als nicht beantwortet', () => {
+    expect(rundeSchaltetKnobelFrei({})).toBe(false);
+    expect(rundeSchaltetKnobelFrei(null)).toBe(false);
+  });
+});

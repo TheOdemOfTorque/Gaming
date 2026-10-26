@@ -444,6 +444,14 @@ function getGameAccess(state, gameId, heute) {
   return { spielbar: true, grund: null };
 }
 
+// Zählt die Runde für die Knobel-Freischaltung (state.lastRoundDate)? Nur wenn mindestens
+// eine Aufgabe beantwortet wurde: ein Blitz-Timeout ohne Antwort schaltet nichts frei.
+// Die Streak-Logik in endGame() ist davon unabhängig. Tests: tests/unit/spiele-zugang.test.js
+function rundeSchaltetKnobelFrei(game) {
+  if (!game) return false;
+  return (game.correct || 0) + (game.wrong || 0) > 0;
+}
+
 // Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
 // und das Verzweigen bei Ablauf (Invader: Pause-Dialog/Toast, Lumo: jnr:timeup)
 // bleiben in index.html. Tests: tests/unit/spiele-zugang.test.js
@@ -723,7 +731,7 @@ if (typeof module !== 'undefined') {
                      nextDiamondCost, canBuyDiamond, applyDiamondPurchase,
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
-                     GAME_RULES, getGameAccess, tickStarTime,
+                     GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,

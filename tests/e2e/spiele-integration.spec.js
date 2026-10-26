@@ -36,7 +36,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     const card = page.locator('.game-card[data-game="knobel"]');
     await expect(card.locator('button')).toBeDisabled();
     await page.evaluate(() => {
-      game.active = true; game.mode = 'training'; game.correct = 0; game.wrong = 0;
+      game.active = true; game.mode = 'training'; game.correct = 1; game.wrong = 0;
       endGame('complete');
       showScreen('home');
     });
@@ -44,6 +44,21 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(card.locator('button')).toBeEnabled();
     await page.evaluate(() => openGame('knobel'));
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+  });
+
+  test('Blitz-Runde ohne eine einzige Antwort (Timeout) schaltet die Knobelwerkstatt nicht frei', async ({ page }) => {
+    await seedState(page, { lastRoundDate: null, lastPlayDate: null, streak: 0 });
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await page.evaluate(() => {
+      game.active = true; game.mode = 'blitz'; game.rechenart = 'mul'; game.correct = 0; game.wrong = 0;
+      endGame('timeout');
+      showScreen('home');
+    });
+    expect(await page.evaluate(() => state.lastRoundDate)).toBe(null);
+    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
+    await expect(card.locator('button')).toBeDisabled();
+    // Streak-Logik bleibt unverändert: die Runde zählt weiter als gespielt
+    expect(await page.evaluate(() => [state.streak, state.lastPlayDate === new Date().toDateString()])).toEqual([1, true]);
   });
 
   test('Streak-Schutz (lastPlayDate heute ohne Runde) schaltet Knobelwerkstatt nicht frei', async ({ page }) => {

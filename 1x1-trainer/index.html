@@ -3030,7 +3030,8 @@ function endGame(reason) {
     state.streak = state.lastPlayDate === yesterday.toDateString() ? state.streak+1 : 1;
     state.lastPlayDate = today;
   }
-  state.lastRoundDate = today; // schaltet die Knobelwerkstatt für heute frei
+  // Schaltet die Knobelwerkstatt für heute frei, aber nur mit mindestens einer beantworteten Aufgabe
+  if (rundeSchaltetKnobelFrei(game)) state.lastRoundDate = today;
 
   state.totalCorrect += game.correct;
   state.totalGames++;
