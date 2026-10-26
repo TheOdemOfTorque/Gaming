@@ -538,7 +538,7 @@
       var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
       var b = document.createElement('button');
       b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-      b.innerHTML = '<span>' + l.id + ' · ' + l.name + '<small>' + (l.mathe ? 'Zielzahl: ' + l.reihe + 'er-Reihe' : 'Laufen, Springen, Sammeln') +
+      b.innerHTML = '<span>' + l.id + ' · ' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
         '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
       b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
       box.appendChild(b);
@@ -1388,6 +1388,12 @@
     showMenu();
   }
   requestAnimationFrame(frame);
+
+  // Eigener Service Worker (Scope /jumpnrun/): nur er liefert Lumo offline aus, auch im
+  // iframe des Trainers. Der Trainer-SW deckt /jumpnrun/ nicht ab.
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    try { navigator.serviceWorker.register('./sw.js').catch(function () {}); } catch (e) { /* egal */ }
+  }
 })();
 </script>
 </body>

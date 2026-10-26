@@ -223,4 +223,14 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(page.locator('#space-invader')).toHaveClass(/active/);
     await expect(page.locator('#invader-timer')).toContainText('⏱');
   });
+
+  test('Lädt das Spiel nicht (Request hängt), schließt das Overlay nach dem Lade-Timeout ohne Stern-Abzug', async ({ page }) => {
+    await seedState(page, { stars: 2, gameSecondsLeft: 0 });
+    await page.route('**/jumpnrun/index.html', () => { /* nie beantworten */ });
+    await page.evaluate(() => { SPIEL_LADE_TIMEOUT_MS = 500; openGame('jnr'); });
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 5000 });
+    await expect(page.getByText('Das Spiel konnte nicht laden. Bist du online?')).toBeVisible();
+    expect(await page.evaluate(() => [state.stars, state.gameSecondsLeft])).toEqual([2, 0]);
+  });
 });

@@ -1935,6 +1935,13 @@ function stopInvader() {
 // henry_einmaleins. GAME_SRC ist relativ zu 1x1-trainer/index.html.
 const GAME_SRC = { jnr: '../jumpnrun/index.html', knobel: '../knobel/index.html' };
 let currentGame = null; // 'jnr' | 'knobel' | null — welches Spiel im Overlay läuft
+// Lädt das Spiel so lange nicht (hängendes Netz), schließt der Trainer das Overlay ohne Stern.
+let SPIEL_LADE_TIMEOUT_MS = 8000;
+let spielLadeTimer = null;
+const SPIEL_LADEFEHLER = '📡 Das Spiel konnte nicht laden. Bist du online?';
+function spielLadeTimerStoppen() {
+  if (spielLadeTimer) { clearTimeout(spielLadeTimer); spielLadeTimer = null; }
+}
 
 function gameCardHtml(gameId, icon, title, onClick) {
   const access = getGameAccess(state, gameId);
@@ -1999,17 +2006,27 @@ function openGame(gameId) {
   if (!access.spielbar) return;
 
   const rule = GAME_RULES[gameId];
-  if (rule.kostetSternZeit && state.gameSecondsLeft <= 0) {
-    state.stars--;
-    state.gameSecondsLeft = 600;
-  }
-  saveState();
-  updateHomeUI();
-
   currentGame = gameId;
   const frame = document.getElementById('game-frame');
   document.getElementById('game-overlay-timer').classList.remove('show');
   frame.onload = () => {
+    // Ein verspätetes load des about:blank aus closeGame() überspringen.
+    try { if (frame.contentWindow.location.href === 'about:blank') return; } catch (e) { /* Fehlerseite */ }
+    frame.onload = null; // nur der erste echte load zählt (Stern höchstens einmal)
+    spielLadeTimerStoppen();
+    // Stern und Timer erst, wenn das Spiel wirklich geladen ist: offline ohne
+    // gecachte Spieldateien (oder Netz-Fehlerseite) kostet das Öffnen nichts.
+    if (!spielGeladen(gameId, frame.contentWindow)) {
+      showToast(SPIEL_LADEFEHLER);
+      closeGame();
+      return;
+    }
+    if (rule.kostetSternZeit) {
+      Object.assign(state, sternZeitEinloesen(state, gameId).state);
+      saveState();
+      updateHomeUI();
+      startLumoTimer();
+    }
     if (gameId === 'knobel') {
       frame.contentWindow.postMessage({
         type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
@@ -2023,12 +2040,18 @@ function openGame(gameId) {
   };
   frame.src = GAME_SRC[gameId];
   document.getElementById('game-overlay').classList.add('active');
-
-  if (rule.kostetSternZeit) startLumoTimer();
+  spielLadeTimerStoppen();
+  spielLadeTimer = setTimeout(() => {
+    spielLadeTimer = null;
+    if (currentGame !== gameId) return;
+    showToast(SPIEL_LADEFEHLER);
+    closeGame();
+  }, SPIEL_LADE_TIMEOUT_MS);
 }
 
 function closeGame() {
   stopStarTimer();
+  spielLadeTimerStoppen();
   document.getElementById('game-overlay').classList.remove('active');
   const frame = document.getElementById('game-frame');
   frame.onload = null;
@@ -2044,7 +2067,7 @@ window.addEventListener('message', (e) => {
   if (!e.data || typeof e.data !== 'object') return;
 
   if (e.data.type === 'knobel:result') {
-    const heute = new Date().toISOString().slice(0, 10);
+    const heute = lokalesDatum(); // wie Knobels eigener Tages-XP-Deckel (lokaler Kalendertag)
     const { state: next } = applyKnobelResult(state, e.data, heute, KnobelLogic.computeKnobelXP);
     Object.assign(state, next);
     saveState();
@@ -4420,6 +4443,11 @@ window.addEventListener('load', () => {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; reg.update(); });
+    // Die eingebetteten Spiele haben eigene SWs (eigene Scopes). Hier mit registrieren,
+    // damit sie schon offline gehen, bevor das Kind sie einmal online geöffnet hat.
+    ['../knobel/sw.js', '../jumpnrun/sw.js'].forEach(src => {
+      navigator.serviceWorker.register(src).catch(() => {});
+    });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';
