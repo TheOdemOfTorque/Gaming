@@ -16,9 +16,11 @@ function alleServiceWorker() {
     .filter((p) => fs.existsSync(path.join(ROOT, p)));
 }
 
-function ladeSw(relPfad, vorhandeneCaches) {
+// inhalte: { cacheName: { url: antwort } } für das fetch-Verhalten
+function ladeSw(relPfad, vorhandeneCaches, inhalte = {}) {
   const listeners = {};
   const store = new Set(vorhandeneCaches);
+  const log = { geoeffnet: [], globalMatch: 0, netz: [] };
   const sandbox = {
     self: {
       addEventListener: (typ, fn) => { listeners[typ] = fn; },
@@ -28,14 +30,26 @@ function ladeSw(relPfad, vorhandeneCaches) {
     caches: {
       keys: () => Promise.resolve([...store]),
       delete: (k) => Promise.resolve(store.delete(k)),
-      open: () => Promise.resolve({ addAll: () => Promise.resolve() }),
-      match: () => Promise.resolve(undefined),
+      open: (name) => {
+        log.geoeffnet.push(name);
+        return Promise.resolve({
+          addAll: () => Promise.resolve(),
+          match: (req) => Promise.resolve((inhalte[name] || {})[req.url]),
+        });
+      },
+      // Gemeinsames match über ALLE Caches des Origins: liefert Fremdes, darf nie benutzt werden
+      match: (req, opt) => {
+        log.globalMatch++;
+        if (opt && opt.cacheName) return Promise.resolve((inhalte[opt.cacheName] || {})[req.url]);
+        for (const n of Object.keys(inhalte)) if (inhalte[n][req.url]) return Promise.resolve(inhalte[n][req.url]);
+        return Promise.resolve(undefined);
+      },
     },
-    fetch: () => Promise.reject(new Error('kein Netz im Test')),
+    fetch: (req) => { log.netz.push(req.url); return Promise.resolve('netz:' + req.url); },
   };
   const src = fs.readFileSync(path.join(ROOT, relPfad), 'utf8');
   vm.runInNewContext(src + '\n;this.__CACHE = CACHE;', sandbox);
-  return { listeners, store, cache: sandbox.__CACHE };
+  return { listeners, store, log, cache: sandbox.__CACHE };
 }
 
 async function aktiviere(sw) {
@@ -73,5 +87,31 @@ describe('Service Worker: activate räumt nur eigene alte Caches weg', () => {
     await aktiviere(sw);
     expect(sw.store.has('knobelwerkstatt-v1')).toBe(true);
     expect(sw.store.has('knobel-v1')).toBe(false);
+  });
+});
+
+async function hole(sw, url) {
+  let antwort;
+  sw.listeners.fetch({ request: { url }, respondWith: (p) => { antwort = p; } });
+  return antwort;
+}
+
+describe('Service Worker: fetch antwortet nur aus dem eigenen Cache', () => {
+  const sws = alleServiceWorker();
+  const URL_ = 'http://localhost/jumpnrun/core/game.js';
+
+  test.each(sws)('%s: Eintrag im eigenen Cache wird geliefert', async (rel) => {
+    const { cache } = ladeSw(rel, []);
+    const sw = ladeSw(rel, [cache], { [cache]: { [URL_]: 'eigen' } });
+    expect(await hole(sw, URL_)).toBe('eigen');
+  });
+
+  test.each(sws)('%s: gleicher Pfad in fremdem (z.B. veraltetem) Cache wird NICHT geliefert, sondern geladen', async (rel) => {
+    const { cache } = ladeSw(rel, []);
+    const inhalte = { 'fremd-v1': { [URL_]: 'alt aus fremdem Cache' }, [cache]: {} };
+    const sw = ladeSw(rel, Object.keys(inhalte), inhalte);
+    expect(await hole(sw, URL_)).toBe('netz:' + URL_);
+    expect(sw.log.netz).toEqual([URL_]);
+    expect(sw.log.geoeffnet.every((n) => n === cache)).toBe(true);
   });
 });

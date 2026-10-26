@@ -16,6 +16,8 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// Nur im eigenen Cache suchen: caches.match ohne cacheName durchsucht alle Caches des
+// Origins und könnte veraltete Kopien eines anderen SWs liefern.
 self.addEventListener('fetch', e => {
-  e.respondWith(caches.match(e.request).then(cached => cached || fetch(e.request)));
+  e.respondWith(caches.open(CACHE).then(c => c.match(e.request)).then(cached => cached || fetch(e.request)));
 });

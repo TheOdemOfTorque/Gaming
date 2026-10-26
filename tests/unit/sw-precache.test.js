@@ -1,4 +1,4 @@
-// Der Trainer-Service-Worker cacht auch die eingebetteten Spiele (ADR-0001).
+// Jedes Spiel hat seinen eigenen Service Worker im eigenen Scope (ADR-0001, Same-Origin-iframe).
 // Fehlt dort eine Datei, die eine Spielseite lädt, ist das Spiel offline kaputt;
 // existiert eine gelistete Datei nicht, scheitert cache.addAll und das Update bleibt hängen.
 const fs = require('fs');
@@ -7,7 +7,6 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..', '..');
 const TRAINER = path.join(ROOT, '1x1-trainer');
 const swSrc = fs.readFileSync(path.join(TRAINER, 'sw.js'), 'utf8');
-const gelistet = [...swSrc.matchAll(/['"](\.\.\/[^'"]+)['"]/g)].map((m) => m[1]);
 
 function geladeneDateien(spiel) {
   const html = fs.readFileSync(path.join(ROOT, spiel, 'index.html'), 'utf8');
@@ -18,15 +17,30 @@ function geladeneDateien(spiel) {
     .map((p) => `../${spiel}/${p}`);
 }
 
-describe('Trainer-Service-Worker: Precache-Liste der eingebetteten Spiele', () => {
-  test('jede gelistete Datei existiert', () => {
-    const fehlend = gelistet.filter((p) => !fs.existsSync(path.join(TRAINER, p)));
-    expect(fehlend).toEqual([]);
+describe('Trainer-Service-Worker', () => {
+  // Reserve-Kopien der Spiele im Trainer-Cache wurden nie im iframe ausgeliefert, konnten
+  // aber über ein gemeinsames caches.match veraltete Dateien liefern (Review zu H1).
+  // Erlaubt sind nur Dateien ausserhalb von 1x1-trainer/, die die Trainer-Seite SELBST lädt
+  // (knobel-logic.js, rewards.js): die holt der Trainer-SW, nicht der Spiel-SW.
+  test('cacht von ausserhalb genau die Skripte, die die Trainer-Seite selbst lädt', () => {
+    const block = swSrc.match(/const ASSETS\s*=\s*\[([\s\S]*?)\]/)[1];
+    const fremd = [...block.matchAll(/['"](\.\.\/[^'"]+)['"]/g)].map((m) => m[1]).sort();
+    const html = fs.readFileSync(path.join(TRAINER, 'index.html'), 'utf8');
+    const eigeneSeite = [...html.matchAll(/<script[^>]*\ssrc="(\.\.\/[^"]+)"/g)].map((m) => m[1]).sort();
+    expect(eigeneSeite.length).toBeGreaterThan(0);
+    expect(fremd).toEqual(eigeneSeite);
   });
 
-  test.each(['knobel', 'jumpnrun'])('alle Skripte und Schriften von %s sind gelistet', (spiel) => {
-    const fehlend = geladeneDateien(spiel).filter((p) => !gelistet.includes(p));
-    expect(fehlend).toEqual([]);
+  test('keine Spielseiten (index.html) und keine Lumo-Level-/Knobel-Assets im Trainer-Cache', () => {
+    const block = swSrc.match(/const ASSETS\s*=\s*\[([\s\S]*?)\]/)[1];
+    expect(block).not.toMatch(/\.\.\/(knobel|jumpnrun)\/index\.html/);
+    expect(block).not.toMatch(/\.\.\/(knobel|jumpnrun)\/(fonts|data)\//);
+  });
+
+  test('jede gelistete Datei existiert', () => {
+    const block = swSrc.match(/const ASSETS\s*=\s*\[([\s\S]*?)\]/)[1];
+    const liste = [...block.matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    expect(liste.filter((p) => p !== './' && !fs.existsSync(path.join(TRAINER, p)))).toEqual([]);
   });
 });
 

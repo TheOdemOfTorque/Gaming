@@ -9,33 +9,11 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './logic.js',
-  // Knobelwerkstatt + Lumo (ADR-0001, Same-Origin-iframe) — Cache-Storage-Einträge
-  // ausserhalb des SW-Scopes von 1x1-trainer/; dieser SW liefert sie im iframe NICHT
-  // aus. Offline übernehmen das knobel/sw.js und jumpnrun/sw.js (eigene Scopes), die
-  // der Trainer beim Start mit registriert. Die Einträge hier sind nur Reserve.
-  '../knobel/index.html',
+  // Von der Trainer-Seite selbst per <script> geladen (XP-Rechnung der Spiele):
   '../knobel/knobel-logic.js',
-  '../knobel/manifest.json',
-  '../knobel/icon-192.png',
-  '../knobel/icon-512.png',
-  '../jumpnrun/index.html',
-  '../jumpnrun/core/collision.js',
-  '../jumpnrun/core/gegner.js',
-  '../jumpnrun/core/game.js',
-  '../jumpnrun/core/host.js',
-  '../jumpnrun/core/reihenwahl.js',
-  '../jumpnrun/core/level.js',
-  '../jumpnrun/core/mathgen.js',
-  '../jumpnrun/core/physics.js',
   '../jumpnrun/core/rewards.js',
-  '../jumpnrun/data/levels.js',
-  '../jumpnrun/data/sections.js',
-  '../jumpnrun/core/levelgen.js',
-  '../jumpnrun/core/viewport.js',
-  '../jumpnrun/core/camera.js',
-  '../jumpnrun/core/tutorial.js',
-  '../knobel/fonts/AtkinsonHyperlegible-Regular.woff2',
-  '../knobel/fonts/AtkinsonHyperlegible-Bold.woff2',
+  // Die Spiele im iframe cachen ihre Dateien selbst (knobel/sw.js, jumpnrun/sw.js,
+  // eigene Scopes); der Trainer registriert beide beim Start mit.
 ];
 
 self.addEventListener('install', e => {
@@ -54,8 +32,8 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
+// Nur im eigenen Cache suchen: caches.match ohne cacheName durchsucht alle Caches des
+// Origins und könnte veraltete Kopien eines anderen SWs liefern.
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  e.respondWith(caches.open(CACHE).then(c => c.match(e.request)).then(cached => cached || fetch(e.request)));
 });

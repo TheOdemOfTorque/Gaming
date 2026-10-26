@@ -1935,6 +1935,13 @@ function stopInvader() {
 // henry_einmaleins. GAME_SRC ist relativ zu 1x1-trainer/index.html.
 const GAME_SRC = { jnr: '../jumpnrun/index.html', knobel: '../knobel/index.html' };
 let currentGame = null; // 'jnr' | 'knobel' | null — welches Spiel im Overlay läuft
+// Lädt das Spiel so lange nicht (hängendes Netz), schließt der Trainer das Overlay ohne Stern.
+let SPIEL_LADE_TIMEOUT_MS = 8000;
+let spielLadeTimer = null;
+const SPIEL_LADEFEHLER = '📡 Das Spiel konnte nicht laden. Bist du online?';
+function spielLadeTimerStoppen() {
+  if (spielLadeTimer) { clearTimeout(spielLadeTimer); spielLadeTimer = null; }
+}
 
 function gameCardHtml(gameId, icon, title, onClick) {
   const access = getGameAccess(state, gameId);
@@ -2006,10 +2013,11 @@ function openGame(gameId) {
     // Ein verspätetes load des about:blank aus closeGame() überspringen.
     try { if (frame.contentWindow.location.href === 'about:blank') return; } catch (e) { /* Fehlerseite */ }
     frame.onload = null; // nur der erste echte load zählt (Stern höchstens einmal)
+    spielLadeTimerStoppen();
     // Stern und Timer erst, wenn das Spiel wirklich geladen ist: offline ohne
     // gecachte Spieldateien (oder Netz-Fehlerseite) kostet das Öffnen nichts.
     if (!spielGeladen(gameId, frame.contentWindow)) {
-      showToast('📡 Das Spiel braucht einmal Internet zum Laden.');
+      showToast(SPIEL_LADEFEHLER);
       closeGame();
       return;
     }
@@ -2032,10 +2040,18 @@ function openGame(gameId) {
   };
   frame.src = GAME_SRC[gameId];
   document.getElementById('game-overlay').classList.add('active');
+  spielLadeTimerStoppen();
+  spielLadeTimer = setTimeout(() => {
+    spielLadeTimer = null;
+    if (currentGame !== gameId) return;
+    showToast(SPIEL_LADEFEHLER);
+    closeGame();
+  }, SPIEL_LADE_TIMEOUT_MS);
 }
 
 function closeGame() {
   stopStarTimer();
+  spielLadeTimerStoppen();
   document.getElementById('game-overlay').classList.remove('active');
   const frame = document.getElementById('game-frame');
   frame.onload = null;
