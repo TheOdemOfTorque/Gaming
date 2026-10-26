@@ -29,3 +29,41 @@ describe('Trainer-Service-Worker: Precache-Liste der eingebetteten Spiele', () =
     expect(fehlend).toEqual([]);
   });
 });
+
+// Jedes eingebettete Spiel hat seinen eigenen Service Worker im eigenen Scope. Nur der
+// liefert die Dateien im iframe offline aus (QA-Befund M1: Lumo offline ohne Skripte).
+describe.each(['knobel', 'jumpnrun'])('Eigener Service Worker von %s', (spiel) => {
+  const DIR = path.join(ROOT, spiel);
+  const swPfad = path.join(DIR, 'sw.js');
+  const eigeneListe = () => {
+    const src = fs.readFileSync(swPfad, 'utf8');
+    const block = src.match(/const ASSETS\s*=\s*\[([\s\S]*?)\]/);
+    return block ? [...block[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1]) : [];
+  };
+
+  test('sw.js existiert', () => {
+    expect(fs.existsSync(swPfad)).toBe(true);
+  });
+
+  test('jede gelistete Datei existiert', () => {
+    const fehlend = eigeneListe().filter((p) => p !== './' && !fs.existsSync(path.join(DIR, p)));
+    expect(fehlend).toEqual([]);
+  });
+
+  test('Seite, alle Skripte und Schriften sind gelistet', () => {
+    const liste = eigeneListe();
+    const noetig = ['./', './index.html', ...geladeneDateien(spiel).map((p) => './' + p.slice(`../${spiel}/`.length))];
+    expect(noetig.filter((p) => !liste.includes(p))).toEqual([]);
+  });
+
+  test('index.html registriert ./sw.js', () => {
+    const html = fs.readFileSync(path.join(DIR, 'index.html'), 'utf8');
+    expect(html).toMatch(/serviceWorker\.register\(\s*['"]\.\/sw\.js['"]/);
+  });
+});
+
+test('Trainer registriert die Service Worker der eingebetteten Spiele mit', () => {
+  const html = fs.readFileSync(path.join(TRAINER, 'index.html'), 'utf8');
+  expect(html).toMatch(/\.\.\/knobel\/sw\.js/);
+  expect(html).toMatch(/\.\.\/jumpnrun\/sw\.js/);
+});

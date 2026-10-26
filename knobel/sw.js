@@ -1,4 +1,6 @@
-const CACHE = 'knobel-v8'; // bei jedem Release hochzählen
+const CACHE = 'knobel-v9'; // bei jedem Release hochzählen
+// Alle SWs des Origins teilen sich den CacheStorage: nur eigene alte Versionen löschen.
+const PRAEFIX = CACHE.replace(/v\d+$/, '');
 const ASSETS = ['./', './index.html', './knobel-logic.js', './manifest.json', './icon-192.png', './icon-512.png',
   './fonts/AtkinsonHyperlegible-Regular.woff2', './fonts/AtkinsonHyperlegible-Bold.woff2'];
 
@@ -9,7 +11,7 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+    caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith(PRAEFIX) && k !== CACHE).map(k => caches.delete(k))))
   );
   self.clients.claim();
 });

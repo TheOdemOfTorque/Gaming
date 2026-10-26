@@ -1,4 +1,6 @@
-const CACHE = '1x1-trainer-v27'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
+const CACHE = '1x1-trainer-v28'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
+// Alle SWs des Origins teilen sich den CacheStorage: nur eigene alte Versionen löschen.
+const PRAEFIX = CACHE.replace(/v\d+$/, '');
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +10,9 @@ const ASSETS = [
   './icon-512.png',
   './logic.js',
   // Knobelwerkstatt + Lumo (ADR-0001, Same-Origin-iframe) — Cache-Storage-Einträge
-  // ausserhalb des SW-Scopes von 1x1-trainer/; sie werden NICHT automatisch beim
-  // iframe-Request ausgeliefert (dafür bräuchte jedes Spiel seinen eigenen Service
-  // Worker im eigenen Scope). Knobel hat ein eigenes sw.js, Lumo noch nicht.
+  // ausserhalb des SW-Scopes von 1x1-trainer/; dieser SW liefert sie im iframe NICHT
+  // aus. Offline übernehmen das knobel/sw.js und jumpnrun/sw.js (eigene Scopes), die
+  // der Trainer beim Start mit registriert. Die Einträge hier sind nur Reserve.
   '../knobel/index.html',
   '../knobel/knobel-logic.js',
   '../knobel/manifest.json',
@@ -46,7 +48,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k.startsWith(PRAEFIX) && k !== CACHE).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();

@@ -1388,6 +1388,12 @@
     showMenu();
   }
   requestAnimationFrame(frame);
+
+  // Eigener Service Worker (Scope /jumpnrun/): nur er liefert Lumo offline aus, auch im
+  // iframe des Trainers. Der Trainer-SW deckt /jumpnrun/ nicht ab.
+  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    try { navigator.serviceWorker.register('./sw.js').catch(function () {}); } catch (e) { /* egal */ }
+  }
 })();
 </script>
 </body>
