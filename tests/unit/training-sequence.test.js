@@ -173,3 +173,53 @@ describe('generateTrainingSequence — keine direkte Wiederholung', () => {
     expect(ordneOhneDirekteWiederholung([])).toEqual([]);
   });
 });
+
+describe('ordneOhneDirekteWiederholung — Verteilung bleibt zufällig', () => {
+  const { ordneOhneDirekteWiederholung } = require('../../1x1-trainer/logic.js');
+
+  // 7er-Reihe: 8 und 3 je 5×, die übrigen 8 Faktoren je 1× (20 Aufgaben)
+  function eingabe() {
+    const p = [];
+    for (let i = 0; i < 5; i++) { p.push({ a: 7, b: 8 }); p.push({ a: 7, b: 3 }); }
+    [1, 2, 4, 5, 6, 7, 9, 10].forEach(b => p.push({ a: 7, b }));
+    return p;
+  }
+
+  test('Mehrfach-Faktoren ballen sich nicht in der ersten Hälfte', () => {
+    let vorne = 0, hinten = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      initSeededRNG(seed);
+      const out = ordneOhneDirekteWiederholung(eingabe());
+      out.forEach((p, i) => {
+        if (p.b === 8 || p.b === 3) { if (i < 10) vorne++; else hinten++; }
+      });
+    }
+    // gleichverteilt wären je ~5000; die gierige Variante lag bei ~10000 zu 0
+    expect(vorne / (vorne + hinten)).toBeLessThan(0.6);
+  });
+
+  test('erste Aufgabe ist nicht immer ein Mehrfach-Faktor', () => {
+    let mehrfachVorn = 0;
+    for (let seed = 1; seed <= 1000; seed++) {
+      initSeededRNG(seed);
+      const b = ordneOhneDirekteWiederholung(eingabe())[0].b;
+      if (b === 8 || b === 3) mehrfachVorn++;
+    }
+    expect(mehrfachVorn / 1000).toBeLessThan(0.75); // Anteil in der Eingabe: 10/20
+  });
+
+  test('zufällige lösbare Eingaben: nie eine direkte Wiederholung', () => {
+    for (let seed = 1; seed <= 2000; seed++) {
+      initSeededRNG(seed);
+      const n = 2 + Math.floor(Math.random() * 25);
+      const arten = 1 + Math.floor(Math.random() * 8);
+      const p = Array.from({ length: n }, () => ({ a: 2, b: 1 + Math.floor(Math.random() * arten) }));
+      const anzahl = {};
+      p.forEach(x => { anzahl[x.b] = (anzahl[x.b] || 0) + 1; });
+      if (Math.max(...Object.values(anzahl)) > Math.ceil(n / 2)) continue;
+      const out = ordneOhneDirekteWiederholung(p);
+      expect(out).toHaveLength(n);
+      for (let i = 1; i < out.length; i++) expect(out[i].b).not.toBe(out[i - 1].b);
+    }
+  });
+});

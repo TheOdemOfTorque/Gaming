@@ -309,10 +309,10 @@ function generateTrainingSequence(questionStats, settings, reihen) {
 }
 
 // Ordnet {a,b}-Paare so an, dass nie dasselbe Paar direkt hintereinander kommt (Marco, 26.10.2026).
-// Gierig: unter den Paaren, die sich vom zuletzt gesetzten unterscheiden, gewinnt das mit der
-// höchsten Restanzahl (sonst bleibt am Ende ein Rest aus lauter gleichen); Gleichstand per _rng.
-// Unlösbare Eingaben (ein Paar öfter als ⌈n/2⌉-mal) werden bestmöglich angeordnet.
-// Tests: tests/unit/training-sequence.test.js
+// Jede Position wird zufällig gezogen, gewichtet nach Restanzahl (wie ein shuffle), aber nur unter
+// Paaren, nach denen der Rest noch lösbar bleibt: Bei Rest m und zuletzt gesetztem Paar k darf kein
+// Paar öfter als ⌈m/2⌉-mal übrig sein, k selbst höchstens ⌊m/2⌋-mal. Unlösbare Eingaben (ein Paar
+// öfter als ⌈n/2⌉-mal) werden bestmöglich angeordnet. Tests: tests/unit/training-sequence.test.js
 function ordneOhneDirekteWiederholung(pairs) {
   const gruppen = new Map();
   pairs.forEach(p => {
@@ -320,17 +320,32 @@ function ordneOhneDirekteWiederholung(pairs) {
     if (!gruppen.has(k)) gruppen.set(k, []);
     gruppen.get(k).push(p);
   });
+  const loesbar = (k, rest) => {
+    for (const [j, g] of gruppen) {
+      const n = g.length - (j === k ? 1 : 0);
+      if (n > (j === k ? Math.floor(rest / 2) : Math.ceil(rest / 2))) return false;
+    }
+    return true;
+  };
   const out = [];
   let letzte = null;
   while (out.length < pairs.length) {
+    const rest = pairs.length - out.length - 1;
     const offen = [...gruppen.entries()].filter(([, g]) => g.length > 0);
     const erlaubt = offen.filter(([k]) => k !== letzte);
-    const kandidaten = erlaubt.length ? erlaubt : offen;
-    const max = Math.max(...kandidaten.map(([, g]) => g.length));
-    const beste = kandidaten.filter(([, g]) => g.length === max);
-    const [k, g] = beste[Math.floor(_rng() * beste.length)];
-    out.push(g.pop());
-    letzte = k;
+    const sicher = erlaubt.filter(([k]) => loesbar(k, rest));
+    let kandidaten = sicher;
+    if (!kandidaten.length) {
+      // Unlösbar: das häufigste erlaubte Paar zuerst abbauen, notfalls eine Wiederholung
+      const pool = erlaubt.length ? erlaubt : offen;
+      const max = Math.max(...pool.map(([, g]) => g.length));
+      kandidaten = pool.filter(([, g]) => g.length === max);
+    }
+    const summe = kandidaten.reduce((t, [, g]) => t + g.length, 0);
+    let r = _rng() * summe, wahl = kandidaten[kandidaten.length - 1];
+    for (const e of kandidaten) { r -= e[1].length; if (r < 0) { wahl = e; break; } }
+    out.push(wahl[1].pop());
+    letzte = wahl[0];
   }
   return out;
 }
