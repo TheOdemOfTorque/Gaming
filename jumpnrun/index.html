@@ -224,14 +224,18 @@
   @keyframes zeig { 0%, 100% { box-shadow: 0 0 0 0 rgba(253, 230, 138, .9); } 50% { box-shadow: 0 0 0 12px rgba(253, 230, 138, 0); } }
   @media (prefers-reduced-motion: reduce) { .btn.zeig { animation: none; box-shadow: 0 0 0 6px rgba(253, 230, 138, .8); } }
 
-  /* Hochformat-Hinweis */
+  /* Dreh-Anzeige: Touch-Geraete spielen nur im Querformat (JS setzt body.quer-pflicht, VP.mussQuerDrehen) */
   #portrait-hint {
     position: absolute; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center;
-    justify-content: center; gap: 14px; text-align: center; background: rgba(13, 13, 43, .96); padding: 24px;
+    justify-content: center; gap: 14px; text-align: center; background: #0d0d2b; padding: 24px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)); touch-action: none;
   }
-  #portrait-hint .phone { font-size: 56px; transform: rotate(90deg); }
-  #portrait-hint p { margin: 0; font-size: 20px; font-weight: 700; }
-  @media (orientation: portrait) { #portrait-hint:not(.dismissed) { display: flex; } }
+  #portrait-hint .phone { font-size: 72px; line-height: 1; transform: rotate(90deg); animation: drehen 2.4s ease-in-out infinite; }
+  #portrait-hint .dreh-titel { margin: 0; font-size: 26px; font-weight: 800; }
+  #portrait-hint p { margin: 0; font-size: 18px; font-weight: 600; max-width: 22em; }
+  @keyframes drehen { 0%, 25% { transform: rotate(0deg); } 50%, 100% { transform: rotate(90deg); } }
+  @media (prefers-reduced-motion: reduce) { #portrait-hint .phone { animation: none; } }
+  body.quer-pflicht #portrait-hint { display: flex; }
   @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } }
 </style>
 </head>
@@ -312,10 +316,10 @@
     </div>
   </div>
 
-  <div id="portrait-hint">
-    <div class="phone">📱</div>
-    <p>Dreh dein iPhone für mehr Platz</p>
-    <button class="big" id="portrait-ok" style="width:auto">Trotzdem spielen</button>
+  <div id="portrait-hint" role="alert" aria-hidden="true">
+    <div class="phone" aria-hidden="true">📱</div>
+    <p class="dreh-titel">Dreh dein Handy quer</p>
+    <p>Lumo spielt man im Querformat.</p>
   </div>
 </div>
 
@@ -482,6 +486,7 @@
   var KEYMAP = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', Space: 'j', ArrowUp: 'j', KeyW: 'j' };
   var RW_KEYS = { ArrowLeft: 'links', ArrowRight: 'rechts', ArrowUp: 'hoch', ArrowDown: 'runter' };
   window.addEventListener('keydown', function (e) {
+    if (querSperre()) { e.preventDefault(); return; } // hinter der Dreh-Anzeige wird nicht gespielt
     ensureAudio();
     if (KEYMAP[e.code] && mode === 'play') setGeraet('tasten');
     if (mode === 'reihenwahl') {
@@ -526,16 +531,24 @@
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', layout);
 
+  // Querformat-Pflicht (VP.mussQuerDrehen): Touch-Geraet im Hochformat zeigt nur die Dreh-Anzeige.
+  // Ein laufendes Level/Tutorial geht in die Pause (mode 'pause' meldet jnr:aktiv false) und bleibt
+  // nach dem Drehen dort, bis das Kind selbst auf Weiter tippt.
   var portraitMQ = window.matchMedia('(orientation: portrait)');
+  var touchMQ = window.matchMedia('(pointer: coarse)');
+  function querSperre() { return VP.mussQuerDrehen({ coarse: touchMQ.matches, portrait: portraitMQ.matches }); }
   function onOrient() {
-    if (portraitMQ.matches) {
-      if (mode === 'play' && !$('portrait-hint').classList.contains('dismissed')) pause();
-    } else {
-      $('portrait-hint').classList.remove('dismissed');
-    }
+    var gesperrt = querSperre();
+    document.body.classList.toggle('quer-pflicht', gesperrt);
+    $('portrait-hint').setAttribute('aria-hidden', gesperrt ? 'false' : 'true');
+    if (gesperrt && mode === 'play') pause();
   }
-  if (portraitMQ.addEventListener) portraitMQ.addEventListener('change', onOrient);
-  $('portrait-ok').addEventListener('click', function () { $('portrait-hint').classList.add('dismissed'); });
+  [portraitMQ, touchMQ].forEach(function (mq) {
+    if (mq.addEventListener) mq.addEventListener('change', onOrient);
+    else if (mq.addListener) mq.addListener(onOrient);
+  });
+  window.addEventListener('resize', onOrient);
+  onOrient();
 
   // ---------- Menü ----------
   function medalStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
@@ -874,7 +887,7 @@
     ]);
   }
   function resume() {
-    if (mode !== 'pause') return;
+    if (mode !== 'pause' || querSperre()) return;
     $('msg').classList.add('hidden'); setMode('play'); last = 0; acc = 0;
     if (tut) return;
     if (!tippFertig) showTipp(0);

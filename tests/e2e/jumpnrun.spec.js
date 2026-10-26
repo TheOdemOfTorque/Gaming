@@ -97,11 +97,33 @@ test('Touch: rechter Daumen springt, linker läuft (Multitouch über Pointer Eve
   expect(s1.onGround).toBe(false);
 });
 
-test('Hochformat zeigt den Dreh-Hinweis', async ({ page }) => {
+test('Touch-Gerät im Hochformat: bildschirmfüllende Dreh-Anzeige ohne Trotzdem-spielen-Knopf', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(URL1);
+  expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+  const hint = page.locator('#portrait-hint');
+  await expect(hint).toBeVisible();
+  await expect(hint).toContainText('Dreh dein Handy quer');
+  await expect(hint).toContainText('Querformat');
+  await expect(hint.locator('button')).toHaveCount(0);
+  await expect(page.locator('#portrait-ok')).toHaveCount(0);
+  const box = await hint.boundingBox();
+  expect(box.width).toBeGreaterThanOrEqual(390 - 1);
+  expect(box.height).toBeGreaterThanOrEqual(844 - 1);
+});
+
+test('Touch-Gerät im Hochformat: Dreh-Anzeige auch im Menü und in der Reihenwahl', async ({ page }) => {
+  await tutorialGesehen(page);
+  await page.goto('/jumpnrun/index.html');
+  await expect(page.locator('#menu')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator('#portrait-hint')).toBeVisible();
-  await expect(page.locator('#portrait-hint')).toContainText('Dreh dein iPhone');
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(page.locator('#portrait-hint')).toBeHidden();
+  await page.goto('/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1'); // Mathe-Stufe: erst die Reihenwahl
+  await expect(page.locator('#reihenwahl')).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('#portrait-hint')).toBeVisible();
 });
 
 test('Direktstart im Hochformat pausiert sofort hinter dem Dreh-Hinweis', async ({ page }) => {
@@ -768,5 +790,83 @@ test.describe('Debug-Hilfen nur mit Debug-Parameter', () => {
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await expect(page.locator('#menu')).toBeVisible();
     expect(await page.evaluate(() => typeof window.__jnr.state)).toBe('function');
+  });
+});
+
+test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
+  const vollHarness = (page) => page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><head><style>html,body{margin:0;height:100%;overflow:hidden}</style></head><body>' +
+      '<script>window.__aktiv = []; window.addEventListener("message", function (e) {' +
+      ' if (e.data && e.data.type === "jnr:aktiv") window.__aktiv.push(e.data.aktiv); });</script>' +
+      '<iframe id="f" style="border:0;width:100vw;height:100vh;display:block" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  const letztes = async page => { const a = await page.evaluate(() => window.__aktiv.slice()); return a[a.length - 1]; };
+  const fs = page => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+
+  test('Level: Hochformat pausiert und meldet nicht aktiv, Querformat lässt die Pause stehen', async ({ page }) => {
+    await vollHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await expect.poll(() => letztes(page)).toBe(false);
+    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await expect.poll(() => letztes(page)).toBe(true);
+    expect((await fs(page)).mode).toBe('play');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(frame.locator('#portrait-hint')).toBeVisible();
+    await expect.poll(async () => (await fs(page)).mode).toBe('pause');
+    await expect.poll(() => letztes(page)).toBe(false);
+    // Tastatur (z.B. iPad mit Tastatur) kann hinter der Anzeige nicht weiterspielen
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Enter');
+    expect((await fs(page)).mode).toBe('pause');
+
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(frame.locator('#portrait-hint')).toBeHidden();
+    await expect(frame.locator('#msg')).toBeVisible();
+    await expect(frame.getByRole('button', { name: 'Weiter' })).toBeVisible();
+    expect((await fs(page)).mode).toBe('pause');
+    expect(await letztes(page)).toBe(false);
+    await frame.getByRole('button', { name: 'Weiter' }).click();
+    await expect.poll(() => letztes(page)).toBe(true);
+  });
+
+  test('Tutorial: Hochformat pausiert, nach dem Drehen bleibt das Pausenmenü', async ({ page }) => {
+    await vollHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await sendTo(page, { type: 'jnr:init', jnr: {} });
+    await frame.locator('button[data-level="1-1"]').click();
+    await expect(frame.locator('#tut-box')).toBeVisible();
+    await expect.poll(() => letztes(page)).toBe(true);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(frame.locator('#portrait-hint')).toBeVisible();
+    await expect.poll(async () => (await fs(page)).mode).toBe('pause');
+    await expect.poll(() => letztes(page)).toBe(false);
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(frame.locator('#portrait-hint')).toBeHidden();
+    await expect(frame.getByRole('button', { name: 'Weiter' })).toBeVisible();
+    expect((await fs(page)).mode).toBe('pause');
+  });
+});
+
+test.describe('Querformat-Pflicht: Laptop/Desktop bleibt unberührt', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+
+  test('schmales Hochformat-Fenster mit feinem Zeiger: kein Dreh-Hinweis, Level läuft', async ({ page }) => {
+    await page.goto(URL1);
+    expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(false);
+    await expect(page.locator('#portrait-hint')).toBeHidden();
+    const a = await state(page);
+    expect(a.mode).toBe('play');
+    await page.waitForTimeout(300);
+    expect((await state(page)).t).toBeGreaterThan(a.t);
+  });
+
+  test('Menü im Hochformat-Fenster: kein Dreh-Hinweis', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await expect(page.locator('#menu')).toBeVisible();
+    await expect(page.locator('#portrait-hint')).toBeHidden();
   });
 });
