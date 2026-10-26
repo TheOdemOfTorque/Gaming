@@ -1220,7 +1220,8 @@ const CHANGELOG = [
   { version: '2.11', date: '2026-10-25', entries: [
     '🆕 Knobelwerkstatt: neues Mathe-Knobelspiel',
     '🆕 Lumo: kleines Spring-Spiel mit Zahlen',
-    '⚡ Knobeln nach einer Trainingsrunde am Tag',
+    '⚡ Knobeln nach einem durchgespielten Training am Tag',
+    '🐛 Keine gleiche Aufgabe mehr direkt hintereinander',
     '🐛 Kleine Verbesserungen unter der Haube',
   ]},
   { version: '2.10', date: '2026-05-22', entries: [
@@ -1954,7 +1955,7 @@ function gameCardHtml(gameId, icon, title, onClick) {
   } else if (!access.spielbar && access.grund === 'keine_sterne') {
     sub = '🔒 keine Sterne übrig';
   } else if (!access.spielbar && access.grund === 'keine_runde') {
-    sub = '🔒 Erst eine Runde trainieren';
+    sub = '🔒 Erst ein Training durchspielen';
   } else if (rule.kostetSternZeit) {
     const totalMin = state.gameSecondsLeft > 0
       ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
@@ -2758,11 +2759,18 @@ function makeQuestion() {
     const pair = game.sequence[game.qCount];
     a = pair.a; b = pair.b;
   } else if (game.mode === 'blitz') {
+    // Nie dieselbe Aufgabe direkt hintereinander (game.q ist noch die vorige Frage)
     const blitzCfg = _challengeConfig ?? state.blitzConfig;
-    a = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
+    ({ a, b } = zieheOhneWiederholung(() => {
+      const r = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings));
+      return { a: r, b: rnd(1, getMaxFactor(state.settings, r)) };
+    }, game.q));
   } else { // turnier (Marathon-Modus): unbegrenzte Fragen, sublineare Schwierigkeitskurve
     const max = marathonDifficulty(game.qCount, getMaxReihe(state.settings));
-    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(state.settings, a), max));
+    ({ a, b } = zieheOhneWiederholung(() => {
+      const r = rnd(2, max);
+      return { a: r, b: rnd(2, Math.max(getMaxFactor(state.settings, r), max)) };
+    }, game.q));
   }
 
   const rechenart = resolveRechenart(getActiveRechenartCfg());
@@ -3056,8 +3064,8 @@ function endGame(reason) {
     state.streak = state.lastPlayDate === yesterday.toDateString() ? state.streak+1 : 1;
     state.lastPlayDate = today;
   }
-  // Schaltet die Knobelwerkstatt für heute frei, aber nur mit mindestens einer beantworteten Aufgabe
-  if (rundeSchaltetKnobelFrei(game)) state.lastRoundDate = today;
+  // Schaltet die Knobelwerkstatt für heute frei, aber nur nach einem durchgespielten Training
+  if (rundeSchaltetKnobelFrei(game, reason)) state.lastRoundDate = today;
 
   state.totalCorrect += game.correct;
   state.totalGames++;

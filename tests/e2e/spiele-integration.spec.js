@@ -25,7 +25,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   test('Knobelwerkstatt ist ohne Runde am selben Tag gesperrt, auch per openGame', async ({ page }) => {
     await seedState(page, { lastRoundDate: 'Sat Oct 24 2026', lastPlayDate: new Date().toDateString() });
     const card = page.locator('.game-card[data-game="knobel"]');
-    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
+    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst ein Training durchspielen');
     await expect(card.locator('button')).toBeDisabled();
     await page.evaluate(() => openGame('knobel'));
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
@@ -55,10 +55,22 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
       showScreen('home');
     });
     expect(await page.evaluate(() => state.lastRoundDate)).toBe(null);
-    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
+    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst ein Training durchspielen');
     await expect(card.locator('button')).toBeDisabled();
     // Streak-Logik bleibt unverändert: die Runde zählt weiter als gespielt
     expect(await page.evaluate(() => [state.streak, state.lastPlayDate === new Date().toDateString()])).toEqual([1, true]);
+  });
+
+  test('Blitz mit vielen richtigen Antworten schaltet die Knobelwerkstatt nicht frei', async ({ page }) => {
+    await seedState(page, { lastRoundDate: null, lastPlayDate: null, streak: 0 });
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await page.evaluate(() => {
+      game.active = true; game.mode = 'blitz'; game.rechenart = 'mul'; game.correct = 25; game.wrong = 2;
+      endGame('timeout');
+      showScreen('home');
+    });
+    expect(await page.evaluate(() => state.lastRoundDate)).toBe(null);
+    await expect(card.locator('button')).toBeDisabled();
   });
 
   test('Streak-Schutz (lastPlayDate heute ohne Runde) schaltet Knobelwerkstatt nicht frei', async ({ page }) => {
