@@ -127,3 +127,49 @@ describe('generateTrainingSequence — Edge Cases', () => {
     });
   });
 });
+
+describe('generateTrainingSequence — keine direkte Wiederholung', () => {
+  const { ordneOhneDirekteWiederholung } = require('../../1x1-trainer/logic.js');
+  const key = p => p.a + 'x' + p.b;
+  function direkteWiederholungen(seq) {
+    let n = 0;
+    for (let i = 1; i < seq.length; i++) if (key(seq[i]) === key(seq[i - 1])) n++;
+    return n;
+  }
+  // Schwache 7er-Stats: Faktor 8 oft falsch, Faktor 3 oft falsch → hohes Leitner-Gewicht
+  function schwacheStats() {
+    return { 7: { 8: { correct: 1, wrong: 9, consecutiveCorrect: 0 },
+                  3: { correct: 0, wrong: 6, consecutiveCorrect: 0 } } };
+  }
+
+  test.each([
+    ['[3] kleines 1×1', settingsSmall, [3], emptyStats],
+    ['[7] großes 1×1', settingsLarge, [7], emptyStats],
+    ['[3,7] Mix', settingsSmall, [3, 7], emptyStats],
+    ['[7] mit schwachen Faktoren', settingsSmall, [7], schwacheStats],
+  ])('%s: über 500 Seeds nie dieselbe Aufgabe direkt hintereinander', (_n, settings, reihen, stats) => {
+    let summe = 0;
+    for (let seed = 1; seed <= 500; seed++) {
+      initSeededRNG(seed);
+      summe += direkteWiederholungen(generateTrainingSequence(stats(), settings(), reihen));
+    }
+    expect(summe).toBe(0);
+  });
+
+  test('Anzahl je Paar bleibt beim Umordnen erhalten', () => {
+    const pairs = [{a:3,b:1},{a:3,b:1},{a:3,b:2},{a:3,b:2},{a:3,b:2},{a:3,b:4}];
+    const out = ordneOhneDirekteWiederholung(pairs.slice());
+    expect(out.map(key).sort()).toEqual(pairs.map(key).sort());
+    expect(direkteWiederholungen(out)).toBe(0);
+  });
+
+  test('unlösbare Eingabe (5× dasselbe Paar) liefert alle Elemente ohne Fehler', () => {
+    const pairs = Array.from({ length: 5 }, () => ({ a: 4, b: 4 }));
+    const out = ordneOhneDirekteWiederholung(pairs);
+    expect(out).toHaveLength(5);
+  });
+
+  test('leere Eingabe → leeres Array', () => {
+    expect(ordneOhneDirekteWiederholung([])).toEqual([]);
+  });
+});

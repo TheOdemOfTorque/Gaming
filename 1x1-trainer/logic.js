@@ -291,12 +291,58 @@ function generateTrainingSequence(questionStats, settings, reihen) {
     const maxF = getMaxFactor(settings, r);
     const requiredCount = Math.min(maxF, share);
     const required = shuffle(Array.from({ length: maxF }, (_, i) => i + 1)).slice(0, requiredCount);
-    const extras = Array.from({ length: Math.max(0, share - requiredCount) },
-                              () => pickWeightedFactor(questionStats, r, maxF));
+    // Kein Faktor öfter als ⌈share/2⌉-mal, sonst lässt er sich nicht ohne direkte Wiederholung anordnen
+    const maxJeFaktor = Math.ceil(share / 2);
+    const anzahl = {};
+    required.forEach(b => { anzahl[b] = 1; });
+    const extras = [];
+    for (let i = 0; i < share - requiredCount; i++) {
+      let b = pickWeightedFactor(questionStats, r, maxF);
+      if ((anzahl[b] || 0) >= maxJeFaktor) b = required.find(f => anzahl[f] < maxJeFaktor) ?? b;
+      anzahl[b] = (anzahl[b] || 0) + 1;
+      extras.push(b);
+    }
     [...required, ...extras].forEach(b => pairs.push({ a: r, b }));
   });
 
-  return shuffle(pairs);
+  return ordneOhneDirekteWiederholung(shuffle(pairs));
+}
+
+// Ordnet {a,b}-Paare so an, dass nie dasselbe Paar direkt hintereinander kommt (Marco, 26.10.2026).
+// Gierig: unter den Paaren, die sich vom zuletzt gesetzten unterscheiden, gewinnt das mit der
+// höchsten Restanzahl (sonst bleibt am Ende ein Rest aus lauter gleichen); Gleichstand per _rng.
+// Unlösbare Eingaben (ein Paar öfter als ⌈n/2⌉-mal) werden bestmöglich angeordnet.
+// Tests: tests/unit/training-sequence.test.js
+function ordneOhneDirekteWiederholung(pairs) {
+  const gruppen = new Map();
+  pairs.forEach(p => {
+    const k = p.a + 'x' + p.b;
+    if (!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(p);
+  });
+  const out = [];
+  let letzte = null;
+  while (out.length < pairs.length) {
+    const offen = [...gruppen.entries()].filter(([, g]) => g.length > 0);
+    const erlaubt = offen.filter(([k]) => k !== letzte);
+    const kandidaten = erlaubt.length ? erlaubt : offen;
+    const max = Math.max(...kandidaten.map(([, g]) => g.length));
+    const beste = kandidaten.filter(([, g]) => g.length === max);
+    const [k, g] = beste[Math.floor(_rng() * beste.length)];
+    out.push(g.pop());
+    letzte = k;
+  }
+  return out;
+}
+
+// Zieht eine Blitz- oder Marathon-Aufgabe neu, solange sie der letzten gleicht (gleiches a und b).
+// Nach maxVersuche wird das zuletzt gezogene Paar genommen (nur bei einem Pool aus einem Paar
+// denkbar). Tests: tests/unit/random-helpers.test.js
+function zieheOhneWiederholung(ziehen, letzte, maxVersuche = 20) {
+  let q = ziehen();
+  if (!letzte) return q;
+  for (let i = 1; i < maxVersuche && q.a === letzte.a && q.b === letzte.b; i++) q = ziehen();
+  return q;
 }
 
 function pickBlitzReihe(blitzConfig, maxReihe) {
@@ -444,11 +490,12 @@ function getGameAccess(state, gameId, heute) {
   return { spielbar: true, grund: null };
 }
 
-// Zählt die Runde für die Knobel-Freischaltung (state.lastRoundDate)? Nur wenn mindestens
-// eine Aufgabe beantwortet wurde: ein Blitz-Timeout ohne Antwort schaltet nichts frei.
-// Die Streak-Logik in endGame() ist davon unabhängig. Tests: tests/unit/spiele-zugang.test.js
-function rundeSchaltetKnobelFrei(game) {
-  if (!game) return false;
+// Zählt die Runde für die Knobel-Freischaltung (state.lastRoundDate)? Nur ein durchgespieltes
+// Training (endGame('complete')) mit mindestens einer beantworteten Aufgabe; Blitz und Marathon
+// schalten nichts frei (Marco, 26.10.2026). Die Streak-Logik in endGame() ist davon unabhängig.
+// Tests: tests/unit/spiele-zugang.test.js
+function rundeSchaltetKnobelFrei(game, reason) {
+  if (!game || game.mode !== 'training' || reason !== 'complete') return false;
   return (game.correct || 0) + (game.wrong || 0) > 0;
 }
 
@@ -745,6 +792,7 @@ if (typeof module !== 'undefined') {
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
+                     ordneOhneDirekteWiederholung, zieheOhneWiederholung,
                      lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,

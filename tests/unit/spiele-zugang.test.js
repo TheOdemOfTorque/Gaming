@@ -121,17 +121,25 @@ describe('tickStarTime', () => {
 describe('rundeSchaltetKnobelFrei', () => {
   const { rundeSchaltetKnobelFrei } = require('../../1x1-trainer/logic.js');
 
-  test('Runde ohne eine beantwortete Aufgabe (z.B. Blitz-Timeout) schaltet nicht frei', () => {
-    expect(rundeSchaltetKnobelFrei({ mode: 'blitz', correct: 0, wrong: 0 })).toBe(false);
+  test('durchgespieltes Training schaltet frei', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 15, wrong: 5 }, 'complete')).toBe(true);
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 0, wrong: 20 }, 'complete')).toBe(true);
   });
 
-  test('eine richtige oder eine falsche Antwort reicht', () => {
-    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 1, wrong: 0 })).toBe(true);
-    expect(rundeSchaltetKnobelFrei({ mode: 'turnier', correct: 0, wrong: 1 })).toBe(true);
+  test('Blitz und Marathon schalten nicht frei, auch mit vielen richtigen Antworten', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'blitz', correct: 40, wrong: 0 }, 'timeout')).toBe(false);
+    expect(rundeSchaltetKnobelFrei({ mode: 'turnier', correct: 60, wrong: 3 }, 'no-lives')).toBe(false);
+    expect(rundeSchaltetKnobelFrei({ mode: 'blitz', correct: 40, wrong: 0 }, 'complete')).toBe(false);
   });
 
-  test('fehlende Zaehler oder kein Spiel gelten als nicht beantwortet', () => {
-    expect(rundeSchaltetKnobelFrei({})).toBe(false);
-    expect(rundeSchaltetKnobelFrei(null)).toBe(false);
+  test('Training ohne Abschluss schaltet nicht frei', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 10, wrong: 0 })).toBe(false);
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 10, wrong: 0 }, 'timeout')).toBe(false);
+  });
+
+  test('Training ohne eine beantwortete Aufgabe, fehlende Zaehler oder kein Spiel schalten nicht frei', () => {
+    expect(rundeSchaltetKnobelFrei({ mode: 'training', correct: 0, wrong: 0 }, 'complete')).toBe(false);
+    expect(rundeSchaltetKnobelFrei({}, 'complete')).toBe(false);
+    expect(rundeSchaltetKnobelFrei(null, 'complete')).toBe(false);
   });
 });
