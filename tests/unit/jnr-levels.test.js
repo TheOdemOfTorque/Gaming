@@ -132,3 +132,16 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     expect(sawFailure).toBe(true);
   });
 });
+
+describe('menuUntertitel (Levelauswahl, QA-Befund N2)', () => {
+  test('Mathe-Stufe nennt keine feste Reihe mehr, die Reihe kommt aus der Reihenwahl', () => {
+    const t = D.menuUntertitel(D.byId('1-2'), { mathe: 'ziel' });
+    expect(t).toBe('Reihe wählst du vor dem Start');
+    expect(t).not.toMatch(/er-Reihe/);
+  });
+
+  test('Stufe ohne Zahlen und Mathe-Stufe bei ausgeschaltetem Zahlen-Modus: Laufen, Springen, Sammeln', () => {
+    expect(D.menuUntertitel(D.byId('1-1'), { mathe: 'ziel' })).toBe('Laufen, Springen, Sammeln');
+    expect(D.menuUntertitel(D.byId('1-2'), { mathe: 'aus' })).toBe('Laufen, Springen, Sammeln');
+  });
+});

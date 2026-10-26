@@ -18,7 +18,7 @@
     },
     {
       id: '1-2', name: 'Zahlenwiese', welt: 1, weltName: 'Dämmerwiese',
-      mathe: true, reihe: 2, // Federpilz, Dornen, Rechenwichte, Zielzahl: 2er-Reihe
+      mathe: true, reihe: 2, // Federpilz, Dornen, Rechenwichte; reihe = Vorschlag, das Kind waehlt vor dem Start
       gen: { minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18, gegner: true }
     }
   ];
@@ -50,5 +50,12 @@
     return !!meta.mathe && !(options && options.mathe === 'aus');
   }
 
-  return { STAGES: STAGES, ORDER: ORDER, byId: byId, generateFor: generateFor, gameOptions: gameOptions, brauchtReihenwahl: brauchtReihenwahl };
+  // Untertitel eines Level-Knopfs in der Levelauswahl. Die Reihe waehlt das Kind erst auf dem
+  // Auswahlbildschirm, meta.reihe ist nur noch der Vorschlag, deshalb nennt der Knopf keine.
+  function menuUntertitel(meta, options) {
+    return brauchtReihenwahl(meta, options) ? 'Reihe wählst du vor dem Start' : 'Laufen, Springen, Sammeln';
+  }
+
+  return { STAGES: STAGES, ORDER: ORDER, byId: byId, generateFor: generateFor, gameOptions: gameOptions,
+    brauchtReihenwahl: brauchtReihenwahl, menuUntertitel: menuUntertitel };
 });
