@@ -817,10 +817,23 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     await expect(frame.locator('#portrait-hint')).toBeVisible();
     await expect.poll(async () => (await fs(page)).mode).toBe('pause');
     await expect.poll(() => letztes(page)).toBe(false);
-    // Tastatur (z.B. iPad mit Tastatur) kann hinter der Anzeige nicht weiterspielen
+    // Tastatur (z.B. iPad mit Tastatur) kann hinter der Anzeige nicht weiterspielen.
+    // Fokus ins Lumo-iframe, sonst landen die Tasten im Harness.
+    await page.evaluate(() => document.getElementById('f').contentWindow.focus());
+    expect(await page.evaluate(() => document.getElementById('f').contentDocument.hasFocus())).toBe(true);
     await page.keyboard.press('Escape');
-    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
     expect((await fs(page)).mode).toBe('pause');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(100);
+    expect((await fs(page)).mode).toBe('pause');
+    // Auch der (verdeckte) Weiter-Knopf setzt das Spiel nicht fort
+    await page.evaluate(() => {
+      const d = document.getElementById('f').contentDocument;
+      [...d.querySelectorAll('#msg-buttons button')].find(b => b.textContent === 'Weiter').click();
+    });
+    expect((await fs(page)).mode).toBe('pause');
+    expect(await letztes(page)).toBe(false);
 
     await page.setViewportSize({ width: 844, height: 390 });
     await expect(frame.locator('#portrait-hint')).toBeHidden();
@@ -830,6 +843,37 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     expect(await letztes(page)).toBe(false);
     await frame.getByRole('button', { name: 'Weiter' }).click();
     await expect.poll(() => letztes(page)).toBe(true);
+  });
+
+  test('Direktstart im Hochformat geht sofort in die Pause, ohne je aktiv zu melden', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await vollHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await expect.poll(() => page.evaluate(() => window.__aktiv.length)).toBe(1);
+    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await expect.poll(async () => (await fs(page)).mode).toBe('pause');
+    await expect(frame.locator('#portrait-hint')).toBeVisible();
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__aktiv.slice())).toEqual([false, false]); // Start + Antwort auf jnr:init
+    expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state().pauseTon)).toBe(0);
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(frame.getByRole('button', { name: 'Weiter' })).toBeVisible();
+    await frame.getByRole('button', { name: 'Weiter' }).click();
+    await expect.poll(() => letztes(page)).toBe(true);
+  });
+
+  test('Tutorial-Direktstart im Hochformat: sofort Pause, nie aktiv', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await vollHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    await expect.poll(() => page.evaluate(() => window.__aktiv.length)).toBe(1);
+    await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true } });
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.startTutorial());
+    await expect.poll(async () => (await fs(page)).mode).toBe('pause');
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__aktiv.includes(true))).toBe(false);
+    expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state().pauseTon)).toBe(0);
   });
 
   test('Tutorial: Hochformat pausiert, nach dem Drehen bleibt das Pausenmenü', async ({ page }) => {

@@ -691,9 +691,8 @@
     updateHud();
     if (o.mode === 'ziel') showZielIntro(o.reihe); else $('ziel-intro').classList.add('hidden');
     showTipp(o.mode === 'ziel' ? 2200 : 0);
-    setMode('play');
     jnr.lastLevel = id;
-    onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
+    spielLosOderPause();
   }
   function updateHud() {
     $('funken').textContent = '✦ ' + game.funken;
@@ -804,8 +803,7 @@
     updateHud();
     $('tut-box').classList.remove('hidden');
     renderTut();
-    setMode('play');
-    onOrient();
+    spielLosOderPause();
   }
   function renderTut() {
     if (!tut) return;
@@ -864,9 +862,18 @@
     if (mainEl) { try { mainEl.focus({ preventScroll: true }); } catch (e) { mainEl.focus(); } }
   }
   function msgOffen() { return !$('msg').classList.contains('hidden'); }
+  var pauseTon = 0; // nur fuer Tests (window.__jnr.state)
   function pause() {
     if (mode !== 'play') return;
-    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); stopTipp();
+    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); pauseTon++; stopTipp();
+    showPauseMsg();
+  }
+  // Start von Level oder Tutorial: hinter der Dreh-Anzeige (Touch-Geraet im Hochformat) direkt in
+  // die Pause, ohne vorher 'play' zu melden (kein kurzes jnr:aktiv true, kein Pause-Ton).
+  function spielLosOderPause() {
+    onOrient();
+    if (!querSperre()) { setMode('play'); return; }
+    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); stopTipp();
     showPauseMsg();
   }
   function showPauseMsg() {
@@ -1366,7 +1373,7 @@
       if (!game) return { mode: mode, tutorial: null, tutorialGesehen: jnr.tutorialGesehen };
       var p = game.player;
       return {
-        mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
+        mode: mode, pauseTon: pauseTon, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
         reihe: aktReihe, status: game.status, t: game.t, fehltreffer: game.fehltreffer,
         leben: game.leben, energie: game.energie, unverwundbar: game.unverwundbar,
         tutorial: tut ? { schritt: TU.schritt(tut), index: tut.index, hinweis: tut.hinweis, fertig: tut.fertig } : null,
