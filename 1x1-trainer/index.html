@@ -1996,6 +1996,19 @@ function startLumoTimer() {
   });
 }
 
+// Stern-Zeit in Lumo läuft nur, solange aktiv gespielt wird: Lumo meldet jeden Wechsel per
+// jnr:aktiv (Vertrag jumpnrun/core/host.js). Menü, Reihenwahl, Pause, Hilfe, Game Over und der
+// Gewonnen-Dialog halten die Zeit an. lumoTimerSollLaufen (logic.js) entscheidet, syncLumoTimer
+// setzt es um; aufgerufen bei jnr:aktiv, nach dem Laden und bei visibilitychange.
+let lumoAktiv = lumoAktivNeu();
+let lumoSternZeit = false; // Stern-Zeit für dieses Öffnen eingelöst (Spiel geladen)
+function syncLumoTimer() {
+  if (currentGame !== 'jnr') return;
+  const soll = lumoTimerSollLaufen(lumoAktiv, { sichtbar: !document.hidden, sternZeit: lumoSternZeit });
+  if (soll && !starTimerInterval) startLumoTimer();
+  else if (!soll) stopStarTimer();
+}
+
 function sendToGameFrame(msg) {
   const frame = document.getElementById('game-frame');
   if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, location.origin);
@@ -2007,6 +2020,8 @@ function openGame(gameId) {
 
   const rule = GAME_RULES[gameId];
   currentGame = gameId;
+  lumoAktiv = lumoAktivNeu();
+  lumoSternZeit = false;
   const frame = document.getElementById('game-frame');
   document.getElementById('game-overlay-timer').classList.remove('show');
   frame.onload = () => {
@@ -2025,7 +2040,11 @@ function openGame(gameId) {
       Object.assign(state, sternZeitEinloesen(state, gameId).state);
       saveState();
       updateHomeUI();
-      startLumoTimer();
+      if (gameId === 'jnr') {
+        lumoSternZeit = true;
+        updateLumoTimerDisplay();
+        syncLumoTimer(); // läuft erst, wenn Lumo jnr:aktiv true meldet (oder nie meldet: alter Cache)
+      }
     }
     if (gameId === 'knobel') {
       frame.contentWindow.postMessage({
@@ -2057,6 +2076,8 @@ function closeGame() {
   frame.onload = null;
   frame.src = 'about:blank'; // stoppt Loop/Audio im iframe sauber
   currentGame = null;
+  lumoAktiv = lumoAktivNeu();
+  lumoSternZeit = false;
   updateHomeUI();
 }
 
@@ -2077,6 +2098,10 @@ window.addEventListener('message', (e) => {
     Object.assign(state, next);
     saveState();
     updateHomeUI();
+  } else if (e.data.type === 'jnr:aktiv') {
+    if (currentGame !== 'jnr') return;
+    lumoAktiv = applyJnrAktiv(lumoAktiv, e.data);
+    syncLumoTimer();
   } else if (e.data.type === 'jnr:tutorial') {
     // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
     Object.assign(state, applyJnrTutorial(state, e.data));
@@ -3030,7 +3055,8 @@ function endGame(reason) {
     state.streak = state.lastPlayDate === yesterday.toDateString() ? state.streak+1 : 1;
     state.lastPlayDate = today;
   }
-  state.lastRoundDate = today; // schaltet die Knobelwerkstatt für heute frei
+  // Schaltet die Knobelwerkstatt für heute frei, aber nur mit mindestens einer beantworteten Aufgabe
+  if (rundeSchaltetKnobelFrei(game)) state.lastRoundDate = today;
 
   state.totalCorrect += game.correct;
   state.totalGames++;
@@ -4282,7 +4308,7 @@ document.addEventListener('visibilitychange', () => {
     if (currentGame === 'jnr') sendToGameFrame({ type: 'jnr:pause' });
   } else {
     if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
-    else if (currentGame === 'jnr') startLumoTimer();
+    else if (currentGame === 'jnr') syncLumoTimer(); // startet nur, wenn Lumo gerade aktiv ist
     // Nach Mitternacht ist die Knobel-Freischaltung von gestern abgelaufen: Karten neu berechnen.
     if (!currentGame) renderGamesBar();
     if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }

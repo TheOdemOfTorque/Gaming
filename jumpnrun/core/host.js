@@ -18,6 +18,17 @@
 //       (noch) nicht kennt: Lumo merkt sich das Flag zusaetzlich in sessionStorage (`henry_jnr_tutorial`),
 //       damit es in derselben Browser-Sitzung nicht bei jedem Oeffnen wieder startet.
 //
+//   Spiel -> Trainer, bei jedem Wechsel in den aktiven Spielmodus oder heraus (createAktivMelder):
+//     parent.postMessage({ type: 'jnr:aktiv', aktiv: true|false }, location.origin)
+//       aktiv  true nur in mode 'play' (ein Level oder das Mitmach-Tutorial laeuft), false in Menue/
+//              Levelauswahl, Reihenwahl, Pause-Dialog (auch Hilfe daraus, Dreh-Hinweis), Game Over,
+//              Gewonnen-Dialog und nach jnr:timeup. Die Hilfe im Menue bleibt mode 'menu'.
+//       Der Trainer laesst die Stern-Zeit nur laufen, solange aktiv true ist (lumoTimerSollLaufen in
+//       1x1-trainer/logic.js; Herkunft wie bei jnr:result geprueft). Lumo meldet seinen ersten Stand
+//       sofort beim Start und den aktuellen Stand nochmals als Antwort auf jedes jnr:init. Ein Lumo,
+//       das (z.B. aus einem alten Cache) nie jnr:aktiv sendet, laesst die Zeit wie frueher durchlaufen.
+//       Standalone (ohne Parent) sendet Lumo nichts.
+//
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
 //     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
@@ -36,6 +47,10 @@
 //     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus, Hinweis),
 //                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
 //                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
+//
+//   Debug-Hilfen (window.__jnr) gibt es nur mit einem Debug-Parameter in der URL (debugErlaubt):
+//   ?jnrDebug=1 oder einer der Debug-Parameter jnrLevel, jnrSeed, jnrReihe, jnrTutorial=1. Der Trainer
+//   laedt Lumo ohne Parameter, im Trainer gibt es also keine Debug-Hilfen.
 //
 //   Im eingebetteten Modus schreibt das Spiel NICHT in localStorage. Standalone speichert es unter
 //   `henry_jnr` (siehe rewards.js, Form wie state.jnr in der Spec).
@@ -81,11 +96,38 @@
     return null;
   }
 
+  function buildAktivMessage(aktiv) { return { type: 'jnr:aktiv', aktiv: !!aktiv }; }
+
+  // Aktiv gespielt wird nur in mode 'play' (Level oder Tutorial), siehe Vertrag oben.
+  function istAktiv(mode) { return mode === 'play'; }
+
+  // Meldet den Aktivzustand ueber send(msg), aber nur bei einem Wechsel (der erste Aufruf meldet
+  // immer). immer = true meldet den aktuellen Stand erneut (Antwort auf jnr:init).
+  function createAktivMelder(send) {
+    var letzter = null;
+    return {
+      melde: function (mode, immer) {
+        var a = istAktiv(mode);
+        if (a === letzter && !immer) return false;
+        letzter = a;
+        send(buildAktivMessage(a));
+        return true;
+      }
+    };
+  }
+
+  // search: location.search ('?jnrDebug=1&...'). true, wenn window.__jnr bereitgestellt werden darf.
+  function debugErlaubt(search) {
+    var q = new URLSearchParams(search || '');
+    return q.get('jnrDebug') === '1' || q.get('jnrTutorial') === '1' ||
+      q.has('jnrLevel') || q.has('jnrSeed') || q.has('jnrReihe');
+  }
+
   function isTrustedMessage(event, ownOrigin, parentWindow) {
     return !!event && event.origin === ownOrigin && event.source === parentWindow;
   }
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

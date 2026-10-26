@@ -103,3 +103,55 @@ describe('Tutorial-Vertrag', () => {
     expect(H.parseHostMessage({ type: 'jnr:tutorial', gesehen: true })).toBeNull();
   });
 });
+
+describe('jnr:aktiv (Stern-Zeit laeuft nur im aktiven Spiel)', () => {
+  test('buildAktivMessage hat genau die Vertragsfelder', () => {
+    expect(H.buildAktivMessage(true)).toEqual({ type: 'jnr:aktiv', aktiv: true });
+    expect(H.buildAktivMessage(false)).toEqual({ type: 'jnr:aktiv', aktiv: false });
+    expect(H.buildAktivMessage(1)).toEqual({ type: 'jnr:aktiv', aktiv: true });
+  });
+
+  test('nur mode play (Level oder Tutorial) ist aktiv', () => {
+    expect(H.istAktiv('play')).toBe(true);
+    ['menu', 'reihenwahl', 'pause', 'won', 'lost', 'ended', undefined].forEach((m) => {
+      expect(H.istAktiv(m)).toBe(false);
+    });
+  });
+
+  test('Melder sendet nur bei einem Wechsel, auf Wunsch den aktuellen Stand erneut', () => {
+    const sent = [];
+    const m = H.createAktivMelder((msg) => sent.push(msg));
+    m.melde('menu');               // erster Stand wird immer gemeldet
+    m.melde('menu');
+    m.melde('reihenwahl');         // weiter nicht aktiv: nichts
+    m.melde('play');
+    m.melde('play');
+    m.melde('pause');
+    m.melde('pause', true);        // z.B. als Antwort auf jnr:init
+    expect(sent).toEqual([
+      { type: 'jnr:aktiv', aktiv: false },
+      { type: 'jnr:aktiv', aktiv: true },
+      { type: 'jnr:aktiv', aktiv: false },
+      { type: 'jnr:aktiv', aktiv: false },
+    ]);
+  });
+
+  test('das Spiel versteht jnr:aktiv nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
+    expect(H.parseHostMessage({ type: 'jnr:aktiv', aktiv: true })).toBeNull();
+  });
+});
+
+describe('debugErlaubt (window.__jnr nur mit Debug-Parameter)', () => {
+  test('ohne Parameter oder mit fremden Parametern: keine Debug-Hilfen', () => {
+    expect(H.debugErlaubt('')).toBe(false);
+    expect(H.debugErlaubt('?foo=1')).toBe(false);
+    expect(H.debugErlaubt('?jnrDebug=0')).toBe(false);
+    expect(H.debugErlaubt('?jnrTutorial=0')).toBe(false);
+    expect(H.debugErlaubt(undefined)).toBe(false);
+  });
+  test('jnrDebug=1 und die bestehenden Debug-Parameter schalten frei', () => {
+    ['?jnrDebug=1', '?jnrLevel=1-1', '?jnrSeed=3', '?jnrReihe=7', '?jnrTutorial=1', 'jnrDebug=1', '?a=1&jnrSeed=1'].forEach((q) => {
+      expect(H.debugErlaubt(q)).toBe(true);
+    });
+  });
+});

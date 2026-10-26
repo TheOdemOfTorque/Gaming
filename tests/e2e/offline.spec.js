@@ -7,7 +7,12 @@ const { defaultState, migrateState } = require('../../1x1-trainer/logic.js');
 test.use({ serviceWorkers: 'allow' });
 test.skip(({ browserName }) => browserName !== 'chromium', 'Service-Worker-Offline-Tests nur in Chromium');
 
-const CACHES = ['1x1-trainer-v28', 'knobel-v9', 'jumpnrun-v1'];
+// Cache-Namen direkt aus den Service Workern lesen: ein Release-Bump bricht den Test nicht.
+const cacheVon = (rel) => require('fs').readFileSync(require('path').join(__dirname, '..', '..', rel), 'utf8')
+  .match(/const CACHE = '([^']+)'/)[1];
+const TRAINER_CACHE = cacheVon('1x1-trainer/sw.js'), KNOBEL_CACHE = cacheVon('knobel/sw.js'), LUMO_CACHE = cacheVon('jumpnrun/sw.js');
+const LUMO_CACHE_NEU = LUMO_CACHE.replace(/\d+$/, (n) => String(Number(n) + 1));
+const CACHES = [TRAINER_CACHE, KNOBEL_CACHE, LUMO_CACHE];
 
 test.beforeEach(async ({ context }) => {
   await context.route((url) => url.hostname !== 'localhost', (route) => route.abort());
@@ -157,7 +162,7 @@ test.describe('Update eines Spiels', () => {
       fs.writeFileSync(datei(rel), fn(fs.readFileSync(datei(rel), 'utf8')));
       fs.utimesSync(datei(rel), spaeter, spaeter);
     };
-    aendern('sw.js', (t) => t.replace("'jumpnrun-v1'", "'jumpnrun-v2'"));
+    aendern('sw.js', (t) => t.replace("'" + LUMO_CACHE + "'", "'" + LUMO_CACHE_NEU + "'"));
     aendern('index.html', (t) => t.replace('<title>Lumo und die Zahlennacht</title>', '<title>Lumo NEU</title>'));
     aendern('core/rewards.js', (t) => t + '\n;window.__lumoNeu = true;\n');
 
@@ -165,7 +170,7 @@ test.describe('Update eines Spiels', () => {
       const reg = (await navigator.serviceWorker.getRegistrations()).find((r) => new URL(r.scope).pathname === '/jumpnrun/');
       await reg.update();
     });
-    await expect.poll(() => cacheNamen(page), { timeout: 15000 }).toEqual(['1x1-trainer-v28', 'jumpnrun-v2', 'knobel-v9']);
+    await expect.poll(() => cacheNamen(page), { timeout: 15000 }).toEqual([TRAINER_CACHE, LUMO_CACHE_NEU, KNOBEL_CACHE].sort());
 
     await offlineOhneHttpCache(context, page);
     await page.reload();

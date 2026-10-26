@@ -36,7 +36,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     const card = page.locator('.game-card[data-game="knobel"]');
     await expect(card.locator('button')).toBeDisabled();
     await page.evaluate(() => {
-      game.active = true; game.mode = 'training'; game.correct = 0; game.wrong = 0;
+      game.active = true; game.mode = 'training'; game.correct = 1; game.wrong = 0;
       endGame('complete');
       showScreen('home');
     });
@@ -44,6 +44,21 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(card.locator('button')).toBeEnabled();
     await page.evaluate(() => openGame('knobel'));
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+  });
+
+  test('Blitz-Runde ohne eine einzige Antwort (Timeout) schaltet die Knobelwerkstatt nicht frei', async ({ page }) => {
+    await seedState(page, { lastRoundDate: null, lastPlayDate: null, streak: 0 });
+    const card = page.locator('.game-card[data-game="knobel"]');
+    await page.evaluate(() => {
+      game.active = true; game.mode = 'blitz'; game.rechenart = 'mul'; game.correct = 0; game.wrong = 0;
+      endGame('timeout');
+      showScreen('home');
+    });
+    expect(await page.evaluate(() => state.lastRoundDate)).toBe(null);
+    await expect(card.locator('.game-card-sub')).toHaveText('🔒 Erst eine Runde trainieren');
+    await expect(card.locator('button')).toBeDisabled();
+    // Streak-Logik bleibt unverändert: die Runde zählt weiter als gespielt
+    expect(await page.evaluate(() => [state.streak, state.lastPlayDate === new Date().toDateString()])).toEqual([1, true]);
   });
 
   test('Streak-Schutz (lastPlayDate heute ohne Runde) schaltet Knobelwerkstatt nicht frei', async ({ page }) => {
@@ -123,9 +138,13 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   });
 
   test('Timer-Ablauf schließt Lumo automatisch und sendet jnr:timeup', async ({ page }) => {
-    await seedState(page, { gameSecondsLeft: 2 });
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 2, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('.game-card[data-game="jnr"] button').click();
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+    // Die Stern-Zeit läuft nur im aktiven Spiel (jnr:aktiv): ein Level starten
+    await page.frameLocator('#game-frame').locator('button[data-level="1-1"]').click();
 
     // sendToGameFrame im Parent abfangen statt im iframe zu lauschen — das iframe
     // wird beim Schließen sofort auf about:blank gesetzt und sein JS-Kontext verworfen.
@@ -142,6 +161,49 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
 
     const secondsLeft = await page.evaluate(() => state.gameSecondsLeft);
     expect(secondsLeft).toBe(0);
+  });
+
+  test('Stern-Zeit steht in Lumos Menü, Reihenwahl und Pause-Dialog und läuft nur im Spiel', async ({ page }) => {
+    const base = migrateState(defaultState());
+    const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } }, tutorialGesehen: true });
+    await seedState(page, { gameSecondsLeft: 600, jnr });
+    await page.setViewportSize({ width: 844, height: 390 });
+    const sekunden = () => page.evaluate(() => state.gameSecondsLeft);
+    const stehtFuer = async (ms) => {
+      const vorher = await sekunden();
+      await page.waitForTimeout(ms);
+      expect(await sekunden()).toBe(vorher);
+      return vorher;
+    };
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(frame.locator('#menu')).toBeVisible();
+    // Der Trainer reicht keine Debug-Parameter durch: im iframe gibt es kein window.__jnr
+    expect(await page.evaluate(() => typeof document.getElementById('game-frame').contentWindow.__jnr)).toBe('undefined');
+    await expect.poll(() => page.evaluate(() => lumoAktiv)).toEqual({ meldet: true, aktiv: false });
+    expect(await stehtFuer(2300)).toBe(600); // Menü: steht
+
+    await frame.locator('button[data-level="1-2"]').click();
+    await expect(frame.locator('#reihenwahl')).toBeVisible();
+    await stehtFuer(2300); // Reihenwahl: steht
+    // App-Wechsel zurück (visibilitychange, sichtbar) startet den Timer nicht, solange Lumo nicht aktiv ist
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await stehtFuer(2300);
+
+    await frame.locator('#rw-los').click();
+    await expect.poll(sekunden, { timeout: 5000 }).toBeLessThan(600); // im Spiel läuft sie
+
+    await frame.locator('#btn-pause').click();
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await page.waitForTimeout(300); // eine laufende Sekunde darf noch zu Ende gehen
+    await stehtFuer(2300); // Pause-Dialog: steht
+    await frame.getByRole('button', { name: '? So spielst du' }).click();
+    await stehtFuer(1500); // Hilfe aus der Pause: steht
+
+    await frame.getByRole('button', { name: 'Verstanden' }).click();
+    await frame.getByRole('button', { name: 'Weiter' }).click();
+    const weiter = await sekunden();
+    await expect.poll(sekunden, { timeout: 5000 }).toBeLessThan(weiter); // nach "Weiter" läuft sie wieder
   });
 
   test('Knobelwerkstatt im iframe: "Zum Trainer"-Link ist nicht sichtbar/klickbar (würde den Trainer im iframe verschachteln)', async ({ page }) => {
