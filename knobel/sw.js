@@ -1,4 +1,5 @@
 const CACHE = 'knobel-v9'; // bei jedem Release hochzählen
+// Ändert sich knobel-logic.js, auch CACHE in 1x1-trainer/sw.js hochzählen: der Trainer lädt die Datei selbst.
 // Alle SWs des Origins teilen sich den CacheStorage: nur eigene alte Versionen löschen.
 const PRAEFIX = CACHE.replace(/v\d+$/, '');
 const ASSETS = ['./', './index.html', './knobel-logic.js', './manifest.json', './icon-192.png', './icon-512.png',

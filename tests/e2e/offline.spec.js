@@ -125,8 +125,7 @@ test.describe('Update eines Spiels', () => {
   let server;
 
   test.beforeAll(async () => {
-    fs.mkdirSync('/private/tmp/claude-501', { recursive: true });
-    dir = fs.mkdtempSync('/private/tmp/claude-501/sw-update-');
+    dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'sw-update-'));
     for (const d of ['1x1-trainer', 'knobel', 'jumpnrun']) fs.cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true });
     server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', 'localhost', '--directory', dir], { stdio: 'ignore' });
     for (let i = 0; i < 50; i++) {
