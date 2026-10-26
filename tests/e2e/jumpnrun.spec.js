@@ -605,6 +605,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     await page.keyboard.down('ArrowRight');
     await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!', { timeout: 10000 });
     await page.keyboard.up('ArrowRight');
+    await expect(page.locator('#tut-box')).toBeHidden(); // Sprechblase weg, sobald der Dialog kommt
     const s = await state(page);
     expect(s.leben).toBe(3);
     expect(s.tutorialGesehen).toBe(true);
@@ -653,24 +654,29 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     expect((await state(page)).leben).toBe(3);
   });
 
-  test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
+  test('Tutorial beenden per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('button[data-level="1-1"]');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.locator('#tut-skip')).toBeFocused();
+    await expect(page.locator('#tut-skip')).toHaveText('Tutorial beenden');
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeHidden();
     expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1', tutorial: null, tutorialGesehen: true });
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem('henry_jnr')))).tutorialGesehen).toBe(true);
   });
 
-  test('Überspringen über das Pausenmenü (Esc)', async ({ page }) => {
+  test('Tutorial beenden über das Pausenmenü (Esc)', async ({ page }) => {
     await page.goto('/jumpnrun/index.html?jnrTutorial=1');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('#msg-title')).toHaveText('Pause');
-    await page.getByRole('button', { name: 'Tutorial überspringen' }).click();
+    await expect(page.locator('#tut-box')).toBeHidden(); // keine Sprechblase über dem Pausenmenü
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.locator('#tut-box')).toBeVisible(); // nach Weiter wieder da
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Tutorial beenden' }).click();
     await expect(page.locator('#menu')).toBeVisible(); // ohne gewähltes Level zurück ins Menü
     await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial nochmal spielen');
   });

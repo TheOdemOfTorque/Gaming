@@ -215,6 +215,8 @@
     min-height: 44px; min-width: 44px; padding: 4px 14px; border-radius: 12px; border: 2px solid #6C63FF; background: #fff;
     color: #3b2f99; font-size: 15px; font-weight: 700; cursor: pointer;
   }
+  /* Solange ein Dialog offen ist (Pause, Tutorial geschafft, Hilfe), keine Sprechblase darüber */
+  body:has(#msg:not(.hidden)) #tut-box { display: none !important; }
   #tut-skip:focus-visible, #btn-tutorial:focus-visible { outline: 4px solid #6C63FF; outline-offset: 2px; }
   #tut-text { margin: 0; font-size: 17px; line-height: 1.4; font-weight: 600; }
   @media (max-width: 560px) { #tut-box { top: calc(124px + var(--sat)); } #tut-text { font-size: 16px; } }
@@ -257,7 +259,7 @@
     <div id="vital-live" class="sr-only" aria-live="polite"></div>
     <div id="tipp" class="hidden"></div>
     <div id="tut-box" class="hidden" role="region" aria-label="Tutorial">
-      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Überspringen</button></div>
+      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Tutorial beenden</button></div>
       <p id="tut-text" aria-live="polite"></p>
     </div>
     <div id="topbtns">
@@ -880,7 +882,7 @@
     if (tut) {
       showMsg('Pause', 'Lumo wartet auf dich. Das ist das Tutorial: hier verlierst du nichts.', [
         { text: 'Weiter', main: true, esc: true, fn: resume },
-        { text: 'Tutorial überspringen', fn: tutorialUeberspringen },
+        { text: 'Tutorial beenden', fn: tutorialUeberspringen },
         { text: 'Tutorial neu starten', fn: function () { startTutorial(tutWeiter); } },
         { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } }
       ]);
