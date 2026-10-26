@@ -2,8 +2,9 @@
 // Energie und Leben, Checkpoints, Ziel. Browser und Replay-Tests nutzen exakt denselben Code.
 //
 // Schaden: jede Quelle (falscher Kristall, Dornen, Rechenwicht von der Seite) ruft damage(g, quelle, richtung)
-// auf. Das kostet 1 Energie, stoesst zurueck und macht INVULN Schritte unverwundbar. Energie 0 oder
-// ein Sturz in den Abgrund kosten ein Leben (loseLife), ohne Leben ist der Lauf verloren.
+// auf. Das kostet 1 Energie (nie Funken), stoesst zurueck und macht INVULN Schritte unverwundbar. Energie 0
+// oder ein Sturz in den Abgrund kosten ein Leben (loseLife), ohne Leben ist der Lauf verloren. Gesammelte
+// Funken bleiben in jedem Fall erhalten.
 (function (root, factory) {
   var deps = (typeof module === 'object' && module.exports)
     ? { physics: require('./physics.js'), mathgen: require('./mathgen.js'), collision: require('./collision.js'), gegner: require('./gegner.js') }
@@ -83,7 +84,6 @@
     if (g.status !== 'play' || g.unverwundbar > 0) return false;
     var p = g.player;
     g.fehltreffer++;
-    g.funken = Math.max(0, g.funken - 1);
     g.energie = Math.max(0, g.energie - 1);
     g.events.push({ type: 'schaden', quelle: quelle, energie: g.energie, x: p.x, y: p.y });
     if (g.energie === 0) { loseLife(g, 'energie'); if (!g.uebung) return true; }
@@ -113,7 +113,7 @@
     if (r.landed) g.events.push({ type: 'landung' });
 
     // Abgrund
-    if (p.y > L.h * T + 24) { g.fehltreffer++; g.funken = Math.max(0, g.funken - 1); loseLife(g, 'abgrund'); return g; }
+    if (p.y > L.h * T + 24) { g.fehltreffer++; loseLife(g, 'abgrund'); return g; }
 
     // Kristalle (großzügige Sammelbox 14 x 14 gegen die Terrain-Box)
     for (var i = 0; i < g.crystals.length; i++) {

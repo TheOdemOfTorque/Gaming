@@ -52,7 +52,7 @@ describe('Kristalle', () => {
     expect(ev.map(e => e.type)).toContain('funke');
     expect(g.crystals[0].state).toBe('weg');
   });
-  test('falscher Kristall: ein Funke weniger (nie unter 0), Fehltreffer, Rückstoß, kein Game Over', () => {
+  test('falscher Kristall: Fehltreffer, Rückstoß, kein Game Over, Funken bleiben bei 0', () => {
     const g = G.createGame(LV, { crystals: [{ tx: 3, ty: 1, value: 5, good: false }] });
     const ev = play(g, RIGHT, gm => gm.fehltreffer === 1);
     expect(g.fehltreffer).toBe(1);
@@ -63,12 +63,13 @@ describe('Kristalle', () => {
     expect(g.player.vy).toBeLessThan(0);
     expect(g.status).toBe('play');
   });
-  test('falscher Kristall nimmt einen vorher gesammelten Funken', () => {
+  test('falscher Kristall kostet keinen Funken, nur Energie', () => {
     const L = parseLevel(['.....', '.SooG', '#####']);
     const g = G.createGame(L, { crystals: [{ tx: 2, ty: 1, value: 4, good: true }, { tx: 3, ty: 1, value: 5, good: false }] });
     play(g, RIGHT, gm => gm.fehltreffer === 1);
-    expect(g.funken).toBe(0); // +1 -1
+    expect(g.funken).toBe(1); // gesammelter Funke bleibt
     expect(g.richtig).toBe(1);
+    expect(g.energie).toBe(2);
   });
 });
 
@@ -86,6 +87,22 @@ describe('Gefahren, Checkpoints, Ziel', () => {
     expect(g.player.vx).toBeLessThan(0);
     expect(g.player.vy).toBeLessThan(0);
   });
+  test('Dornen kosten keinen Funken', () => {
+    const g = G.createGame(LV, { mode: 'aus' });
+    g.funken = 5;
+    play(g, RIGHT, gm => gm.fehltreffer === 1);
+    expect(g.energie).toBe(2);
+    expect(g.funken).toBe(5 + g.richtig);
+  });
+  test('damage kostet nur Energie, auch wenn dabei ein Leben verloren geht', () => {
+    const g = G.createGame(LV, { mode: 'aus' });
+    g.funken = 4;
+    expect(G.damage(g, 'stacheln', 1)).toBe(true);
+    expect(g).toMatchObject({ funken: 4, energie: 2, fehltreffer: 1 });
+    g.unverwundbar = 0; g.energie = 1;
+    G.damage(g, 'gegner', -1);
+    expect(g).toMatchObject({ funken: 4, leben: 2, energie: 3, fehltreffer: 2 });
+  });
   test('Checkpoint wird einmal gemeldet', () => {
     const g = G.createGame(LV, { mode: 'aus' });
     const ev = play(g, RIGHT, gm => gm.fehltreffer === 1);
@@ -101,6 +118,13 @@ describe('Gefahren, Checkpoints, Ziel', () => {
     expect(g.fehltreffer).toBe(1);
     expect(g.player.x).toBe(PIT.start.x);
     expect(g.status).toBe('play');
+  });
+  test('Sturz in den Abgrund kostet keinen Funken', () => {
+    const PIT = parseLevel(['..........', '.S.......G', '###...####']);
+    const g = G.createGame(PIT, { mode: 'aus' });
+    g.funken = 3;
+    play(g, RIGHT, gm => gm.leben === 2, 400);
+    expect(g.funken).toBe(3);
   });
   test('Sturz kostet ein Leben auch während der Unverwundbarkeit', () => {
     const PIT = parseLevel(['..........', '.S.......G', '###...####']);

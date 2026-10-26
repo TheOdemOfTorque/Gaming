@@ -182,7 +182,7 @@ test.describe('Lumo: Energie und Leben', () => {
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1, funken: 4 }); window.__jnr.debugFall(); });
     await expect(page.locator('#msg')).toBeVisible();
     await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
-    await expect(page.locator('#msg-body')).toContainText('3 Funken'); // der Sturz kostet einen Funken
+    await expect(page.locator('#msg-body')).toContainText('4 Funken'); // der Sturz kostet keinen Funken
     await expect(page.locator('#msg-body')).toContainText('Kristallen gesammelt');
     expect((await state(page)).mode).toBe('lost');
     await page.getByRole('button', { name: 'Nochmal' }).click();

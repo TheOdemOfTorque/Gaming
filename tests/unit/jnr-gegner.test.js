@@ -157,6 +157,18 @@ describe('Rechenwicht im Spiel (core/game.js)', () => {
     expect(g.funken).toBe(0);
   });
 
+  test('Seitenkontakt kostet keinen Funken', () => {
+    const g = G.createGame(FLAT, ZIEL);
+    g.funken = 2;
+    let hit = null;
+    for (let i = 0; i < 600 && !hit; i++) {
+      G.tick(g, RIGHT);
+      hit = g.events.find(ev => ev.type === 'schaden');
+    }
+    expect(hit).toMatchObject({ quelle: 'gegner' });
+    expect(g.funken).toBe(2);
+  });
+
   test('Landen auf dem Tafelrand im Spiel: Stampf, kein Schaden', () => {
     const L = parseLevel([
       '....................',
