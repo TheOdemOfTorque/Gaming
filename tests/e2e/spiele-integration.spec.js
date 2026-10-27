@@ -116,13 +116,13 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
 
     await page.frameLocator('#game-frame').locator('body').evaluate(() => {
       window.parent.postMessage(
-        { type: 'jnr:result', level: '1-1', medaillen: 2, funken: 10, xp: 30 },
+        { type: 'jnr:result', level: '1-2', medaillen: 2, funken: 10, xp: 60 },
         location.origin
       );
     });
 
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(30);
-    const awarded = await page.evaluate(() => state.jnr.xpAwarded['1-1']);
+    await expect.poll(() => page.evaluate(() => state.xp)).toBe(60);
+    const awarded = await page.evaluate(() => state.jnr.xpAwarded['1-2']);
     expect(awarded).toBe(true);
 
     await page.locator('#game-overlay-close').click();
@@ -134,19 +134,37 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('.game-card[data-game="jnr"] button').click();
     await page.frameLocator('#game-frame').locator('body').evaluate(() => {
       window.parent.postMessage(
-        { type: 'jnr:result', level: '1-1', medaillen: 2, funken: 10, xp: 30 },
+        { type: 'jnr:result', level: '1-2', medaillen: 2, funken: 10, xp: 60 },
         location.origin
       );
     });
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(30);
+    await expect.poll(() => page.evaluate(() => state.xp)).toBe(60);
     await page.locator('#game-overlay-close').click();
 
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const [xp, awarded] = await page.evaluate(() => [state.xp, state.jnr.xpAwarded['1-1']]);
-    expect(xp).toBe(30);
+    const [xp, awarded] = await page.evaluate(() => [state.xp, state.jnr.xpAwarded['1-2']]);
+    expect(xp).toBe(60);
     expect(awarded).toBe(true);
+  });
+
+  test('Alter Trainer-Spielstand mit der gestrichenen Stufe 1-1: Lumo zeigt nur die Zahlenwiese, offen', async ({ page }) => {
+    const base = migrateState(defaultState());
+    const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 3, bestTimeMs: 1000, bestFunken: 5 } },
+      xpAwarded: { '1-1': true }, lastLevel: '1-1', tutorialGesehen: true });
+    await seedState(page, { gameSecondsLeft: 600, xp: 50, jnr });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(frame.locator('#levellist button')).toHaveCount(1);
+    await expect(frame.locator('button[data-level="1-2"]')).toBeEnabled();
+    await expect(frame.locator('button[data-level="1-2"]')).toContainText('Zahlenwiese');
+    await frame.locator('body').evaluate(() => {
+      window.parent.postMessage({ type: 'jnr:result', level: '1-2', medaillen: 1, funken: 3, xp: 50 }, location.origin);
+    });
+    await expect.poll(() => page.evaluate(() => state.xp)).toBe(100);
+    expect(await page.evaluate(() => state.jnr.xpAwarded)).toEqual({ '1-1': true, '1-2': true });
   });
 
   test('Timer-Ablauf schließt Lumo automatisch und sendet jnr:timeup', async ({ page }) => {
@@ -156,7 +174,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('.game-card[data-game="jnr"] button').click();
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
     // Die Stern-Zeit läuft nur im aktiven Spiel (jnr:aktiv): ein Level starten
-    await page.frameLocator('#game-frame').locator('button[data-level="1-1"]').click();
+    await page.frameLocator('#game-frame').locator('button[data-level="1-2"]').click();
+    await page.frameLocator('#game-frame').locator('#rw-los').click();
 
     // sendToGameFrame im Parent abfangen statt im iframe zu lauschen — das iframe
     // wird beim Schließen sofort auf about:blank gesetzt und sein JS-Kontext verworfen.
@@ -235,8 +254,9 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
 
     const frame = page.frameLocator('#game-frame');
-    await frame.getByRole('button', { name: /1-1/ }).click();
-    const missionText = frame.getByText('Sammle alle Funken');
+    await frame.getByRole('button', { name: /Zahlenwiese/ }).click();
+    await frame.locator('#rw-los').click();
+    const missionText = frame.locator('#ziel');
     await expect(missionText).toBeVisible();
 
     const closeBox = await page.locator('#game-overlay-close').boundingBox();
@@ -274,7 +294,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('.game-card[data-game="jnr"] button').click();
     let frame = page.frameLocator('#game-frame');
-    await frame.locator('button[data-level="1-1"]').click();
+    await frame.locator('button[data-level="1-2"]').click();
     await expect(frame.locator('#tut-box')).toBeVisible();
     await frame.locator('#tut-skip').click();
     await expect(frame.locator('#tut-box')).toBeHidden();
@@ -286,8 +306,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('#game-overlay-close').click();
     await page.locator('.game-card[data-game="jnr"] button').click();
     frame = page.frameLocator('#game-frame');
-    await frame.locator('button[data-level="1-1"]').click();
-    await expect(frame.getByText('Sammle alle Funken')).toBeVisible();
+    await frame.locator('button[data-level="1-2"]').click();
+    await expect(frame.locator('#reihenwahl')).toBeVisible(); // direkt zur Reihenwahl, kein Tutorial mehr
     await expect(frame.locator('#tut-box')).toBeHidden();
   });
 

@@ -32,8 +32,10 @@
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
 //     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
-//        jnr     optional: Fortschritt { levels: { "1-1": { medals, bestTimeMs, bestFunken } },
-//                xpAwarded: { "1-1": true }, funkenTotal, lastLevel, tutorialGesehen }
+//        jnr     optional: Fortschritt { levels: { "1-2": { medals, bestTimeMs, bestFunken } },
+//                xpAwarded: { "1-2": true }, funkenTotal, lastLevel, tutorialGesehen }
+//                Alte Staende koennen Eintraege der gestrichenen Stufe "1-1" enthalten: sie bleiben
+//                erhalten, Lumo zeigt sie nicht an. Ein unbekanntes `level` (z.B. "1-1") oeffnet das Menue.
 //                tutorialGesehen fehlt oder ist nicht true: Lumo startet vor dem ersten Level, das das Kind
 //                im Menue waehlt, das Tutorial (ein Direktstart ueber `level` laesst es aus)
 //        options optional: { steuerung: 'standard'|'einfach', mathe: 'ziel'|'aus', farbhilfe, musik }

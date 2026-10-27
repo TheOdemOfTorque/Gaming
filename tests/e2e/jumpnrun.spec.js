@@ -8,7 +8,9 @@ test.use({
   hasTouch: true,
 });
 
-const URL1 = '/jumpnrun/index.html?jnrLevel=1-1&jnrSeed=1';
+// Seit Stufe 1-1 "Erste Schritte" gestrichen ist, ist 1-2 "Zahlenwiese" die erste Stufe. jnrReihe=2
+// ueberspringt die Reihenwahl, damit Steuerung, Physik und HUD direkt im Level laufen.
+const URL1 = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1&jnrReihe=2';
 const state = page => page.evaluate(() => window.__jnr.state());
 // Tutorial schon gesehen (sonst startet der erste Menü-Klick das Mitmach-Tutorial)
 const tutorialGesehen = page => page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({ tutorialGesehen: true })));
@@ -36,26 +38,61 @@ test('Seite lädt, Canvas ist sichtbar und gezeichnet', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('Debug-Parameter startet Level 1-1 ohne Menü', async ({ page }) => {
+test('Debug-Parameter startet Level 1-2 ohne Menü', async ({ page }) => {
   await page.goto(URL1);
   await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#btn-jump')).toBeVisible();
   await expect(page.locator('#btn-pause')).toBeVisible();
   const s = await state(page);
-  expect(s.level).toBe('1-1');
+  expect(s.level).toBe('1-2');
   expect(s.mode).toBe('play');
-  await expect(page.locator('#ziel')).toHaveText('Sammle alle Funken');
+  await expect(page.locator('#ziel .z-reihe')).toHaveText('2er-Reihe');
 });
 
-test('Ohne Parameter erscheint das Menü mit Level 1-1 offen und 1-2 gesperrt', async ({ page }) => {
+test('Ohne Parameter erscheint das Menü: nur die Zahlenwiese, sofort offen, ohne Stufennummer', async ({ page }) => {
   await tutorialGesehen(page);
   await page.goto('/jumpnrun/index.html?jnrDebug=1');
   await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.locator('button[data-level="1-1"]')).toBeEnabled();
-  await expect(page.locator('button[data-level="1-2"]')).toBeDisabled();
-  await page.click('button[data-level="1-1"]');
+  await expect(page.locator('#levellist button')).toHaveCount(1);
+  await expect(page.locator('button[data-level="1-1"]')).toHaveCount(0);
+  const b = page.locator('button[data-level="1-2"]');
+  await expect(b).toBeEnabled();
+  await expect(b).toContainText('Zahlenwiese');
+  await expect(b).not.toContainText('1-2');
+  await expect(page.locator('#menu')).not.toContainText('Erste Schritte');
+  await b.click();
   await expect(page.locator('#menu')).toBeHidden();
-  expect((await state(page)).mode).toBe('play');
+  await expect(page.locator('#reihenwahl')).toBeVisible(); // Mathe-Stufe: erst die Reihenwahl
+  await expect(page.locator('#rw-sub')).toContainText('Zahlenwiese');
+  await expect(page.locator('#rw-sub')).not.toContainText('1-2');
+  await page.locator('#rw-los').click();
+  expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2' });
+});
+
+test('Alter Spielstand mit der gestrichenen Stufe 1-1: kein Fehler, keine Geisterstufe, 1-2 offen', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({
+    tutorialGesehen: true, lastLevel: '1-1', funkenTotal: 7,
+    levels: { '1-1': { medals: 3, bestTimeMs: 5000, bestFunken: 7 } }, xpAwarded: { '1-1': true }
+  })));
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
+  await expect(page.locator('#levellist button')).toHaveCount(1);
+  await expect(page.locator('button[data-level="1-2"]')).toBeEnabled();
+  await expect(page.locator('button[data-level="1-2"] .medals')).toHaveText('☆☆☆');
+  expect(errors).toEqual([]);
+});
+
+test('Unbekanntes Level im Debug-Parameter (z. B. die gestrichene 1-1) fällt aufs Menü zurück', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await tutorialGesehen(page);
+  await page.goto('/jumpnrun/index.html?jnrLevel=1-1&jnrSeed=1');
+  await expect(page.locator('#menu')).toBeVisible();
+  expect((await state(page)).mode).toBe('menu');
+  await page.evaluate(() => window.__jnr.start('1-1')); // auch der direkte Aufruf crasht nicht
+  await expect(page.locator('#menu')).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('Tastatur: Pfeil rechts bewegt Lumo, Leertaste lässt ihn springen', async ({ page }) => {
@@ -140,7 +177,7 @@ test('Direktstart im Hochformat pausiert sofort hinter dem Dreh-Hinweis', async 
 test('Eingebettetes Spiel erholt sich nach jnr:timeup durch ein erneutes jnr:init', async ({ page }) => {
   await page.route('**/jumpnrun-harness.html', route => route.fulfill({
     contentType: 'text/html',
-    body: '<!DOCTYPE html><html><body><iframe id="f" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+    body: '<!DOCTYPE html><html><body><iframe id="f" src="/jumpnrun/index.html?jnrSeed=1&jnrReihe=2"></iframe></body></html>'
   }));
   await page.goto('/jumpnrun-harness.html');
   const frameState = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
@@ -148,7 +185,7 @@ test('Eingebettetes Spiel erholt sich nach jnr:timeup durch ein erneutes jnr:ini
     document.getElementById('f').contentWindow.postMessage(m, location.origin);
   }, msg);
 
-  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await send({ type: 'jnr:init', level: '1-2', jnr: {} });
   await page.waitForTimeout(200);
   expect((await frameState()).mode).toBe('play');
 
@@ -156,9 +193,15 @@ test('Eingebettetes Spiel erholt sich nach jnr:timeup durch ein erneutes jnr:ini
   await page.waitForTimeout(100);
   expect((await frameState()).mode).toBe('ended');
 
-  await send({ type: 'jnr:init', level: '1-1', jnr: {} });
+  await send({ type: 'jnr:init', level: '1-2', jnr: {} });
   await page.waitForTimeout(200);
   expect((await frameState()).mode).toBe('play');
+
+  // Trainer mit altem Spielstand schickt die gestrichene Stufe: Menü statt Absturz
+  await send({ type: 'jnr:timeup' });
+  await send({ type: 'jnr:init', level: '1-1', jnr: { lastLevel: '1-1', levels: { '1-1': { medals: 1 } } } });
+  await page.waitForTimeout(200);
+  expect((await frameState()).mode).toBe('menu');
 });
 
 test('Pause stoppt die Simulation', async ({ page }) => {
@@ -209,6 +252,9 @@ test.describe('Lumo: Energie und Leben', () => {
     expect((await state(page)).mode).toBe('lost');
     await page.getByRole('button', { name: 'Nochmal' }).click();
     await expect(page.locator('#msg')).toBeHidden();
+    // Mathe-Stufe: "Nochmal" fuehrt ueber die Reihenwahl, die gespielte Reihe ist vorgewaehlt
+    await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '2');
+    await page.locator('#rw-los').click();
     expect(await state(page)).toMatchObject({ mode: 'play', leben: 3, energie: 3, funken: 0 });
 
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
@@ -228,7 +274,7 @@ test.describe('Lumo: Energie und Leben', () => {
     await expect(page.locator('#menu')).toBeVisible();
     expect((await state(page)).mode).toBe('menu');
 
-    await page.click('button[data-level="1-1"]');
+    await page.click('button[data-level="1-2"]'); // jnrReihe=2 in URL1: direkt ins Level
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
     await expect(page.locator('#msg')).toBeVisible();
@@ -236,6 +282,8 @@ test.describe('Lumo: Energie und Leben', () => {
     await page.evaluate(() => document.activeElement.blur());
     await page.keyboard.press('Enter');
     await expect(page.locator('#msg')).toBeHidden();
+    await expect(page.locator('#reihenwahl')).toBeVisible(); // Mathe-Stufe: Reihenwahl, Enter startet
+    await page.keyboard.press('Enter');
     expect(await state(page)).toMatchObject({ mode: 'play', leben: 3 });
   });
 
@@ -272,12 +320,12 @@ test.describe('Lumo: Energie und Leben', () => {
     await page.route('**/jumpnrun-harness.html', route => route.fulfill({
       contentType: 'text/html',
       body: '<!DOCTYPE html><html><body><script>window.__got=[];addEventListener("message",e=>window.__got.push(e.data));</script>' +
-        '<iframe id="f" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+        '<iframe id="f" src="/jumpnrun/index.html?jnrSeed=1&jnrReihe=2"></iframe></body></html>'
     }));
     await page.goto('/jumpnrun-harness.html');
     const fw = () => page.evaluate(fn => document.getElementById('f').contentWindow.__jnr[fn](), 'state');
     await page.waitForFunction(() => document.getElementById('f').contentWindow.__jnr);
-    await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'jnr:init', level: '1-1', jnr: {} }, location.origin));
+    await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'jnr:init', level: '1-2', jnr: {} }, location.origin));
     await page.waitForTimeout(200);
     expect((await fw()).mode).toBe('play');
     await page.evaluate(() => { const j = document.getElementById('f').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
@@ -344,10 +392,15 @@ test('Reihenwahl per Tastatur: Pfeile wählen, Enter startet, Esc geht zurück',
   expect(s.reihe).toBe(9);
 });
 
-test('Stufe 1-1 und Zahlen-Modus aus kommen ohne Reihenwahl aus', async ({ page }) => {
-  await page.goto(URL1);
-  expect((await state(page)).mode).toBe('play');
+test('Zahlen-Modus aus kommt ohne Reihenwahl aus', async ({ page }) => {
+  await tutorialGesehen(page);
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
+  await page.locator('#opt-mathe').uncheck();
+  await expect(page.locator('button[data-level="1-2"] small')).toHaveText('Laufen, Springen, Sammeln');
+  await page.click('button[data-level="1-2"]');
   await expect(page.locator('#reihenwahl')).toBeHidden();
+  expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2', reihe: null });
+  await expect(page.locator('#ziel')).toHaveText('Sammle alle Funken');
 });
 
 test('Eingebettet: Lernstand aus jnr:init markiert die schwächsten Reihen und wählt die schwächste vor', async ({ page }) => {
@@ -556,7 +609,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
-    await page.focus('button[data-level="1-1"]');
+    await page.focus('button[data-level="1-2"]');
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeVisible();
     await expect(page.locator('#tut-schritt')).toHaveText('Schritt 1 von 5');
@@ -614,17 +667,20 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     expect(gespeichert.levels).toEqual({}); // kein Levelfortschritt, keine XP aus dem Tutorial
     expect(gespeichert.xpAwarded).toEqual({});
 
-    // Enter auf dem Hauptknopf: weiter ins gewählte Level
+    // Enter auf dem Hauptknopf: weiter zur gewählten Zahlenwiese, zuerst die Reihenwahl
     await expect(page.getByRole('button', { name: 'Jetzt richtig spielen' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeHidden();
-    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1', tutorial: null });
+    expect(await state(page)).toMatchObject({ mode: 'reihenwahl', tutorial: null });
+    expect(await page.evaluate(() => window.__jnr.reihenwahl().level)).toBe('1-2');
+    await page.keyboard.press('Enter');
+    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2', tutorial: null });
 
     // Beim nächsten Mal kommt kein Tutorial mehr
     await page.reload();
-    await page.click('button[data-level="1-1"]');
+    await page.click('button[data-level="1-2"]');
     await expect(page.locator('#tut-box')).toBeHidden();
-    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1' });
+    expect(await state(page)).toMatchObject({ mode: 'reihenwahl' });
     expect(errors).toEqual([]);
   });
 
@@ -655,15 +711,15 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
   });
 
   test('Tutorial beenden per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
-    await page.goto('/jumpnrun/index.html?jnrDebug=1');
-    await page.click('button[data-level="1-1"]');
+    await page.goto('/jumpnrun/index.html?jnrDebug=1&jnrReihe=2');
+    await page.click('button[data-level="1-2"]');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.locator('#tut-skip')).toBeFocused();
     await expect(page.locator('#tut-skip')).toHaveText('Tutorial beenden');
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeHidden();
-    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-1', tutorial: null, tutorialGesehen: true });
+    expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2', tutorial: null, tutorialGesehen: true });
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem('henry_jnr')))).tutorialGesehen).toBe(true);
   });
 
@@ -684,7 +740,7 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
   test('„Tutorial nochmal spielen“ in Menü und Hilfe', async ({ page }) => {
     await tutorialGesehen(page);
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
-    await page.click('button[data-level="1-1"]');
+    await page.click('button[data-level="1-2"]');
     await expect(page.locator('#tut-box')).toBeHidden(); // schon gesehen: kein Autostart
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-tutorial');
@@ -723,13 +779,13 @@ test.describe('Lumo: Mitmach-Tutorial auf dem Handy', () => {
     await page.route('**/jumpnrun-harness.html', route => route.fulfill({
       contentType: 'text/html',
       body: '<!DOCTYPE html><html><body><script>window.__got=[];addEventListener("message",e=>window.__got.push(e.data));</script>' +
-        '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+        '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1&jnrReihe=2"></iframe></body></html>'
     }));
     await page.goto('/jumpnrun-harness.html');
     const frame = page.frameLocator('#f');
     await expect(frame.locator('#menu')).toBeVisible();
     await sendTo(page, { type: 'jnr:init', jnr: {} });
-    await frame.locator('button[data-level="1-1"]').click();
+    await frame.locator('button[data-level="1-2"]').click();
     await expect(frame.locator('#tut-box')).toBeVisible();
     await frame.locator('#tut-skip').click();
     await expect(frame.locator('#tut-box')).toBeHidden();
@@ -742,7 +798,7 @@ test.describe('Lumo: Mitmach-Tutorial auf dem Handy', () => {
     await sendTo(page, { type: 'jnr:init', jnr: {} }); // alter Trainer ohne Flag
     await page.evaluate(() => { const w = document.getElementById('f').contentWindow; w.document.getElementById('btn-pause').click(); });
     await frame.getByRole('button', { name: 'Levelauswahl' }).click();
-    await frame.locator('button[data-level="1-1"]').click();
+    await frame.locator('button[data-level="1-2"]').click();
     await expect(frame.locator('#tut-box')).toBeHidden();
   });
 });
@@ -752,7 +808,7 @@ test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () =
     contentType: 'text/html',
     body: '<!DOCTYPE html><html><body><script>window.__aktiv = []; window.addEventListener("message", function (e) {' +
       ' if (e.data && e.data.type === "jnr:aktiv") window.__aktiv.push(e.data.aktiv); });</script>' +
-      '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+      '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1&jnrReihe=2"></iframe></body></html>'
   }));
   const aktiv = page => page.evaluate(() => window.__aktiv.slice());
   const letztes = async page => { const a = await aktiv(page); return a[a.length - 1]; };
@@ -764,7 +820,7 @@ test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () =
     await expect.poll(() => aktiv(page)).toEqual([false]); // Startstand: Menü
     await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true } });
     await expect.poll(() => aktiv(page)).toEqual([false, false]); // Antwort auf jnr:init
-    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await sendTo(page, { type: 'jnr:init', level: '1-2', jnr: { tutorialGesehen: true } });
     await expect.poll(() => letztes(page)).toBe(true);
     await sendTo(page, { type: 'jnr:pause' });
     await expect.poll(() => letztes(page)).toBe(false);
@@ -773,12 +829,12 @@ test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () =
     await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.startTutorial());
     await expect.poll(() => letztes(page)).toBe(true); // Tutorial zählt als aktives Spiel
 
-    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-1'));
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-2'));
     await page.evaluate(() => { const j = document.getElementById('f').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
     await expect.poll(async () => (await fs(page)).mode).toBe('lost');
     expect(await letztes(page)).toBe(false);
 
-    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-1'));
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-2'));
     await expect.poll(() => letztes(page)).toBe(true);
     await sendTo(page, { type: 'jnr:timeup' });
     await expect.poll(() => letztes(page)).toBe(false);
@@ -805,7 +861,7 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     body: '<!DOCTYPE html><html><head><style>html,body{margin:0;height:100%;overflow:hidden}</style></head><body>' +
       '<script>window.__aktiv = []; window.addEventListener("message", function (e) {' +
       ' if (e.data && e.data.type === "jnr:aktiv") window.__aktiv.push(e.data.aktiv); });</script>' +
-      '<iframe id="f" style="border:0;width:100vw;height:100vh;display:block" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+      '<iframe id="f" style="border:0;width:100vw;height:100vh;display:block" src="/jumpnrun/index.html?jnrSeed=1&jnrReihe=2"></iframe></body></html>'
   }));
   const letztes = async page => { const a = await page.evaluate(() => window.__aktiv.slice()); return a[a.length - 1]; };
   const fs = page => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
@@ -815,7 +871,7 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     await page.goto('/jumpnrun-harness.html');
     const frame = page.frameLocator('#f');
     await expect.poll(() => letztes(page)).toBe(false);
-    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await sendTo(page, { type: 'jnr:init', level: '1-2', jnr: { tutorialGesehen: true } });
     await expect.poll(() => letztes(page)).toBe(true);
     expect((await fs(page)).mode).toBe('play');
 
@@ -857,7 +913,7 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     await page.goto('/jumpnrun-harness.html');
     const frame = page.frameLocator('#f');
     await expect.poll(() => page.evaluate(() => window.__aktiv.length)).toBe(1);
-    await sendTo(page, { type: 'jnr:init', level: '1-1', jnr: { tutorialGesehen: true } });
+    await sendTo(page, { type: 'jnr:init', level: '1-2', jnr: { tutorialGesehen: true } });
     await expect.poll(async () => (await fs(page)).mode).toBe('pause');
     await expect(frame.locator('#portrait-hint')).toBeVisible();
     await page.waitForTimeout(200);
@@ -887,7 +943,7 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     await page.goto('/jumpnrun-harness.html');
     const frame = page.frameLocator('#f');
     await sendTo(page, { type: 'jnr:init', jnr: {} });
-    await frame.locator('button[data-level="1-1"]').click();
+    await frame.locator('button[data-level="1-2"]').click();
     await expect(frame.locator('#tut-box')).toBeVisible();
     await expect.poll(() => letztes(page)).toBe(true);
     await page.setViewportSize({ width: 390, height: 844 });

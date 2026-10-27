@@ -560,7 +560,7 @@
       var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
       var b = document.createElement('button');
       b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-      b.innerHTML = '<span>' + l.id + ' · ' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
+      b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
         '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
       b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
       box.appendChild(b);
@@ -616,7 +616,7 @@
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
     $('ziel-intro').classList.add('hidden');
     var emp = RW.empfehlungen(lernstand);
-    $('rw-sub').textContent = m.id + ' · ' + m.name + ': Tippe auf eine Zahl. Lumo sammelt dann die Ergebnisse dieser Reihe.';
+    $('rw-sub').textContent = m.name + ': Tippe auf eine Zahl. Lumo sammelt dann die Ergebnisse dieser Reihe.';
     var grid = $('rw-grid'); grid.innerHTML = '';
     RW.REIHEN.forEach(function (r) {
       var b = document.createElement('button');

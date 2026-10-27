@@ -5,7 +5,7 @@
 // Zeile 0-6 Luft), damit jede Reihenfolge anschlussfaehig ist. 'o' = Kristallplatz
 // (Zahl kommt von core/mathgen.js), '^' Dornen, '~' Federpilz.
 //
-// schwierigkeit 1: nur Laufen/Springen/Sammeln, keine Gefahren (passt zu Stufe 1-1).
+// schwierigkeit 1: nur Laufen/Springen/Sammeln, keine Gefahren (leichte Abschnitte der Stufe 1-2).
 // schwierigkeit 2: genau ein Gefahrentyp (Dornen oder Federpilz).
 // schwierigkeit 3: Kombinationen, etwas laenger.
 (function (root, factory) {
