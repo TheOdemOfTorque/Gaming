@@ -20,13 +20,14 @@ The trainer embeds Knobelwerkstatt and Lumo via iframe, so serve from the repo r
 ## Tests
 
 ```bash
-npm install            # once; installs Jest and Playwright
+npm install                                  # once; installs Jest and Playwright
+npx playwright install chromium firefox      # once; browsers for the E2E projects
 npm run test:unit      # Jest, tests/unit/*.test.js (pure logic, no browser)
-npm run test:e2e       # Playwright, tests/e2e/*.spec.js (starts its own http.server on port 8080)
+npx playwright test --grep-invert multiplayer.spec   # E2E without the production backend (own http.server on port 8080)
 ```
 
 - Jest ignores `tests/e2e/` and `.worktrees/` via the `jest` block in `package.json`.
-- `tests/e2e/multiplayer.spec.js` talks to the real multiplayer backend; run it only on purpose. `multiplayer.mocked.spec.js` uses `page.route` mocks instead.
+- `npm run test:e2e` runs every spec, including `tests/e2e/multiplayer.spec.js`, which writes to the real multiplayer backend. Use the `--grep-invert` form above by default; `multiplayer.mocked.spec.js` uses `page.route` mocks instead.
 - New features and bug fixes are developed test-first (red test, then the fix).
 
 ## Projects
@@ -35,7 +36,7 @@ npm run test:e2e       # Playwright, tests/e2e/*.spec.js (starts its own http.se
 |---|---|
 | `1x1-trainer/` | Multiplication and division trainer (PWA, installable on iOS). Hosts the games bar with Space Invader, Lumo and Knobelwerkstatt. |
 | `knobel/` | Knobelwerkstatt: number walls and calculation cages, 5 difficulty levels, own PWA and service worker. |
-| `jumpnrun/` | Lumo: platformer with math gates, logic split into `jumpnrun/core/*.js`, own service worker. |
+| `jumpnrun/` | Lumo: platformer with number crystals and calculating enemies (Rechenwichte), logic split into `jumpnrun/core/*.js`, own service worker. |
 | `cloudflare/` | Multiplayer backend (Cloudflare Worker + D1 schema) for the trainer's challenge mode. |
 | `prime-empire/` | Pac-man style top-down city game using **Phaser 3** (loaded from CDN). |
 | `space-invader-revibed/` | Space shooter with touch controls. |
@@ -49,7 +50,7 @@ npm run test:e2e       # Playwright, tests/e2e/*.spec.js (starts its own http.se
 - `knobel/` follows the same split (`index.html` + `knobel-logic.js`).
 - `jumpnrun/` splits its logic into modules under `core/` (physics, collision, level generation, solver, rewards, tutorial, ...) that are loaded as plain scripts and also required by Jest.
 - The trainer opens Knobelwerkstatt and Lumo in an iframe overlay and exchanges results via `postMessage`. Result messages are validated before XP is granted.
-- Each PWA (`1x1-trainer/`, `knobel/`, `jumpnrun/`) has its own `manifest.json` and `sw.js`.
+- `1x1-trainer/`, `knobel/` and `jumpnrun/` each have their own `sw.js`; `1x1-trainer/` and `knobel/` also ship a `manifest.json`.
 
 ## Releases and cache bumps
 
@@ -90,3 +91,4 @@ All games are designed for both desktop and iOS:
 - Never commit credentials, PINs or tokens. The repository is public.
 - Do not merge or push to `origin`; Marco validates and merges himself.
 - Develop on feature branches in worktrees under `.worktrees/` (ignored by Jest).
+- A branch is reviewed by a second agent before Marco merges it; the review result goes into the night report.
