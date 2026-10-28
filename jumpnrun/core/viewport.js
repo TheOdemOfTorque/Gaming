@@ -24,5 +24,12 @@
     return { k: k, VW: VW, VH: VH, cw: cw, ch: ch, left: (W - cw) / 2, top: top };
   }
 
-  return { VH: VH, VW_MIN: VW_MIN, computeLayout: computeLayout };
+  // Querformat-Pflicht: auf Touch-Geraeten (grober Zeiger) im Hochformat wird nicht gespielt,
+  // Lumo zeigt dann nur die Dreh-Anzeige. Laptop/Desktop (feiner Zeiger) bleibt immer frei.
+  // env: { coarse: matchMedia('(pointer: coarse)').matches, portrait: matchMedia('(orientation: portrait)').matches }
+  function mussQuerDrehen(env) {
+    return !!(env && env.coarse && env.portrait);
+  }
+
+  return { VH: VH, VW_MIN: VW_MIN, computeLayout: computeLayout, mussQuerDrehen: mussQuerDrehen };
 });

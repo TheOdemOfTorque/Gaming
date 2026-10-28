@@ -215,6 +215,8 @@
     min-height: 44px; min-width: 44px; padding: 4px 14px; border-radius: 12px; border: 2px solid #6C63FF; background: #fff;
     color: #3b2f99; font-size: 15px; font-weight: 700; cursor: pointer;
   }
+  /* Solange ein Dialog offen ist (Pause, Tutorial geschafft, Hilfe), keine Sprechblase darüber */
+  body:has(#msg:not(.hidden)) #tut-box { display: none !important; }
   #tut-skip:focus-visible, #btn-tutorial:focus-visible { outline: 4px solid #6C63FF; outline-offset: 2px; }
   #tut-text { margin: 0; font-size: 17px; line-height: 1.4; font-weight: 600; }
   @media (max-width: 560px) { #tut-box { top: calc(124px + var(--sat)); } #tut-text { font-size: 16px; } }
@@ -224,14 +226,18 @@
   @keyframes zeig { 0%, 100% { box-shadow: 0 0 0 0 rgba(253, 230, 138, .9); } 50% { box-shadow: 0 0 0 12px rgba(253, 230, 138, 0); } }
   @media (prefers-reduced-motion: reduce) { .btn.zeig { animation: none; box-shadow: 0 0 0 6px rgba(253, 230, 138, .8); } }
 
-  /* Hochformat-Hinweis */
+  /* Dreh-Anzeige: Touch-Geraete spielen nur im Querformat (JS setzt body.quer-pflicht, VP.mussQuerDrehen) */
   #portrait-hint {
     position: absolute; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center;
-    justify-content: center; gap: 14px; text-align: center; background: rgba(13, 13, 43, .96); padding: 24px;
+    justify-content: center; gap: 14px; text-align: center; background: #0d0d2b; padding: 24px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)); touch-action: none;
   }
-  #portrait-hint .phone { font-size: 56px; transform: rotate(90deg); }
-  #portrait-hint p { margin: 0; font-size: 20px; font-weight: 700; }
-  @media (orientation: portrait) { #portrait-hint:not(.dismissed) { display: flex; } }
+  #portrait-hint .phone { font-size: 72px; line-height: 1; transform: rotate(90deg); animation: drehen 2.4s ease-in-out infinite; }
+  #portrait-hint .dreh-titel { margin: 0; font-size: 26px; font-weight: 800; }
+  #portrait-hint p { margin: 0; font-size: 18px; font-weight: 600; max-width: 22em; }
+  @keyframes drehen { 0%, 25% { transform: rotate(0deg); } 50%, 100% { transform: rotate(90deg); } }
+  @media (prefers-reduced-motion: reduce) { #portrait-hint .phone { animation: none; } }
+  body.quer-pflicht #portrait-hint { display: flex; }
   @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } }
 </style>
 </head>
@@ -253,7 +259,7 @@
     <div id="vital-live" class="sr-only" aria-live="polite"></div>
     <div id="tipp" class="hidden"></div>
     <div id="tut-box" class="hidden" role="region" aria-label="Tutorial">
-      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Überspringen</button></div>
+      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Tutorial beenden</button></div>
       <p id="tut-text" aria-live="polite"></p>
     </div>
     <div id="topbtns">
@@ -312,10 +318,10 @@
     </div>
   </div>
 
-  <div id="portrait-hint">
-    <div class="phone">📱</div>
-    <p>Dreh dein iPhone für mehr Platz</p>
-    <button class="big" id="portrait-ok" style="width:auto">Trotzdem spielen</button>
+  <div id="portrait-hint" role="alert" aria-hidden="true">
+    <div class="phone" aria-hidden="true">📱</div>
+    <p class="dreh-titel">Dreh dein Handy quer</p>
+    <p>Lumo spielt man im Querformat.</p>
   </div>
 </div>
 
@@ -482,6 +488,7 @@
   var KEYMAP = { ArrowLeft: 'l', KeyA: 'l', ArrowRight: 'r', KeyD: 'r', Space: 'j', ArrowUp: 'j', KeyW: 'j' };
   var RW_KEYS = { ArrowLeft: 'links', ArrowRight: 'rechts', ArrowUp: 'hoch', ArrowDown: 'runter' };
   window.addEventListener('keydown', function (e) {
+    if (querSperre()) { e.preventDefault(); return; } // hinter der Dreh-Anzeige wird nicht gespielt
     ensureAudio();
     if (KEYMAP[e.code] && mode === 'play') setGeraet('tasten');
     if (mode === 'reihenwahl') {
@@ -526,16 +533,24 @@
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', layout);
 
+  // Querformat-Pflicht (VP.mussQuerDrehen): Touch-Geraet im Hochformat zeigt nur die Dreh-Anzeige.
+  // Ein laufendes Level/Tutorial geht in die Pause (mode 'pause' meldet jnr:aktiv false) und bleibt
+  // nach dem Drehen dort, bis das Kind selbst auf Weiter tippt.
   var portraitMQ = window.matchMedia('(orientation: portrait)');
+  var touchMQ = window.matchMedia('(pointer: coarse)');
+  function querSperre() { return VP.mussQuerDrehen({ coarse: touchMQ.matches, portrait: portraitMQ.matches }); }
   function onOrient() {
-    if (portraitMQ.matches) {
-      if (mode === 'play' && !$('portrait-hint').classList.contains('dismissed')) pause();
-    } else {
-      $('portrait-hint').classList.remove('dismissed');
-    }
+    var gesperrt = querSperre();
+    document.body.classList.toggle('quer-pflicht', gesperrt);
+    $('portrait-hint').setAttribute('aria-hidden', gesperrt ? 'false' : 'true');
+    if (gesperrt && mode === 'play') pause();
   }
-  if (portraitMQ.addEventListener) portraitMQ.addEventListener('change', onOrient);
-  $('portrait-ok').addEventListener('click', function () { $('portrait-hint').classList.add('dismissed'); });
+  [portraitMQ, touchMQ].forEach(function (mq) {
+    if (mq.addEventListener) mq.addEventListener('change', onOrient);
+    else if (mq.addListener) mq.addListener(onOrient);
+  });
+  window.addEventListener('resize', onOrient);
+  onOrient();
 
   // ---------- Menü ----------
   function medalStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
@@ -545,7 +560,7 @@
       var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
       var b = document.createElement('button');
       b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-      b.innerHTML = '<span>' + l.id + ' · ' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
+      b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
         '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
       b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
       box.appendChild(b);
@@ -601,7 +616,7 @@
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
     $('ziel-intro').classList.add('hidden');
     var emp = RW.empfehlungen(lernstand);
-    $('rw-sub').textContent = m.id + ' · ' + m.name + ': Tippe auf eine Zahl. Lumo sammelt dann die Ergebnisse dieser Reihe.';
+    $('rw-sub').textContent = m.name + ': Tippe auf eine Zahl. Lumo sammelt dann die Ergebnisse dieser Reihe.';
     var grid = $('rw-grid'); grid.innerHTML = '';
     RW.REIHEN.forEach(function (r) {
       var b = document.createElement('button');
@@ -678,9 +693,8 @@
     updateHud();
     if (o.mode === 'ziel') showZielIntro(o.reihe); else $('ziel-intro').classList.add('hidden');
     showTipp(o.mode === 'ziel' ? 2200 : 0);
-    setMode('play');
     jnr.lastLevel = id;
-    onOrient(); // Direktstart im Hochformat (z.B. ?jnrLevel=...) muss sofort hinter dem Dreh-Hinweis pausieren
+    spielLosOderPause();
   }
   function updateHud() {
     $('funken').textContent = '✦ ' + game.funken;
@@ -791,8 +805,7 @@
     updateHud();
     $('tut-box').classList.remove('hidden');
     renderTut();
-    setMode('play');
-    onOrient();
+    spielLosOderPause();
   }
   function renderTut() {
     if (!tut) return;
@@ -851,16 +864,25 @@
     if (mainEl) { try { mainEl.focus({ preventScroll: true }); } catch (e) { mainEl.focus(); } }
   }
   function msgOffen() { return !$('msg').classList.contains('hidden'); }
+  var pauseTon = 0; // nur fuer Tests (window.__jnr.state)
   function pause() {
     if (mode !== 'play') return;
-    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); stopTipp();
+    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); sfx.pause(); pauseTon++; stopTipp();
+    showPauseMsg();
+  }
+  // Start von Level oder Tutorial: hinter der Dreh-Anzeige (Touch-Geraet im Hochformat) direkt in
+  // die Pause, ohne vorher 'play' zu melden (kein kurzes jnr:aktiv true, kein Pause-Ton).
+  function spielLosOderPause() {
+    onOrient();
+    if (!querSperre()) { setMode('play'); return; }
+    setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); stopTipp();
     showPauseMsg();
   }
   function showPauseMsg() {
     if (tut) {
       showMsg('Pause', 'Lumo wartet auf dich. Das ist das Tutorial: hier verlierst du nichts.', [
         { text: 'Weiter', main: true, esc: true, fn: resume },
-        { text: 'Tutorial überspringen', fn: tutorialUeberspringen },
+        { text: 'Tutorial beenden', fn: tutorialUeberspringen },
         { text: 'Tutorial neu starten', fn: function () { startTutorial(tutWeiter); } },
         { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } }
       ]);
@@ -874,7 +896,7 @@
     ]);
   }
   function resume() {
-    if (mode !== 'pause') return;
+    if (mode !== 'pause' || querSperre()) return;
     $('msg').classList.add('hidden'); setMode('play'); last = 0; acc = 0;
     if (tut) return;
     if (!tippFertig) showTipp(0);
@@ -1353,7 +1375,7 @@
       if (!game) return { mode: mode, tutorial: null, tutorialGesehen: jnr.tutorialGesehen };
       var p = game.player;
       return {
-        mode: mode, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
+        mode: mode, pauseTon: pauseTon, level: meta.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy, onGround: p.onGround, funken: game.funken,
         reihe: aktReihe, status: game.status, t: game.t, fehltreffer: game.fehltreffer,
         leben: game.leben, energie: game.energie, unverwundbar: game.unverwundbar,
         tutorial: tut ? { schritt: TU.schritt(tut), index: tut.index, hinweis: tut.hinweis, fertig: tut.fertig } : null,

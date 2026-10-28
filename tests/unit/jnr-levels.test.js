@@ -6,25 +6,55 @@ const D = require('../../jumpnrun/data/levels.js');
 
 const SEEDS_PROPERTY = 200;
 
+// Synthetische Stufe ohne Zahlen: seit Stufe 1-1 "Erste Schritte" gestrichen ist (das Mitmach-Tutorial
+// uebernimmt den Einstieg), hat Welt 1 keine solche Stufe mehr. Die Logik fuer mathe:false bleibt getestet.
+const OHNE_ZAHLEN = { id: '9-9', name: 'Test ohne Zahlen', welt: 9, mathe: false, reihe: null };
+
 describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
-  test('es gibt 2 Stufen in Welt 1 mit eindeutigen IDs', () => {
-    expect(D.ORDER).toEqual(['1-1', '1-2']);
-    expect(new Set(D.ORDER).size).toBe(2);
+  test('Welt 1 hat nur noch die Stufe 1-2 Zahlenwiese, 1-1 Erste Schritte ist gestrichen', () => {
+    expect(D.ORDER).toEqual(['1-2']);
+    expect(new Set(D.ORDER).size).toBe(D.ORDER.length);
     D.STAGES.forEach(l => expect(l.welt).toBe(1));
+    expect(D.byId('1-2').name).toBe('Zahlenwiese');
+    expect(D.STAGES.some(l => l.name === 'Erste Schritte')).toBe(false);
   });
 
-  test('Stufe 1-1 hat keine Mathe-Pflicht, Stufe 1-2 eine gueltige Reihe', () => {
-    expect(D.byId('1-1').mathe).toBe(false);
+  test('gestrichene oder unbekannte Stufe: byId liefert null, generateFor wirft verstaendlich', () => {
+    expect(D.byId('1-1')).toBeNull();
+    expect(D.byId('7-7')).toBeNull();
+    expect(D.byId(undefined)).toBeNull();
+    expect(() => D.generateFor('1-1', 1)).toThrow(/Unbekannte Stufe/);
+  });
+
+  test('die erste Stufe ist ohne Vorleistung frei, auch mit altem 1-1-Spielstand', () => {
+    const erste = D.ORDER[0];
+    expect(erste).toBe('1-2');
+    expect(R.isUnlocked(R.defaultJnr(), erste, D.ORDER)).toBe(true);
+    const alt = R.sanitizeJnr({ levels: { '1-1': { medals: 3, bestTimeMs: 9, bestFunken: 4 } }, xpAwarded: { '1-1': true }, lastLevel: '1-1' });
+    expect(R.isUnlocked(alt, erste, D.ORDER)).toBe(true);
+    expect(R.isUnlocked(alt, '1-1', D.ORDER)).toBe(false); // Geisterstufe wird nie freigeschaltet
+  });
+
+  test('nach der letzten Stufe gibt es keine naechste (kein Verweis auf eine fehlende Stufe)', () => {
+    D.ORDER.forEach((id, i) => {
+      const next = D.ORDER[i + 1];
+      if (next !== undefined) expect(D.byId(next)).not.toBeNull();
+    });
+    expect(D.ORDER[D.ORDER.indexOf('1-2') + 1]).toBeUndefined();
+  });
+
+  test('Stufe 1-2 hat eine gueltige Reihe als Vorschlag, jede Stufe der Welt 1 hat Zahlen', () => {
     const l2 = D.byId('1-2');
     expect(l2.mathe).toBe(true);
     expect(Number.isInteger(l2.reihe) && l2.reihe >= 2).toBe(true);
+    D.STAGES.forEach(l => expect(l.mathe).toBe(true));
   });
 
   test('gameOptions: Mathe-Modus aus der Einstellung ueberschreibt die Stufe', () => {
     const l2 = D.byId('1-2');
     expect(D.gameOptions(l2, { mathe: 'ziel' }, 1).mode).toBe('ziel');
     expect(D.gameOptions(l2, { mathe: 'aus' }, 1).mode).toBe('aus');
-    expect(D.gameOptions(D.byId('1-1'), { mathe: 'ziel' }, 1).mode).toBe('aus');
+    expect(D.gameOptions(OHNE_ZAHLEN, { mathe: 'ziel' }, 1).mode).toBe('aus');
   });
 
   test('gameOptions: gewählte Reihe (2..10) fließt in die Kristalle, sonst die Reihe der Stufe', () => {
@@ -37,12 +67,13 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     expect(D.gameOptions(l2, { mathe: 'ziel' }, 1, '7').reihe).toBe(l2.reihe);
   });
 
-  test('Rechenwichte nur in Stufe 1-2 (Stufe 1-1 bleibt ohne Gefahren)', () => {
-    expect(D.byId('1-1').gen.gegner).toBeFalsy();
+  test('Rechenwichte in Stufe 1-2, ohne gegner-Flag erzeugt der Generator keine', () => {
+    const LG = require('../../jumpnrun/core/levelgen.js');
     expect(D.byId('1-2').gen.gegner).toBe(true);
+    const ohneGegner = Object.assign({}, D.byId('1-2').gen, { gegner: false });
     let n = 0;
     for (let seed = 1; seed <= 20; seed++) {
-      expect(parseLevel(D.generateFor('1-1', seed).rows).enemies).toHaveLength(0);
+      expect(parseLevel(LG.generate(ohneGegner, seed).rows).enemies).toHaveLength(0);
       n += parseLevel(D.generateFor('1-2', seed).rows).enemies.length;
     }
     expect(n).toBeGreaterThan(0);
@@ -59,7 +90,7 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
   test('brauchtReihenwahl: nur Mathe-Stufen im Zahlen-Modus', () => {
     expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'ziel' })).toBe(true);
     expect(D.brauchtReihenwahl(D.byId('1-2'), { mathe: 'aus' })).toBe(false);
-    expect(D.brauchtReihenwahl(D.byId('1-1'), { mathe: 'ziel' })).toBe(false);
+    expect(D.brauchtReihenwahl(OHNE_ZAHLEN, { mathe: 'ziel' })).toBe(false);
   });
 
   test.each([2, 3, 4, 5, 6, 7, 8, 9, 10])('Stufe 1-2 mit Reihe %i: Kristalle tragen nur Vielfache als gute Zahlen', (reihe) => {
@@ -111,6 +142,17 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     }, 60000);
   });
 
+  // Positiv-Gegenstueck zur Gegenprobe: der reine Schwierigkeit-1-Pool (Parameter der frueheren Stufe
+  // 1-1) bleibt loesbar, die Abschnitte stecken ja weiter in Stufe 1-2.
+  test(`nur Schwierigkeit-1-Abschnitte: fuer ${SEEDS_PROPERTY} Seeds loesbar`, () => {
+    const LG = require('../../jumpnrun/core/levelgen.js');
+    for (let seed = 1; seed <= SEEDS_PROPERTY; seed++) {
+      const gen = LG.generate({ minDifficulty: 1, maxDifficulty: 1, minSections: 14, maxSections: 18 }, seed);
+      const r = SOLVER.solve(parseLevel(gen.rows), { mode: 'aus' });
+      if (!r.won) throw new Error('Schwierigkeit 1, seed ' + seed + ' nicht loesbar: ' + gen.sections.join(' > '));
+    }
+  }, 60000);
+
   test('Gegenprobe: ein unloesbarer Abschnitt im Pool laesst den Eigenschafts-Test anschlagen', () => {
     const SEC = require('../../jumpnrun/data/sections.js');
     const LG = require('../../jumpnrun/core/levelgen.js');
@@ -141,7 +183,7 @@ describe('menuUntertitel (Levelauswahl, QA-Befund N2)', () => {
   });
 
   test('Stufe ohne Zahlen und Mathe-Stufe bei ausgeschaltetem Zahlen-Modus: Laufen, Springen, Sammeln', () => {
-    expect(D.menuUntertitel(D.byId('1-1'), { mathe: 'ziel' })).toBe('Laufen, Springen, Sammeln');
+    expect(D.menuUntertitel(OHNE_ZAHLEN, { mathe: 'ziel' })).toBe('Laufen, Springen, Sammeln');
     expect(D.menuUntertitel(D.byId('1-2'), { mathe: 'aus' })).toBe('Laufen, Springen, Sammeln');
   });
 });

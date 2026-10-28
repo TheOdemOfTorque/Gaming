@@ -10,12 +10,11 @@
   if (typeof module === 'object' && module.exports) module.exports = api;
   else { root.JNR = root.JNR || {}; root.JNR.levels = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (LG) {
+  // Die fruehere Stufe '1-1' "Erste Schritte" (nur Laufen/Springen/Sammeln) ist gestrichen, den Einstieg
+  // uebernimmt das Mitmach-Tutorial (core/tutorial.js). Die IDs bleiben, wie sie sind: '1-2' steht in
+  // Spielstaenden, XP-Schluesseln und Debug-Parametern. Alte '1-1'-Eintraege im Spielstand bleiben
+  // erhalten, werden aber nirgends angezeigt (Menue und Freischaltung laufen ueber STAGES/ORDER).
   var STAGES = [
-    {
-      id: '1-1', name: 'Erste Schritte', welt: 1, weltName: 'Dämmerwiese',
-      mathe: false, reihe: null, // Stufe 1: reines Laufen, Springen, Sammeln, keine Gefahren
-      gen: { minDifficulty: 1, maxDifficulty: 1, minSections: 14, maxSections: 18 }
-    },
     {
       id: '1-2', name: 'Zahlenwiese', welt: 1, weltName: 'Dämmerwiese',
       mathe: true, reihe: 2, // Federpilz, Dornen, Rechenwichte; reihe = Vorschlag, das Kind waehlt vor dem Start

@@ -32,38 +32,39 @@ describe('calcMedals', () => {
 
 describe('xpFor', () => {
   test('beim ersten Abschluss: 20 mal Levelnummer plus 10 je Medaille', () => {
-    expect(R.xpFor('1-1', 3, false)).toBe(20 * 1 + 30);
+    expect(R.xpFor('1-2', 3, false)).toBe(20 * 2 + 30);
     expect(R.xpFor('1-2', 1, false)).toBe(20 * 2 + 10);
+    expect(R.xpFor('2-1', 1, false)).toBe(20 * 1 + 10);
   });
-  test('Wiederholung gibt keine XP', () => { expect(R.xpFor('1-1', 3, true)).toBe(0); });
-  test('ohne Medaille keine XP', () => { expect(R.xpFor('1-1', 0, false)).toBe(0); });
+  test('Wiederholung gibt keine XP', () => { expect(R.xpFor('1-2', 3, true)).toBe(0); });
+  test('ohne Medaille keine XP', () => { expect(R.xpFor('1-2', 0, false)).toBe(0); });
 });
 
 describe('buildResult', () => {
   const jnr = R.defaultJnr();
   test('liefert Level, Medaillen, Funken und XP', () => {
-    const r = R.buildResult('1-1', { ...base, funken: 9, timeMs: 61000 }, jnr);
-    expect(r).toMatchObject({ level: '1-1', medaillen: 3, funken: 9, xp: 50, timeMs: 61000 });
+    const r = R.buildResult('1-2', { ...base, funken: 9, timeMs: 61000 }, jnr);
+    expect(r).toMatchObject({ level: '1-2', medaillen: 3, funken: 9, xp: 70, timeMs: 61000 });
   });
   test('zweiter Abschluss desselben Levels gibt 0 XP', () => {
-    const j2 = R.mergeResult(jnr, R.buildResult('1-1', { ...base, funken: 9, timeMs: 61000 }, jnr));
-    expect(R.buildResult('1-1', { ...base, funken: 9, timeMs: 50000 }, j2).xp).toBe(0);
+    const j2 = R.mergeResult(jnr, R.buildResult('1-2', { ...base, funken: 9, timeMs: 61000 }, jnr));
+    expect(R.buildResult('1-2', { ...base, funken: 9, timeMs: 50000 }, j2).xp).toBe(0);
   });
 });
 
 describe('mergeResult', () => {
-  const r1 = { level: '1-1', medaillen: 2, funken: 7, xp: 40, timeMs: 70000 };
+  const r1 = { level: '1-2', medaillen: 2, funken: 7, xp: 40, timeMs: 70000 };
   test('legt Bestwerte an und markiert XP als ausgezahlt', () => {
     const j = R.mergeResult(R.defaultJnr(), r1);
-    expect(j.levels['1-1']).toEqual({ medals: 2, bestTimeMs: 70000, bestFunken: 7 });
-    expect(j.xpAwarded['1-1']).toBe(true);
+    expect(j.levels['1-2']).toEqual({ medals: 2, bestTimeMs: 70000, bestFunken: 7 });
+    expect(j.xpAwarded['1-2']).toBe(true);
     expect(j.funkenTotal).toBe(7);
-    expect(j.lastLevel).toBe('1-1');
+    expect(j.lastLevel).toBe('1-2');
   });
   test('behält bessere Altwerte, übernimmt bessere neue', () => {
     let j = R.mergeResult(R.defaultJnr(), r1);
-    j = R.mergeResult(j, { level: '1-1', medaillen: 1, funken: 9, xp: 0, timeMs: 60000 });
-    expect(j.levels['1-1']).toEqual({ medals: 2, bestTimeMs: 60000, bestFunken: 9 });
+    j = R.mergeResult(j, { level: '1-2', medaillen: 1, funken: 9, xp: 0, timeMs: 60000 });
+    expect(j.levels['1-2']).toEqual({ medals: 2, bestTimeMs: 60000, bestFunken: 9 });
     expect(j.funkenTotal).toBe(16);
   });
   test('verändert das Eingabeobjekt nicht', () => {
@@ -74,13 +75,16 @@ describe('mergeResult', () => {
 });
 
 describe('Freischaltung', () => {
-  const order = ['1-1', '1-2'];
-  test('Level 1 ist immer offen, Level 2 nach Abschluss von Level 1', () => {
+  const order = ['1-2', '1-3'];
+  test('erstes Level der Reihenfolge ist immer offen, das naechste nach Abschluss des vorigen', () => {
     const j0 = R.defaultJnr();
-    expect(R.isUnlocked(j0, '1-1', order)).toBe(true);
-    expect(R.isUnlocked(j0, '1-2', order)).toBe(false);
-    const j1 = R.mergeResult(j0, { level: '1-1', medaillen: 1, funken: 0, xp: 30, timeMs: 1 });
-    expect(R.isUnlocked(j1, '1-2', order)).toBe(true);
+    expect(R.isUnlocked(j0, '1-2', order)).toBe(true);
+    expect(R.isUnlocked(j0, '1-3', order)).toBe(false);
+    const j1 = R.mergeResult(j0, { level: '1-2', medaillen: 1, funken: 0, xp: 50, timeMs: 1 });
+    expect(R.isUnlocked(j1, '1-3', order)).toBe(true);
+  });
+  test('ein Level ausserhalb der Reihenfolge (z.B. die gestrichene 1-1) ist nie offen', () => {
+    expect(R.isUnlocked(R.defaultJnr(), '1-1', order)).toBe(false);
   });
 });
 
@@ -98,6 +102,19 @@ describe('sanitizeJnr', () => {
     expect(j.funkenTotal).toBe(12);
     expect(j.options.steuerung).toBe('einfach');
     expect(j.options.mathe).toBe('ziel');
+  });
+  test('alter Spielstand mit der gestrichenen Stufe 1-1 bleibt unangetastet und stoert 1-2 nicht', () => {
+    const alt = { levels: { '1-1': { medals: 3, bestTimeMs: 4000, bestFunken: 12 } }, xpAwarded: { '1-1': true }, lastLevel: '1-1', funkenTotal: 12 };
+    const j = R.sanitizeJnr(alt);
+    expect(j.levels['1-1']).toEqual({ medals: 3, bestTimeMs: 4000, bestFunken: 12 }); // nichts geht verloren
+    expect(j.xpAwarded['1-1']).toBe(true);
+    // erster Abschluss von 1-2 bringt trotz altem 1-1-Eintrag die vollen XP der Stufe 1-2
+    const r = R.buildResult('1-2', { ...base, funken: 5, timeMs: 1000 }, j);
+    expect(r.xp).toBe(R.xpFor('1-2', 3, false));
+    const j2 = R.mergeResult(j, r);
+    expect(j2.funkenTotal).toBe(17);
+    expect(j2.lastLevel).toBe('1-2');
+    expect(j2.levels['1-1'].medals).toBe(3);
   });
   test('Standard-Optionen', () => {
     expect(R.defaultJnr().options).toEqual({ steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true });
@@ -129,7 +146,7 @@ describe('Tutorial-Flag (tutorialGesehen)', () => {
     expect(R.sanitizeJnr({}).tutorialGesehen).toBe(false);
   });
   test('mergeResult (Trainer bei jnr:result) verliert das Flag nicht', () => {
-    const j = R.mergeResult({ tutorialGesehen: true }, { level: '1-1', medaillen: 1, funken: 2, xp: 30, timeMs: 5 });
+    const j = R.mergeResult({ tutorialGesehen: true }, { level: '1-2', medaillen: 1, funken: 2, xp: 30, timeMs: 5 });
     expect(j.tutorialGesehen).toBe(true);
   });
 });

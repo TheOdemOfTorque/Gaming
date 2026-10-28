@@ -51,3 +51,21 @@ describe('jnr-viewport computeLayout', () => {
     expect(l.k).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('jnr-viewport mussQuerDrehen (Querformat-Pflicht auf Touch-Geräten)', () => {
+  const { mussQuerDrehen } = require('../../jumpnrun/core/viewport.js');
+  test('Touch-Gerät (grober Zeiger) im Hochformat muss gedreht werden', () => {
+    expect(mussQuerDrehen({ coarse: true, portrait: true })).toBe(true);
+  });
+  test('Touch-Gerät im Querformat darf spielen', () => {
+    expect(mussQuerDrehen({ coarse: true, portrait: false })).toBe(false);
+  });
+  test('Laptop/Desktop (feiner Zeiger) bleibt auch im schmalen Fenster unberührt', () => {
+    expect(mussQuerDrehen({ coarse: false, portrait: true })).toBe(false);
+    expect(mussQuerDrehen({ coarse: false, portrait: false })).toBe(false);
+  });
+  test('fehlende Angaben gelten als nicht gesperrt', () => {
+    expect(mussQuerDrehen()).toBe(false);
+    expect(mussQuerDrehen({})).toBe(false);
+  });
+});

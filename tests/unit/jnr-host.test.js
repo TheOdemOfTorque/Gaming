@@ -2,8 +2,8 @@ const H = require('../../jumpnrun/core/host.js');
 
 describe('buildResultMessage', () => {
   test('hat genau die Vertragsfelder', () => {
-    const m = H.buildResultMessage({ level: '1-1', medaillen: 3, funken: 9, xp: 50, timeMs: 1234 });
-    expect(m).toEqual({ type: 'jnr:result', level: '1-1', medaillen: 3, funken: 9, xp: 50 });
+    const m = H.buildResultMessage({ level: '1-2', medaillen: 3, funken: 9, xp: 70, timeMs: 1234 });
+    expect(m).toEqual({ type: 'jnr:result', level: '1-2', medaillen: 3, funken: 9, xp: 70 });
   });
 });
 
@@ -12,7 +12,7 @@ describe('parseHostMessage', () => {
     expect(H.parseHostMessage({ type: 'jnr:pause' })).toEqual({ kind: 'pause' });
     expect(H.parseHostMessage({ type: 'jnr:timeup' })).toEqual({ kind: 'timeup' });
   });
-  test('jnr:init übernimmt Fortschritt und Optionen bereinigt', () => {
+  test('jnr:init übernimmt Fortschritt und Optionen bereinigt (auch Alteinträge der gestrichenen Stufe 1-1)', () => {
     const m = H.parseHostMessage({
       type: 'jnr:init', level: '1-2',
       jnr: { levels: { '1-1': { medals: 2, bestTimeMs: 5, bestFunken: 3 } }, xpAwarded: { '1-1': true } },
@@ -150,7 +150,7 @@ describe('debugErlaubt (window.__jnr nur mit Debug-Parameter)', () => {
     expect(H.debugErlaubt(undefined)).toBe(false);
   });
   test('jnrDebug=1 und die bestehenden Debug-Parameter schalten frei', () => {
-    ['?jnrDebug=1', '?jnrLevel=1-1', '?jnrSeed=3', '?jnrReihe=7', '?jnrTutorial=1', 'jnrDebug=1', '?a=1&jnrSeed=1'].forEach((q) => {
+    ['?jnrDebug=1', '?jnrLevel=1-2', '?jnrSeed=3', '?jnrReihe=7', '?jnrTutorial=1', 'jnrDebug=1', '?a=1&jnrSeed=1'].forEach((q) => {
       expect(H.debugErlaubt(q)).toBe(true);
     });
   });
