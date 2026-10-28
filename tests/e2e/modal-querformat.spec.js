@@ -21,15 +21,35 @@ async function animationAbwarten(locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
 }
 
+// Scrollen wie ein Nutzer (Mausrad über dem Sheet) statt scrollIntoView: Letzteres
+// scrollt auch overflow:hidden-Container und würde ein nicht scrollbares Sheet
+// durchwinken (Review-Befund 28.10.).
+async function radScrollen(page, sheet, deltaY) {
+  const box = await sheet.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, deltaY);
+}
+
 const MODALE = [
   {
     name: 'Training',
     karte: '.mode-card.training',
     modal: '#training-modal',
     start: '#start-training-btn',
-    // Startknopf ist disabled, bis eine Reihe gewählt ist; Reihe 1 liegt vorher
-    // außerhalb des Viewports, deshalb per Funktion statt per Klick wählen.
-    vorbereiten: page => page.evaluate(() => toggleTrainingReihe(1)),
+    // Startknopf ist disabled, bis eine Reihe gewählt ist. Die erste und die letzte
+    // Kachel liegen je nach Browser oben oder unten außerhalb des Viewports; beide
+    // müssen nach Scrollen per echtem Klick wählbar sein (Review-Befund 28.10.).
+    vorbereiten: async (page, sheet) => {
+      for (const [pos, deltaY] of [['first', -3000], ['last', 3000]]) {
+        const kachel = page.locator('#reihe-grid .training-reihe-btn')[pos]();
+        await radScrollen(page, sheet, deltaY);
+        await expect(kachel).toBeInViewport();
+        await kachel.click();
+      }
+      // toggleTrainingReihe rendert das Raster neu, deshalb frisch nachsehen
+      await expect(page.locator('#reihe-grid .training-reihe-btn').first()).toHaveClass(/selected/);
+      await expect(page.locator('#reihe-grid .training-reihe-btn').last()).toHaveClass(/selected/);
+    },
   },
   {
     name: 'Blitz',
@@ -58,13 +78,13 @@ for (const vp of [{ width: 844, height: 390 }, { width: 667, height: 375 }]) {
 
         // Titel: nach oben scrollen, dann sichtbar
         const titel = page.locator(`${m.modal} .modal-title`);
-        await titel.scrollIntoViewIfNeeded();
+        await radScrollen(page, sheet, -3000);
         await expect(titel).toBeInViewport();
 
         // Startknopf: nach unten scrollen, dann sichtbar und klickbar
-        await m.vorbereiten(page);
+        await m.vorbereiten(page, sheet);
         const start = page.locator(m.start);
-        await start.scrollIntoViewIfNeeded();
+        await radScrollen(page, sheet, 3000);
         await expect(start).toBeInViewport();
         const b = await start.boundingBox();
         expect(b.y).toBeGreaterThanOrEqual(0);
