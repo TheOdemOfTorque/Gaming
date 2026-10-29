@@ -31,10 +31,24 @@ describe('calcMedals', () => {
 });
 
 describe('xpFor', () => {
-  test('beim ersten Abschluss: 20 mal Levelnummer plus 10 je Medaille', () => {
+  test('Welt 1 unveraendert: 20 mal Levelnummer plus 10 je Medaille (1-2: 50 bis 70, 1-3: 70 bis 90)', () => {
     expect(R.xpFor('1-2', 3, false)).toBe(20 * 2 + 30);
     expect(R.xpFor('1-2', 1, false)).toBe(20 * 2 + 10);
-    expect(R.xpFor('2-1', 1, false)).toBe(20 * 1 + 10);
+    expect(R.xpFor('1-3', 1, false)).toBe(70);
+    expect(R.xpFor('1-3', 3, false)).toBe(90);
+  });
+  // Aufgabe 9 (Marco 30.10.): Welt 2 setzt nach Welt 1 fort. Versatz WELT_VERSATZ = 60 XP je Welt ueber 1
+  // (20 XP mal drei Level-Plaetze je Welt, 1-1 bis 1-3): 2-1 = 20 + 60 + 10 je Medaille = 90 bis 110.
+  test('Welt 2 setzt fort: 2-1 gibt 80 plus 10 je Medaille, 2-2 100 plus 10 je Medaille', () => {
+    expect(R.WELT_VERSATZ).toBe(60);
+    expect(R.xpFor('2-1', 1, false)).toBe(90);
+    expect(R.xpFor('2-1', 3, false)).toBe(110);
+    expect(R.xpFor('2-2', 1, false)).toBe(110);
+    expect(R.xpFor('3-1', 1, false)).toBe(150);
+  });
+  test('die Kurve ist ueber die Reihenfolge 1-2, 1-3, 2-1 streng steigend', () => {
+    const xp = ['1-2', '1-3', '2-1'].map(id => R.xpFor(id, 1, false));
+    expect(xp).toEqual([50, 70, 90]);
   });
   test('Wiederholung gibt keine XP', () => { expect(R.xpFor('1-2', 3, true)).toBe(0); });
   test('ohne Medaille keine XP', () => { expect(R.xpFor('1-2', 0, false)).toBe(0); });
