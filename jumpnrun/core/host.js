@@ -33,8 +33,9 @@
 //     parent.postMessage({ type: 'jnr:beenden' }, location.origin)
 //       Gesendet vom Knopf "Zurueck zum Trainer" im Lumo-Menue (nur eingebettet sichtbar) und vom Dialog
 //       "Deine Stern-Zeit ist vorbei" nach jnr:timeup. Der Trainer schliesst daraufhin das Overlay
-//       (closeGame). Ablauf bei Zeitablauf: Trainer sendet jnr:timeup -> Lumo haelt an (mode 'ended')
-//       und zeigt den Dialog mit genau einem Knopf -> Knopf sendet jnr:beenden -> Trainer schliesst.
+//       (closeGame). Ablauf bei Zeitablauf: Trainer sendet jnr:timeup -> Lumo haelt an (mode 'ended'),
+//       zeigt den Dialog mit genau einem Knopf und bestaetigt sofort mit jnr:zeitende -> Knopf sendet
+//       jnr:beenden -> Trainer schliesst.
 //       Standalone (ohne Parent) gibt es den Menue-Knopf nicht und jnr:timeup kommt nie.
 //
 //   Spiel -> Trainer, sofort als Antwort auf jnr:timeup (buildZeitendeMessage):
@@ -65,7 +66,7 @@
 //                             Trainer-Leiste, solange Lumo aktiv meldet: erst Pause, das zweite X schliesst)
 //     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus) und zeigt
 //                             "Deine Stern-Zeit ist vorbei" mit dem Knopf "Zurueck zum Trainer" (jnr:beenden),
-//                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
+//                             antwortet sofort mit jnr:zeitende, bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
 //                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
 //
 //   Debug-Hilfen (window.__jnr) gibt es nur mit einem Debug-Parameter in der URL (debugErlaubt):

@@ -529,8 +529,9 @@ function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
 
 // Lumo will verlassen werden (Knopf "Zurück zum Trainer" im Menü oder im Dialog "Deine Stern-Zeit
 // ist vorbei", Vertrag jumpnrun/core/host.js, jnr:beenden): nur, wenn Lumo gerade im Overlay läuft.
-// Nach jnr:timeup wartet der Trainer LUMO_BEENDEN_FALLBACK_MS auf jnr:beenden und schließt sonst
-// selbst (altes Lumo aus dem Cache kennt die Nachricht nicht). Tests: tests/unit/lumo-beenden.test.js
+// Nach jnr:timeup wartet der Trainer LUMO_BEENDEN_FALLBACK_MS auf jnr:zeitende (Bestätigung, siehe
+// lumoZeitendeBestaetigt) oder jnr:beenden und schließt sonst selbst (altes Lumo aus dem Cache kennt
+// beide Nachrichten nicht). Tests: tests/unit/lumo-beenden.test.js
 const LUMO_BEENDEN_FALLBACK_MS = 5000;
 function lumoBeendenGewuenscht(currentGame, data) {
   return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
