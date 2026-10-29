@@ -29,6 +29,16 @@
 //       das (z.B. aus einem alten Cache) nie jnr:aktiv sendet, laesst die Zeit wie frueher durchlaufen.
 //       Standalone (ohne Parent) sendet Lumo nichts.
 //
+//   Spiel -> Trainer, wenn das Kind Lumo verlassen will (buildBeendenMessage):
+//     parent.postMessage({ type: 'jnr:beenden' }, location.origin)
+//       Gesendet vom Knopf "Zurueck zum Trainer" im Lumo-Menue (nur eingebettet sichtbar) und vom Dialog
+//       "Deine Stern-Zeit ist vorbei" nach jnr:timeup. Der Trainer schliesst daraufhin das Overlay
+//       (closeGame). Ablauf bei Zeitablauf: Trainer sendet jnr:timeup -> Lumo haelt an (mode 'ended')
+//       und zeigt den Dialog mit genau einem Knopf -> Knopf sendet jnr:beenden -> Trainer schliesst.
+//       Fallback im Trainer: kommt innerhalb von LUMO_BEENDEN_FALLBACK_MS (5 s, 1x1-trainer/logic.js)
+//       nach jnr:timeup kein jnr:beenden (altes Lumo aus dem Cache), schliesst der Trainer von selbst.
+//       Standalone (ohne Parent) gibt es den Menue-Knopf nicht und jnr:timeup kommt nie.
+//
 //   Trainer -> Spiel (Spiel prüft event.origin === location.origin und event.source === parent):
 //     { type: 'jnr:init', level?, jnr?, options?, lernstand? }
 //        level   optional: "1-2" startet direkt dieses Level (sonst Levelauswahl)
@@ -46,7 +56,8 @@
 //                ungueltig, ist lernstand null: alle Reihen waehlbar, keine Empfehlung. Ungueltige
 //                Eintraege fallen einzeln weg. Nur fluechtig, landet nie im Spielstand.
 //     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel)
-//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus, Hinweis),
+//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus) und zeigt
+//                             "Deine Stern-Zeit ist vorbei" mit dem Knopf "Zurueck zum Trainer" (jnr:beenden),
 //                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
 //                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
 //
@@ -68,6 +79,9 @@
   }
 
   function buildTutorialMessage() { return { type: 'jnr:tutorial', gesehen: true }; }
+
+  // "Zurueck zum Trainer" (Menue, nur eingebettet) und "Deine Stern-Zeit ist vorbei": der Trainer schliesst Lumo.
+  function buildBeendenMessage() { return { type: 'jnr:beenden' }; }
 
   function sanitizeLernstand(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -131,5 +145,5 @@
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildBeendenMessage: buildBeendenMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

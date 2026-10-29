@@ -527,6 +527,15 @@ function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
   return !!sternZeit && !!sichtbar && (!z.meldet || z.aktiv);
 }
 
+// Lumo will verlassen werden (Knopf "Zurück zum Trainer" im Menü oder im Dialog "Deine Stern-Zeit
+// ist vorbei", Vertrag jumpnrun/core/host.js, jnr:beenden): nur, wenn Lumo gerade im Overlay läuft.
+// Nach jnr:timeup wartet der Trainer LUMO_BEENDEN_FALLBACK_MS auf jnr:beenden und schließt sonst
+// selbst (altes Lumo aus dem Cache kennt die Nachricht nicht). Tests: tests/unit/lumo-beenden.test.js
+const LUMO_BEENDEN_FALLBACK_MS = 5000;
+function lumoBeendenGewuenscht(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
+}
+
 // Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
 // und das Verzweigen bei Ablauf (Invader: Pause-Dialog/Toast, Lumo: jnr:timeup)
 // bleiben in index.html. Tests: tests/unit/spiele-zugang.test.js
@@ -809,6 +818,7 @@ if (typeof module !== 'undefined') {
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
                      lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
+                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,

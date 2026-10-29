@@ -155,3 +155,12 @@ describe('debugErlaubt (window.__jnr nur mit Debug-Parameter)', () => {
     });
   });
 });
+
+describe('jnr:beenden (Lumo verlassen, Zurueck zum Trainer)', () => {
+  test('buildBeendenMessage hat genau die Vertragsfelder', () => {
+    expect(H.buildBeendenMessage()).toEqual({ type: 'jnr:beenden' });
+  });
+  test('das Spiel versteht jnr:beenden nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
+    expect(H.parseHostMessage({ type: 'jnr:beenden' })).toBeNull();
+  });
+});
