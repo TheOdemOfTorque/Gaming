@@ -24,9 +24,13 @@ describe('Greedy-Bot (core/solver.js)', () => {
     expect(a.frames).toBe(b.frames);
   });
 
-  test.each(SEC.SECTIONS.map(s => [s.id, s]))('Abschnitt %s ist fuer sich allein loesbar', (id, section) => {
+  // Erreichbarkeit je Abschnitt: unsterblich und ohne Softlock (Aufgabe 10). Ob der Bot dabei mit
+  // 3 Leben Energie verloren haette, ist kein Kriterium mehr.
+  test.each(SEC.SECTIONS.map(s => [s.id, s]))('Abschnitt %s ist fuer sich allein unsterblich erreichbar, ohne Softlock', (id, section) => {
     const level = sectionAsLevel(section);
-    const r = SOLVER.solve(level, { mode: 'aus' });
+    const r = SOLVER.solve(level, { mode: 'aus' }, undefined, { unsterblich: true });
+    expect(r.fehler).toBeUndefined();
+    expect(r.softlock).toBe(false);
     expect(r.won).toBe(true);
   });
 
@@ -41,7 +45,7 @@ describe('Greedy-Bot (core/solver.js)', () => {
     expect(r.won).toBe(false);
   });
 
-  test('Gegenprobe greift auch pro-Abschnitt-Test: unloesbarer Platzhalter-Abschnitt faellt durch', () => {
+  test('Gegenprobe greift auch pro-Abschnitt-Test: unloesbarer Platzhalter-Abschnitt faellt auch unsterblich durch (Softlock)', () => {
     const bad = {
       id: 'test-unloesbar',
       rows: [
@@ -57,8 +61,10 @@ describe('Greedy-Bot (core/solver.js)', () => {
       ]
     };
     const level = sectionAsLevel(bad);
-    const r = SOLVER.solve(level, { mode: 'aus' });
+    const r = SOLVER.solve(level, { mode: 'aus' }, undefined, { unsterblich: true });
     expect(r.won).toBe(false);
+    expect(r.softlock).toBe(true);
+    expect(r.game.status).toBe('play');
   });
 });
 
