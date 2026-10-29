@@ -333,3 +333,69 @@ describe('Übungsmodus (uebung: true, für das Tutorial)', () => {
     expect(g.leben).toBe(2);
   });
 });
+
+// Test-only-Option fuer den Erreichbarkeits-Nachweis (Aufgabe 10, Marco 29.10.): Schaden und Sturz
+// behalten alle Folgen (Ereignis, Rueckstoss, Unverwundbarkeit, Respawn am Checkpoint), nur Energie
+// und Leben werden nicht abgezogen und der Lauf geht nie verloren. Heisst 'unsterblich', weil
+// g.unverwundbar schon der Zaehler der Unverwundbarkeit ist.
+describe('Unsterblich (unsterblich: true, nur fuer Tests)', () => {
+  const PIT = parseLevel(['..........', '.S.......G', '###...####']);
+  const FLAT = parseLevel(['..........', '.S.......G', '##########']);
+
+  test('Sturz in den Abgrund: Respawn am Startpunkt, Ereignis leben mit grund abgrund, Leben bleiben 3', () => {
+    const g = G.createGame(PIT, { mode: 'aus', unsterblich: true });
+    const ev = play(g, RIGHT, gm => gm.events.some(e => e.type === 'leben'), 400);
+    expect(ev.find(e => e.type === 'leben')).toMatchObject({ grund: 'abgrund', leben: G.LEBEN });
+    expect(g.leben).toBe(G.LEBEN);
+    expect(g.fehltreffer).toBe(1);
+    expect(g.player.x).toBe(PIT.start.x);
+    expect(g.status).toBe('play');
+    expect(g.unverwundbar).toBe(G.INVULN);
+  });
+
+  test('wiederholte Stuerze fuehren nie zu status lost (Endlosschleife Sturz/Respawn bleibt moeglich)', () => {
+    const g = G.createGame(PIT, { mode: 'aus', unsterblich: true });
+    const ev = play(g, RIGHT, null, 2000);
+    expect(ev.filter(e => e.type === 'leben').length).toBeGreaterThanOrEqual(4);
+    expect(ev.some(e => e.type === 'verloren')).toBe(false);
+    expect(g.status).toBe('play');
+    expect(g.leben).toBe(G.LEBEN);
+  });
+
+  test('damage: Ereignis schaden, Fehltreffer, Rueckstoss und Unverwundbarkeit wie sonst, Energie bleibt 3', () => {
+    const g = G.createGame(FLAT, { mode: 'aus', unsterblich: true });
+    play(g, RIGHT, gm => gm.player.x > FLAT.start.x + 30, 200);
+    expect(G.damage(g, 'kristall', -1)).toBe(true);
+    expect(g.events.find(e => e.type === 'schaden')).toMatchObject({ quelle: 'kristall', energie: G.ENERGIE });
+    expect(g).toMatchObject({ energie: G.ENERGIE, leben: G.LEBEN, fehltreffer: 1, unverwundbar: G.INVULN });
+    expect(g.player.vx).toBeLessThan(0);
+    expect(g.player.onGround).toBe(false);
+    for (let i = 0; i < 5; i++) { g.unverwundbar = 0; G.damage(g, 'stacheln', 1); }
+    expect(g).toMatchObject({ energie: G.ENERGIE, leben: G.LEBEN, fehltreffer: 6, status: 'play' });
+  });
+
+  test('damage in der Unverwundbarkeit wirkt auch unsterblich nicht', () => {
+    const g = G.createGame(FLAT, { mode: 'aus', unsterblich: true });
+    g.unverwundbar = 10;
+    expect(G.damage(g, 'gegner', 1)).toBe(false);
+    expect(g.fehltreffer).toBe(0);
+  });
+
+  test('cloneGame nimmt die Option mit (Vorausschau des Bots)', () => {
+    const g = G.createGame(PIT, { mode: 'aus', unsterblich: true });
+    const c = G.cloneGame(g);
+    play(c, RIGHT, null, 2000);
+    expect(c.status).toBe('play');
+    expect(c.leben).toBe(G.LEBEN);
+  });
+
+  test('ohne Option bleibt alles wie bisher: Leben weg, Energie weg', () => {
+    const g = G.createGame(PIT, { mode: 'aus' });
+    expect(g.unsterblich).toBe(false);
+    play(g, RIGHT, gm => gm.leben === 2, 400);
+    expect(g.leben).toBe(2);
+    g.unverwundbar = 0;
+    G.damage(g, 'kristall', -1);
+    expect(g.energie).toBe(G.ENERGIE - 1);
+  });
+});
