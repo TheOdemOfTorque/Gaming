@@ -135,3 +135,32 @@ describe('Rechenwichte im Generator (opts.gegner)', () => {
     expect(wichte / abschnitte).toBeLessThanOrEqual(1 / 2);
   });
 });
+
+// Bitgleichheits-Schutz (Aufgabe 9, Marco 30.10.): Stufe 1-2 ohne die neuen gen-Parameter (gegnerAbstand,
+// minGegner) bleibt je Seed exakt wie auf dem Stand 25870c4. Die Baseline wurde dort erzeugt (ein SHA-256 je
+// Seed ueber rows, sections und gegner), bevor die drei Wicht-Abschnitte in die Bibliothek kamen. Weil
+// d2-wichtwiese-a (Schwierigkeit 2) seitdem auch im Pool der Zahlenwiese liegt, laeuft der Vergleich auf dem
+// Pool von damals: die Bibliothek ohne die seit der Baseline hinzugekommenen Abschnitte.
+describe('Bitgleichheit Stufe 1-2 gegen die Baseline 25870c4 (fixtures/jnr-1-2-baseline.json)', () => {
+  const crypto = require('crypto');
+  const BASE = require('./fixtures/jnr-1-2-baseline.json');
+  const D = require('../../jumpnrun/data/levels.js');
+  const pool = SEC.SECTIONS.filter(s => BASE.poolIds.includes(s.id));
+  const hash = g => crypto.createHash('sha256').update(JSON.stringify({ rows: g.rows, sections: g.sections, gegner: g.gegner })).digest('hex');
+
+  test('der Pool von damals ist vollstaendig vorhanden (22 Abschnitte), die gen-Parameter von 1-2 sind unveraendert', () => {
+    expect(pool.map(s => s.id)).toEqual(BASE.poolIds);
+    expect(pool).toHaveLength(22);
+    const gen = D.byId('1-2').gen;
+    expect(gen).toEqual(BASE.gen); // 1-2 bekommt keine neuen Parameter; nur dann greift der Standardpfad
+  });
+
+  test('Seeds 1..200: rows, sections und gegner bitgleich zur Baseline', () => {
+    const opts = Object.assign({}, D.byId('1-2').gen, { pool });
+    const abweichend = [];
+    for (let seed = 1; seed <= 200; seed++) {
+      if (hash(LG.generate(opts, seed)) !== BASE.seeds[seed]) abweichend.push(seed);
+    }
+    expect(abweichend).toEqual([]);
+  });
+});
