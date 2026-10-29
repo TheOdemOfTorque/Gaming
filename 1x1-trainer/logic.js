@@ -536,6 +536,12 @@ function lumoBeendenGewuenscht(currentGame, data) {
   return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
 }
 
+// Lumo bestätigt jnr:timeup mit jnr:zeitende: der Dialog „Deine Stern-Zeit ist vorbei“ steht, das Kind
+// schließt ihn selbst. Der Trainer löscht dann den Fallback und wartet beliebig lange auf jnr:beenden.
+function lumoZeitendeBestaetigt(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:zeitende';
+}
+
 // Das ✕ der Trainer-Leiste bleibt Notausgang, löst aber im laufenden Level zuerst die Pause aus
 // (Soll-Struktur im Review, B6): 'pausieren', wenn Lumo läuft und per jnr:aktiv aktiv meldet, sonst
 // 'schliessen' (Pause, Menü, Dialoge, anderes Spiel, altes Lumo ohne jnr:aktiv).
@@ -825,7 +831,7 @@ if (typeof module !== 'undefined') {
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
                      lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
-                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, schliessKnopfAktion,
+                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, lumoZeitendeBestaetigt, schliessKnopfAktion,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,

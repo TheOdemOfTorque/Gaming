@@ -187,7 +187,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   test('Timer-Ablauf: Lumo zeigt „Deine Stern-Zeit ist vorbei“, das Overlay bleibt bis „Zurück zum Trainer“ offen', async ({ page }) => {
     const frame = await lumoBisZeitablauf(page);
     await expect(frame.locator('#msg-buttons button')).toHaveText(['Zurück zum Trainer']);
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(7000); // deutlich länger als der 5-s-Fallback: Lumo hat jnr:zeitende gemeldet
     await expect(page.locator('#game-overlay')).toHaveClass(/active/); // kein Rauswurf ohne Erklärung (B1)
     await frame.getByRole('button', { name: 'Zurück zum Trainer' }).click();
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 2000 });
@@ -195,10 +195,20 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   });
 
   test('Timer-Ablauf ohne Antwort von Lumo (altes Lumo im Cache): der Trainer schließt nach dem Fallback von 5 s', async ({ page }) => {
-    await lumoBisZeitablauf(page);
+    // Altes Lumo simulieren: eine Seite, die weder jnr:aktiv noch jnr:zeitende noch jnr:beenden sendet
+    await page.route('**/jumpnrun/index.html*', route => route.fulfill({
+      // window.JNR.host muss da sein, sonst wertet der Trainer die Seite als Ladefehler (spielGeladen)
+      contentType: 'text/html', body: '<!DOCTYPE html><html><body><script>window.JNR={host:{}};</script>altes Lumo ohne Dialog-Knopf</body></html>'
+    }));
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 2, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+    await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 6000 }).toBe(0); // Timer läuft ohne jnr:aktiv durch
     await page.waitForTimeout(2500);
-    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // noch nicht
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // Fallback noch nicht abgelaufen
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 4000 });
+    await expect(page.locator('#game-frame')).toHaveAttribute('src', 'about:blank');
   });
 
   test('✕ während des Stern-Zeit-Dialogs: Fallback verfällt, ein sofort neu geöffnetes Lumo bleibt offen', async ({ page }) => {

@@ -1991,10 +1991,11 @@ function updateLumoTimerDisplay() {
   el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
 }
 
-// Stern-Zeit 0:00: Lumo zeigt „Deine Stern-Zeit ist vorbei“ und meldet per jnr:beenden, wenn das
-// Kind „Zurück zum Trainer“ tippt; erst dann closeGame() (Vertrag jumpnrun/core/host.js). Ein altes
-// Lumo aus dem Cache kennt die Nachricht nicht: nach LUMO_BEENDEN_FALLBACK_MS (logic.js) schließt
-// der Trainer selbst. closeGame() (auch über das ✕) löscht den Fallback.
+// Stern-Zeit 0:00: Lumo zeigt „Deine Stern-Zeit ist vorbei“, bestätigt das sofort per jnr:zeitende und
+// meldet per jnr:beenden, wenn das Kind „Zurück zum Trainer“ tippt; erst dann closeGame() (Vertrag
+// jumpnrun/core/host.js). Ein altes Lumo aus dem Cache kennt beide Nachrichten nicht: kommt nach
+// LUMO_BEENDEN_FALLBACK_MS (logic.js) keine Bestätigung, schließt der Trainer selbst. jnr:zeitende und
+// closeGame() (auch über das ✕) löschen den Fallback.
 let lumoBeendenFallback = null;
 function lumoBeendenFallbackStoppen() {
   if (lumoBeendenFallback) { clearTimeout(lumoBeendenFallback); lumoBeendenFallback = null; }
@@ -2083,7 +2084,8 @@ function openGame(gameId) {
 }
 
 // ✕ der Trainer-Leiste: im laufenden Lumo-Level zuerst pausieren (jnr:pause, Lumo zeigt den
-// Pause-Dialog mit „Zum Menü“ und dort „Zurück zum Trainer“), sonst schließen (schliessKnopfAktion).
+// Pause-Dialog; aus der Pause schließt das zweite ✕, oder „Zum Menü“ und dort „Zurück zum Trainer“),
+// sonst schließen (schliessKnopfAktion).
 function schliessKnopf() {
   if (schliessKnopfAktion(currentGame, lumoAktiv) === 'pausieren') sendToGameFrame({ type: 'jnr:pause' });
   else closeGame();
@@ -2127,6 +2129,9 @@ window.addEventListener('message', (e) => {
     // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
     Object.assign(state, applyJnrTutorial(state, e.data));
     saveState();
+  } else if (lumoZeitendeBestaetigt(currentGame, e.data)) {
+    // Lumo zeigt den Stern-Zeit-Dialog selbst: kein Fallback mehr, das Kind tippt „Zurück zum Trainer“
+    lumoBeendenFallbackStoppen();
   } else if (lumoBeendenGewuenscht(currentGame, e.data)) {
     // „Zurück zum Trainer“ aus Lumos Menü oder nach dem Stern-Zeit-Dialog (jnr:beenden)
     closeGame();

@@ -163,4 +163,8 @@ describe('jnr:beenden (Lumo verlassen, Zurueck zum Trainer)', () => {
   test('das Spiel versteht jnr:beenden nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
     expect(H.parseHostMessage({ type: 'jnr:beenden' })).toBeNull();
   });
+  test('buildZeitendeMessage bestaetigt jnr:timeup (Dialog steht), ebenfalls nur Richtung Trainer', () => {
+    expect(H.buildZeitendeMessage()).toEqual({ type: 'jnr:zeitende' });
+    expect(H.parseHostMessage({ type: 'jnr:zeitende' })).toBeNull();
+  });
 });

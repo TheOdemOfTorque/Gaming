@@ -957,7 +957,8 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
 
   test('Tastatur-Hinweis im Menü nur mit feinem Zeiger (Laptop)', async ({ page }) => {
     await page.goto('/jumpnrun/index.html');
-    await expect(page.locator('#menu')).toContainText('Tastatur: Pfeile oder A/D');
+    await expect(page.locator('#tasten-hinweis')).toBeVisible();
+    await expect(page.locator('#tasten-hinweis')).toContainText('Tastatur: Pfeile oder A/D');
   });
 
   test('Schlucht im Tutorial kostet kein Leben', async ({ page }) => {

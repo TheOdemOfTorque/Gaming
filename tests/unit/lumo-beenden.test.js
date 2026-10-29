@@ -18,8 +18,22 @@ describe('Lumo beenden (jnr:beenden)', () => {
     expect(lumoBeendenGewuenscht('jnr', {})).toBe(false);
   });
 
-  test('Fallback: schickt ein altes Lumo nach jnr:timeup kein jnr:beenden, schliesst der Trainer nach 5 s', () => {
+  test('Fallback: schickt ein altes Lumo nach jnr:timeup weder jnr:zeitende noch jnr:beenden, schliesst der Trainer nach 5 s', () => {
     expect(LUMO_BEENDEN_FALLBACK_MS).toBe(5000);
+  });
+
+  // Das neue Lumo bestaetigt jnr:timeup sofort; der Trainer loescht dann den Fallback (Review X1).
+  const { lumoZeitendeBestaetigt } = require('../../1x1-trainer/logic.js');
+  test('jnr:zeitende vom laufenden Lumo bestaetigt den Dialog', () => {
+    expect(lumoZeitendeBestaetigt('jnr', { type: 'jnr:zeitende' })).toBe(true);
+  });
+  test('andere Nachrichten, anderes Spiel oder Muell bestaetigen nichts', () => {
+    expect(lumoZeitendeBestaetigt('jnr', { type: 'jnr:beenden' })).toBe(false);
+    expect(lumoZeitendeBestaetigt('jnr', { type: 'jnr:aktiv', aktiv: false })).toBe(false);
+    expect(lumoZeitendeBestaetigt('knobel', { type: 'jnr:zeitende' })).toBe(false);
+    expect(lumoZeitendeBestaetigt(null, { type: 'jnr:zeitende' })).toBe(false);
+    expect(lumoZeitendeBestaetigt('jnr', null)).toBe(false);
+    expect(lumoZeitendeBestaetigt('jnr', 'jnr:zeitende')).toBe(false);
   });
 });
 
