@@ -241,21 +241,24 @@ test.describe('Lumo: Energie und Leben', () => {
     expect(s).toMatchObject({ mode: 'play', leben: 2, energie: 3 });
   });
 
-  test('alle Leben weg: Game-Over mit Stand, „Nochmal“ startet neu, „Zum Menü“ geht ins Menü', async ({ page }) => {
+  test('alle Leben weg: Game-Over mit Stand, „Nochmal“ startet sofort dieselbe Reihe neu, „Zum Menü“ geht ins Menü', async ({ page }) => {
     await page.goto(URL1);
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1, funken: 4 }); window.__jnr.debugFall(); });
     await expect(page.locator('#msg')).toBeVisible();
     await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
+    await expect(page.locator('#msg-body')).toContainText('Lumo ist ganz erschöpft. So weit bist du gekommen:');
+    await expect(page.locator('#msg-body')).not.toContainText('Pause'); // "Pause" ist ein eigener Zustand mit "Weiter"
     await expect(page.locator('#msg-body')).toContainText('4 Funken'); // der Sturz kostet keinen Funken
     await expect(page.locator('#msg-body')).toContainText('Kristallen gesammelt');
     expect((await state(page)).mode).toBe('lost');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Nochmal', 'Zum Menü']);
     await page.getByRole('button', { name: 'Nochmal' }).click();
     await expect(page.locator('#msg')).toBeHidden();
-    // Mathe-Stufe: "Nochmal" fuehrt ueber die Reihenwahl, die gespielte Reihe ist vorgewaehlt
-    await expect(page.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '2');
-    await page.locator('#rw-los').click();
-    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3, energie: 3, funken: 0 });
+    // Mathe-Level: "Nochmal" startet direkt mit derselben Reihe, ohne Reihenwahl (B5)
+    await expect(page.locator('#reihenwahl')).toBeHidden();
+    await expect(page.locator('#ziel .z-reihe')).toHaveText('2er-Reihe');
+    expect(await state(page)).toMatchObject({ mode: 'play', reihe: 2, leben: 3, energie: 3, funken: 0 });
 
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
     await page.getByRole('button', { name: 'Zum Menü' }).click();
@@ -263,18 +266,18 @@ test.describe('Lumo: Energie und Leben', () => {
     expect((await state(page)).mode).toBe('menu');
   });
 
-  test('Game-Over per Tastatur: Fokus auf „Nochmal“, Esc geht ins Menü, Enter spielt nochmal', async ({ page }) => {
+  test('Game-Over per Tastatur: Fokus auf „Nochmal“, Esc und Enter spielen sofort nochmal', async ({ page }) => {
     await tutorialGesehen(page);
     await page.goto(URL1);
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
     await expect(page.locator('#msg-title')).toHaveText('Alle Leben verbraucht');
     await expect(page.getByRole('button', { name: 'Nochmal' })).toBeFocused();
-    await page.keyboard.press('Escape');
-    await expect(page.locator('#menu')).toBeVisible();
-    expect((await state(page)).mode).toBe('menu');
+    await page.keyboard.press('Escape'); // Esc loest wie Enter den Hauptknopf aus
+    await expect(page.locator('#msg')).toBeHidden();
+    await expect(page.locator('#reihenwahl')).toBeHidden();
+    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3, reihe: 2 });
 
-    await page.click('button[data-level="1-2"]'); // jnrReihe=2 in URL1: direkt ins Level
     await page.waitForTimeout(200);
     await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
     await expect(page.locator('#msg')).toBeVisible();
@@ -282,9 +285,13 @@ test.describe('Lumo: Energie und Leben', () => {
     await page.evaluate(() => document.activeElement.blur());
     await page.keyboard.press('Enter');
     await expect(page.locator('#msg')).toBeHidden();
-    await expect(page.locator('#reihenwahl')).toBeVisible(); // Mathe-Stufe: Reihenwahl, Enter startet
-    await page.keyboard.press('Enter');
-    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3 });
+    await expect(page.locator('#reihenwahl')).toBeHidden(); // kein Zwischenschritt
+    expect(await state(page)).toMatchObject({ mode: 'play', leben: 3, reihe: 2 });
+
+    await page.evaluate(() => { window.__jnr.debugSet({ leben: 1 }); window.__jnr.debugFall(); });
+    await page.getByRole('button', { name: 'Zum Menü' }).click();
+    await expect(page.locator('#menu')).toBeVisible();
+    expect((await state(page)).mode).toBe('menu');
   });
 
   test('Lebensverlust wird per Live-Region angesagt, die Leben/Energie-Box selbst ist nicht live', async ({ page }) => {
@@ -305,12 +312,16 @@ test.describe('Lumo: Energie und Leben', () => {
     await expect(page.locator('#tipp')).toBeVisible();
   });
 
-  test('Hilfe im Menü erklärt Energie und Leben', async ({ page }) => {
+  test('Hilfe im Menü erklärt Energie und Leben, sagt „Level“ statt „Stufe“, hat Verstanden und Tutorial', async ({ page }) => {
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-hilfe');
     await expect(page.locator('#msg-body')).toContainText('Energie');
     await expect(page.locator('#msg-body')).toContainText('Leben');
     await expect(page.locator('#msg-body')).toContainText('Schlucht');
+    await expect(page.locator('#msg-body')).toContainText('Level');
+    await expect(page.locator('#msg-body')).not.toContainText('Stufe');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Verstanden', 'Tutorial']);
+    await expect(page.locator('#msg-buttons button').first()).toHaveClass(/main/);
     await page.getByRole('button', { name: 'Verstanden' }).click();
     await expect(page.locator('#msg')).toBeHidden();
     await expect(page.locator('#menu')).toBeVisible();
@@ -473,21 +484,29 @@ const harness = (page) => page.route('**/jumpnrun-harness.html', route => route.
 const sendTo = (page, m) => page.evaluate(msg => document.getElementById('f').contentWindow.postMessage(msg, location.origin), m);
 const INIT12 = { type: 'jnr:init', level: '1-2', jnr: { levels: { '1-1': { medals: 2, bestTimeMs: 1, bestFunken: 1 } } }, lernstand: { 7: 0.3, 9: 0.45 } };
 
-test('Neustart wählt die gerade gespielte Reihe vor, nicht die Empfehlung', async ({ page }) => {
+test('Pause: Weiter, Nochmal, ? So spielst du, Zum Menü; Nochmal startet sofort dieselbe Reihe, nicht die Empfehlung', async ({ page }) => {
   await harness(page);
   await page.goto('/jumpnrun-harness.html');
   const frame = page.frameLocator('#f');
+  const fs = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
   await expect(frame.locator('#menu')).toBeVisible();
   await sendTo(page, INIT12);
   await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
   await expect(frame.locator('#ziel .z-reihe')).toHaveText('4er-Reihe');
+  await page.waitForTimeout(400);
+  expect((await fs()).t).toBeGreaterThan(0);
   await frame.locator('#btn-pause').click();
-  await frame.getByRole('button', { name: 'Level neu starten' }).click();
-  await expect(frame.locator('#reihenwahl')).toBeVisible();
-  await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '4');
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal', '? So spielst du', 'Zum Menü']);
+  await frame.getByRole('button', { name: 'Nochmal' }).click();
+  await expect(frame.locator('#msg')).toBeHidden();
+  await expect(frame.locator('#reihenwahl')).toBeHidden(); // kein Zwischenschritt (B5)
+  await expect(frame.locator('#ziel .z-reihe')).toHaveText('4er-Reihe');
+  const s = await fs();
+  expect(s).toMatchObject({ mode: 'play', reihe: 4, funken: 0 });
+  expect(s.t).toBeLessThan(30); // neuer Lauf
 });
 
-test('Nochmal nach dem Ziel wählt die gerade gespielte Reihe vor', async ({ page }) => {
+test('Geschafft: Nochmal startet sofort dieselbe Reihe neu, Zum Menü geht ins Menü (kein nächstes Level in Welt 1)', async ({ page }) => {
   await harness(page);
   await page.goto('/jumpnrun-harness.html');
   const frame = page.frameLocator('#f');
@@ -495,16 +514,26 @@ test('Nochmal nach dem Ziel wählt die gerade gespielte Reihe vor', async ({ pag
   await sendTo(page, INIT12);
   await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
   // Lumo direkt vor den Leuchtturm setzen
-  await page.evaluate(() => {
+  const zumZiel = () => page.evaluate(() => {
     const w = document.getElementById('f').contentWindow;
     w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1);
   });
-  await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click({ timeout: 5000 });
-  await expect(frame.locator('#reihenwahl')).toBeVisible();
-  await expect(frame.locator('#rw-grid .rw.sel')).toHaveAttribute('data-reihe', '4');
+  await zumZiel();
+  await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Nochmal', 'Zum Menü']);
+  await expect(frame.locator('#msg-buttons button').first()).toHaveClass(/main/);
+  await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click();
+  await expect(frame.locator('#msg')).toBeHidden();
+  await expect(frame.locator('#reihenwahl')).toBeHidden();
+  await expect(frame.locator('#ziel .z-reihe')).toHaveText('4er-Reihe');
+  expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state())).toMatchObject({ mode: 'play', reihe: 4 });
+  await zumZiel();
+  await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+  await frame.locator('#msg').getByRole('button', { name: 'Zum Menü' }).click();
+  await expect(frame.locator('#menu')).toBeVisible();
 });
 
-test('Spielzeit-Ende während der Reihenwahl blendet die Auswahl aus', async ({ page }) => {
+test('Stern-Zeit-Ende während der Reihenwahl blendet die Auswahl aus und zeigt den Dialog', async ({ page }) => {
   await harness(page);
   await page.goto('/jumpnrun-harness.html');
   const frame = page.frameLocator('#f');
@@ -513,7 +542,102 @@ test('Spielzeit-Ende während der Reihenwahl blendet die Auswahl aus', async ({ 
   await expect(frame.locator('#reihenwahl')).toBeVisible();
   await sendTo(page, { type: 'jnr:timeup' });
   await expect(frame.locator('#reihenwahl')).toBeHidden();
-  await expect(frame.locator('#msg')).toContainText('Spielzeit vorbei');
+  await expect(frame.locator('#msg-title')).toHaveText('Deine Stern-Zeit ist vorbei');
+  await expect(frame.locator('#msg')).not.toContainText('Spielzeit vorbei');
+});
+
+// Harness mit Mitschnitt aller Nachrichten Spiel -> Trainer (window.__got)
+const gotHarness = (page) => page.route('**/jumpnrun-harness.html', route => route.fulfill({
+  contentType: 'text/html',
+  body: '<!DOCTYPE html><html><body><script>window.__got=[];addEventListener("message",e=>window.__got.push(e.data));</script>' +
+    '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+}));
+const beendenZaehler = page => page.evaluate(() => window.__got.filter(m => m && m.type === 'jnr:beenden').length);
+
+test('Stern-Zeit-Ende im Level: Dialog mit genau einem Knopf „Zurück zum Trainer“, der jnr:beenden sendet (Enter und Esc ebenso)', async ({ page }) => {
+  await gotHarness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  const fs = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+  await expect(frame.locator('#menu')).toBeVisible();
+  await sendTo(page, INIT12);
+  await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
+  await expect.poll(async () => (await fs()).mode).toBe('play');
+  await sendTo(page, { type: 'jnr:timeup' });
+  await expect(frame.locator('#msg-title')).toHaveText('Deine Stern-Zeit ist vorbei');
+  await expect(frame.locator('#hud')).toBeHidden();
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Zurück zum Trainer']);
+  await expect(frame.locator('#msg-buttons button')).toHaveClass(/main/);
+  await expect(frame.locator('#msg-buttons button')).toBeFocused();
+  expect((await fs()).mode).toBe('ended');
+  expect(await beendenZaehler(page)).toBe(0);
+  await frame.locator('#msg-buttons button').click();
+  await expect.poll(() => beendenZaehler(page)).toBe(1);
+  // Der Dialog bleibt stehen, bis der Trainer das Overlay schliesst; Tastatur geht genauso
+  await expect(frame.locator('#msg')).toBeVisible();
+  await page.evaluate(() => document.getElementById('f').contentWindow.focus());
+  await page.keyboard.press('Enter');
+  await expect.poll(() => beendenZaehler(page)).toBe(2);
+  await page.keyboard.press('Escape');
+  await expect.poll(() => beendenZaehler(page)).toBe(3);
+  expect((await fs()).mode).toBe('ended');
+});
+
+test('Eingebettet: Menü hat „Zurück zum Trainer“, der Knopf sendet jnr:beenden', async ({ page }) => {
+  await gotHarness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  await expect(frame.locator('#menu')).toBeVisible();
+  await expect(frame.locator('#btn-trainer')).toBeVisible();
+  await expect(frame.locator('#btn-trainer')).toHaveText('Zurück zum Trainer');
+  await frame.locator('#btn-trainer').click();
+  await expect.poll(() => beendenZaehler(page)).toBe(1);
+});
+
+test('Standalone: kein „Zurück zum Trainer“ im Menü', async ({ page }) => {
+  await page.goto('/jumpnrun/index.html');
+  await expect(page.locator('#menu')).toBeVisible();
+  await expect(page.locator('#btn-trainer')).toBeHidden();
+  await expect(page.locator('#menu')).not.toContainText('Zurück zum Trainer', { useInnerText: true });
+});
+
+test('Reihenwahl: Knöpfe ?, Zum Menü, Los (Start rechts außen); Zum Menü geht ins Menü', async ({ page }) => {
+  await page.goto(URL2);
+  await expect(page.locator('#reihenwahl')).toBeVisible();
+  await expect(page.locator('#reihenwahl .rw-buttons button')).toHaveText(['?', 'Zum Menü', 'Los mit der 2er-Reihe']);
+  const boxes = await page.locator('#reihenwahl .rw-buttons button').evaluateAll(bs => bs.map(b => b.getBoundingClientRect().x));
+  expect(boxes[0]).toBeLessThan(boxes[1]);
+  expect(boxes[1]).toBeLessThan(boxes[2]);
+  await expect(page.locator('#reihenwahl')).not.toContainText('Zurück');
+  await page.getByRole('button', { name: 'Zum Menü' }).click();
+  await expect(page.locator('#menu')).toBeVisible();
+});
+
+test('Menü: Tutorial-Knopf heißt immer „Tutorial“, Hilfe und Tutorial stehen nebeneinander', async ({ page }) => {
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
+  await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial');
+  await tutorialGesehen(page);
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
+  await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial');
+  const [h, t] = await Promise.all([page.locator('#btn-hilfe').boundingBox(), page.locator('#btn-tutorial').boundingBox()]);
+  expect(Math.abs(h.y - t.y)).toBeLessThan(2); // eine Zeile
+  expect(h.x + h.width).toBeLessThanOrEqual(t.x + 1);
+});
+
+test.describe('Menü quer 844×340 (iPhone im Trainer-iframe, B8)', () => {
+  test.use({ viewport: { width: 844, height: 340 } });
+  test('Tutorial-Knopf liegt ohne Scrollen im Bild, kein Tastatur-Hinweis auf Touch', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
+    await expect(page.locator('#menu')).toBeVisible();
+    await expect(page.locator('#menu')).not.toContainText('Tastatur', { useInnerText: true });
+    const card = await page.locator('#menu .card').evaluate(c => ({ sh: c.scrollHeight, ch: c.clientHeight, st: c.scrollTop }));
+    expect(card.st).toBe(0);
+    expect(card.sh).toBeLessThanOrEqual(card.ch);
+    const b = await page.locator('#btn-tutorial').boundingBox();
+    expect(b.y).toBeGreaterThanOrEqual(0);
+    expect(b.y + b.height).toBeLessThanOrEqual(340);
+    expect(b.height).toBeGreaterThanOrEqual(44);
+  });
 });
 
 // ---------- Rechenwicht (Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 3 und 5) ----------
@@ -668,7 +792,9 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     expect(gespeichert.xpAwarded).toEqual({});
 
     // Enter auf dem Hauptknopf: weiter zur gewählten Zahlenwiese, zuerst die Reihenwahl
-    await expect(page.getByRole('button', { name: 'Jetzt richtig spielen' })).toBeFocused();
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal']);
+    await expect(page.locator('#msg-body')).toContainText('im Menü unter „Tutorial“');
+    await expect(page.getByRole('button', { name: 'Weiter' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeHidden();
     expect(await state(page)).toMatchObject({ mode: 'reihenwahl', tutorial: null });
@@ -710,34 +836,35 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     expect((await state(page)).leben).toBe(3);
   });
 
-  test('Tutorial beenden per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
+  test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
     await page.goto('/jumpnrun/index.html?jnrDebug=1&jnrReihe=2');
     await page.click('button[data-level="1-2"]');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Tab');
     await expect(page.locator('#tut-skip')).toBeFocused();
-    await expect(page.locator('#tut-skip')).toHaveText('Tutorial beenden');
+    await expect(page.locator('#tut-skip')).toHaveText('Überspringen');
     await page.keyboard.press('Enter');
     await expect(page.locator('#tut-box')).toBeHidden();
     expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2', tutorial: null, tutorialGesehen: true });
     expect((await page.evaluate(() => JSON.parse(localStorage.getItem('henry_jnr')))).tutorialGesehen).toBe(true);
   });
 
-  test('Tutorial beenden über das Pausenmenü (Esc)', async ({ page }) => {
+  test('Tutorial-Pause (Esc): Weiter, Nochmal, Überspringen, keine Hilfe; Überspringen ohne Level geht ins Menü', async ({ page }) => {
     await page.goto('/jumpnrun/index.html?jnrTutorial=1');
     await expect(page.locator('#tut-box')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(page.locator('#msg-title')).toHaveText('Pause');
     await expect(page.locator('#tut-box')).toBeHidden(); // keine Sprechblase über dem Pausenmenü
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal', 'Überspringen']);
     await page.getByRole('button', { name: 'Weiter' }).click();
     await expect(page.locator('#tut-box')).toBeVisible(); // nach Weiter wieder da
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Tutorial beenden' }).click();
+    await page.getByRole('button', { name: 'Überspringen' }).click();
     await expect(page.locator('#menu')).toBeVisible(); // ohne gewähltes Level zurück ins Menü
-    await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial nochmal spielen');
+    await expect(page.locator('#btn-tutorial')).toHaveText('Tutorial');
   });
 
-  test('„Tutorial nochmal spielen“ in Menü und Hilfe', async ({ page }) => {
+  test('Tutorial starten: Menü-Knopf „Tutorial“, Hilfe-Knopf „Tutorial“, in der Tutorial-Pause „Nochmal“', async ({ page }) => {
     await tutorialGesehen(page);
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('button[data-level="1-2"]');
@@ -746,15 +873,91 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     await page.click('#btn-tutorial');
     await expect(page.locator('#tut-box')).toBeVisible();
     expect((await tut(page)).schritt).toBe('laufen');
+    await page.keyboard.down('ArrowRight');
+    await wartenAuf(page, () => window.__jnr.state().tutorial.schritt === 'springen');
+    await page.keyboard.up('ArrowRight');
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: '? So spielst du' }).click();
-    await page.getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    await expect(page.getByRole('button', { name: '? So spielst du' })).toHaveCount(0); // das Tutorial erklärt selbst
+    await page.getByRole('button', { name: 'Nochmal' }).click();
     await expect(page.locator('#msg')).toBeHidden();
     expect(await tut(page)).toMatchObject({ schritt: 'laufen', index: 0 });
     await page.goto('/jumpnrun/index.html?jnrDebug=1');
     await page.click('#btn-hilfe');
-    await page.locator('#msg').getByRole('button', { name: 'Tutorial nochmal spielen' }).click();
+    await page.locator('#msg').getByRole('button', { name: 'Tutorial' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
     await expect(page.locator('#tut-box')).toBeVisible();
+  });
+
+  test('Hilfe aus der Level-Pause hat nur „Verstanden“ (kein Tutorial-Knopf, der das Level verwirft) und führt zur Pause zurück', async ({ page }) => {
+    await page.goto(URL1);
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    await page.getByRole('button', { name: '? So spielst du' }).click();
+    await expect(page.locator('#msg-title')).toHaveText('So spielst du');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Verstanden']);
+    await expect(page.locator('#msg-body')).not.toContainText('Stufe');
+    await page.keyboard.press('Escape'); // Esc = Verstanden = zurück in die Pause
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    expect(await state(page)).toMatchObject({ mode: 'pause', level: '1-2', tutorial: null });
+  });
+
+  // Hilfsweg zum Leuchtturm: teleport loest das Ziel-Ereignis aus (wie "Nochmal nach dem Ziel")
+  const zumLeuchtturm = page => page.evaluate(() => { const g = window.__jnr.goal(); window.__jnr.teleport(g.tx, g.ty - 1); });
+
+  test('Tutorial geschafft (aus dem Menü): „Zum Menü“ (Hauptknopf) und „Nochmal“, Esc = Zum Menü', async ({ page }) => {
+    await tutorialGesehen(page);
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
+    await page.click('#btn-tutorial');
+    await expect(page.locator('#tut-box')).toBeVisible();
+    await zumLeuchtturm(page);
+    // #msg-title behaelt den alten Text, solange der Dialog versteckt ist: erst auf den sichtbaren Dialog warten
+    await expect(page.locator('#msg')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Zum Menü', 'Nochmal']);
+    await expect(page.locator('#msg-buttons button').first()).toHaveClass(/main/);
+    await expect(page.locator('#msg-body')).toContainText('im Menü unter „Tutorial“');
+    await expect(page.locator('#msg-body')).not.toContainText('So spielst du');
+    await page.getByRole('button', { name: 'Nochmal' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
+    await expect(page.locator('#tut-box')).toBeVisible();
+    expect(await tut(page)).toMatchObject({ schritt: 'laufen', index: 0, fertig: false });
+    await zumLeuchtturm(page);
+    // #msg-title behaelt den alten Text, solange der Dialog versteckt ist: erst auf den sichtbaren Dialog warten
+    await expect(page.locator('#msg')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#menu')).toBeVisible();
+    expect(await state(page)).toMatchObject({ mode: 'menu', tutorial: null });
+  });
+
+  test('Tutorial geschafft (vom Level gestartet): „Weiter“ führt in die Reihenwahl des Levels, „Nochmal“ merkt sich das Level', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
+    await page.click('button[data-level="1-2"]'); // erstes Mal: Tutorial zuerst
+    await expect(page.locator('#tut-box')).toBeVisible();
+    await zumLeuchtturm(page);
+    // #msg-title behaelt den alten Text, solange der Dialog versteckt ist: erst auf den sichtbaren Dialog warten
+    await expect(page.locator('#msg')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal']);
+    await page.getByRole('button', { name: 'Nochmal' }).click();
+    await expect(page.locator('#tut-box')).toBeVisible();
+    expect(await tut(page)).toMatchObject({ schritt: 'laufen', index: 0 });
+    await zumLeuchtturm(page);
+    // #msg-title behaelt den alten Text, solange der Dialog versteckt ist: erst auf den sichtbaren Dialog warten
+    await expect(page.locator('#msg')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#msg-title')).toHaveText('Tutorial geschafft!');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal']); // Level bleibt gemerkt
+    await page.getByRole('button', { name: 'Weiter' }).click();
+    await expect(page.locator('#reihenwahl')).toBeVisible();
+    expect(await state(page)).toMatchObject({ mode: 'reihenwahl', tutorial: null });
+    expect(await page.evaluate(() => window.__jnr.reihenwahl().level)).toBe('1-2');
+  });
+
+  test('Tastatur-Hinweis im Menü nur mit feinem Zeiger (Laptop)', async ({ page }) => {
+    await page.goto('/jumpnrun/index.html');
+    await expect(page.locator('#menu')).toContainText('Tastatur: Pfeile oder A/D');
   });
 
   test('Schlucht im Tutorial kostet kein Leben', async ({ page }) => {
@@ -797,7 +1000,7 @@ test.describe('Lumo: Mitmach-Tutorial auf dem Handy', () => {
     expect(await page.evaluate(() => document.getElementById('f').contentWindow.localStorage.getItem('henry_jnr'))).toBeNull();
     await sendTo(page, { type: 'jnr:init', jnr: {} }); // alter Trainer ohne Flag
     await page.evaluate(() => { const w = document.getElementById('f').contentWindow; w.document.getElementById('btn-pause').click(); });
-    await frame.getByRole('button', { name: 'Levelauswahl' }).click();
+    await frame.getByRole('button', { name: 'Zum Menü' }).click();
     await frame.locator('button[data-level="1-2"]').click();
     await expect(frame.locator('#tut-box')).toBeHidden();
   });

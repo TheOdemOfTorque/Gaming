@@ -1991,10 +1991,22 @@ function updateLumoTimerDisplay() {
   el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Stern-Zeit 0:00: Lumo zeigt „Deine Stern-Zeit ist vorbei“ und meldet per jnr:beenden, wenn das
+// Kind „Zurück zum Trainer“ tippt; erst dann closeGame() (Vertrag jumpnrun/core/host.js). Ein altes
+// Lumo aus dem Cache kennt die Nachricht nicht: nach LUMO_BEENDEN_FALLBACK_MS (logic.js) schließt
+// der Trainer selbst. closeGame() (auch über das ✕) löscht den Fallback.
+let lumoBeendenFallback = null;
+function lumoBeendenFallbackStoppen() {
+  if (lumoBeendenFallback) { clearTimeout(lumoBeendenFallback); lumoBeendenFallback = null; }
+}
 function startLumoTimer() {
   startStarTimer(updateLumoTimerDisplay, () => {
     sendToGameFrame({ type: 'jnr:timeup' });
-    closeGame();
+    lumoBeendenFallbackStoppen();
+    lumoBeendenFallback = setTimeout(() => {
+      lumoBeendenFallback = null;
+      if (currentGame === 'jnr') closeGame();
+    }, LUMO_BEENDEN_FALLBACK_MS);
   });
 }
 
@@ -2073,6 +2085,7 @@ function openGame(gameId) {
 function closeGame() {
   stopStarTimer();
   spielLadeTimerStoppen();
+  lumoBeendenFallbackStoppen();
   document.getElementById('game-overlay').classList.remove('active');
   const frame = document.getElementById('game-frame');
   frame.onload = null;
@@ -2108,6 +2121,9 @@ window.addEventListener('message', (e) => {
     // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
     Object.assign(state, applyJnrTutorial(state, e.data));
     saveState();
+  } else if (lumoBeendenGewuenscht(currentGame, e.data)) {
+    // „Zurück zum Trainer“ aus Lumos Menü oder nach dem Stern-Zeit-Dialog (jnr:beenden)
+    closeGame();
   }
 });
 

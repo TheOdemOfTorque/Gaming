@@ -167,31 +167,63 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(await page.evaluate(() => state.jnr.xpAwarded)).toEqual({ '1-1': true, '1-2': true });
   });
 
-  test('Timer-Ablauf schließt Lumo automatisch und sendet jnr:timeup', async ({ page }) => {
+  // Stern-Zeit 0:00 (Vertrag jumpnrun/core/host.js): Trainer sendet jnr:timeup, Lumo zeigt
+  // "Deine Stern-Zeit ist vorbei" mit "Zurück zum Trainer" (jnr:beenden), erst dann closeGame().
+  async function lumoBisZeitablauf(page, over) {
     const base = migrateState(defaultState());
-    await seedState(page, { gameSecondsLeft: 2, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await seedState(page, Object.assign({ gameSecondsLeft: 2, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) }, over));
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('.game-card[data-game="jnr"] button').click();
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+    const frame = page.frameLocator('#game-frame');
     // Die Stern-Zeit läuft nur im aktiven Spiel (jnr:aktiv): ein Level starten
-    await page.frameLocator('#game-frame').locator('button[data-level="1-2"]').click();
-    await page.frameLocator('#game-frame').locator('#rw-los').click();
+    await frame.locator('button[data-level="1-2"]').click();
+    await frame.locator('#rw-los').click();
+    await expect(frame.locator('#msg-title')).toHaveText('Deine Stern-Zeit ist vorbei', { timeout: 6000 });
+    expect(await page.evaluate(() => state.gameSecondsLeft)).toBe(0);
+    return frame;
+  }
 
-    // sendToGameFrame im Parent abfangen statt im iframe zu lauschen — das iframe
-    // wird beim Schließen sofort auf about:blank gesetzt und sein JS-Kontext verworfen.
-    await page.evaluate(() => {
-      window.__sentMsgs = [];
-      const orig = sendToGameFrame;
-      sendToGameFrame = function (msg) { window.__sentMsgs.push(msg); return orig(msg); };
-    });
+  test('Timer-Ablauf: Lumo zeigt „Deine Stern-Zeit ist vorbei“, das Overlay bleibt bis „Zurück zum Trainer“ offen', async ({ page }) => {
+    const frame = await lumoBisZeitablauf(page);
+    await expect(frame.locator('#msg-buttons button')).toHaveText(['Zurück zum Trainer']);
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // kein Rauswurf ohne Erklärung (B1)
+    await frame.getByRole('button', { name: 'Zurück zum Trainer' }).click();
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 2000 });
+    await expect(page.locator('#game-frame')).toHaveAttribute('src', 'about:blank');
+  });
 
-    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 6000 });
+  test('Timer-Ablauf ohne Antwort von Lumo (altes Lumo im Cache): der Trainer schließt nach dem Fallback von 5 s', async ({ page }) => {
+    await lumoBisZeitablauf(page);
+    await page.waitForTimeout(2500);
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // noch nicht
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/, { timeout: 4000 });
+  });
 
-    const sent = await page.evaluate(() => window.__sentMsgs);
-    expect(sent.some((m) => m && m.type === 'jnr:timeup')).toBe(true);
+  test('✕ während des Stern-Zeit-Dialogs: Fallback verfällt, ein sofort neu geöffnetes Lumo bleibt offen', async ({ page }) => {
+    await lumoBisZeitablauf(page, { stars: 1 });
+    await page.locator('#game-overlay-close').click();
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+    await page.locator('.game-card[data-game="jnr"] button').click(); // zweiter Stern: 10 Minuten
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+    await expect(page.frameLocator('#game-frame').locator('#menu')).toBeVisible();
+    await page.waitForTimeout(6000);
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // der alte Fallback schließt nichts mehr
+    expect(await page.evaluate(() => state.gameSecondsLeft)).toBe(600);
+  });
 
-    const secondsLeft = await page.evaluate(() => state.gameSecondsLeft);
-    expect(secondsLeft).toBe(0);
+  test('„Zurück zum Trainer“ im Lumo-Menü schließt das Overlay', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(frame.locator('#btn-trainer')).toBeVisible();
+    await frame.locator('#btn-trainer').click();
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+    await expect(page.locator('#game-frame')).toHaveAttribute('src', 'about:blank');
+    expect(await page.evaluate(() => currentGame)).toBeNull();
   });
 
   test('Stern-Zeit steht in Lumos Menü, Reihenwahl und Pause-Dialog und läuft nur im Spiel', async ({ page }) => {
