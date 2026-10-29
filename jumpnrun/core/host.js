@@ -55,7 +55,8 @@
 //                schwaechsten Reihen auf dem Reihen-Auswahlbildschirm. Fehlt das Feld oder ist es
 //                ungueltig, ist lernstand null: alle Reihen waehlbar, keine Empfehlung. Ungueltige
 //                Eintraege fallen einzeln weg. Nur fluechtig, landet nie im Spielstand.
-//     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel)
+//     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel; auch das X der
+//                             Trainer-Leiste, solange Lumo aktiv meldet: erst Pause, das zweite X schliesst)
 //     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus) und zeigt
 //                             "Deine Stern-Zeit ist vorbei" mit dem Knopf "Zurueck zum Trainer" (jnr:beenden),
 //                             bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,

@@ -536,6 +536,13 @@ function lumoBeendenGewuenscht(currentGame, data) {
   return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
 }
 
+// Das ✕ der Trainer-Leiste bleibt Notausgang, löst aber im laufenden Level zuerst die Pause aus
+// (Soll-Struktur im Review, B6): 'pausieren', wenn Lumo läuft und per jnr:aktiv aktiv meldet, sonst
+// 'schliessen' (Pause, Menü, Dialoge, anderes Spiel, altes Lumo ohne jnr:aktiv).
+function schliessKnopfAktion(currentGame, z) {
+  return currentGame === 'jnr' && !!z && z.meldet && z.aktiv ? 'pausieren' : 'schliessen';
+}
+
 // Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
 // und das Verzweigen bei Ablauf (Invader: Pause-Dialog/Toast, Lumo: jnr:timeup)
 // bleiben in index.html. Tests: tests/unit/spiele-zugang.test.js
@@ -818,7 +825,7 @@ if (typeof module !== 'undefined') {
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
                      lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
-                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS,
+                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, schliessKnopfAktion,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,

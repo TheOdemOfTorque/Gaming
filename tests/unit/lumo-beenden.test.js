@@ -22,3 +22,24 @@ describe('Lumo beenden (jnr:beenden)', () => {
     expect(LUMO_BEENDEN_FALLBACK_MS).toBe(5000);
   });
 });
+
+// Das X der Trainer-Leiste bleibt Notausgang, loest aber im laufenden Level zuerst die Pause aus
+// (Soll-Struktur im Review, B6): nur wenn Lumo per jnr:aktiv "aktiv" meldet. Pause, Menue, Dialoge
+// oder ein altes Lumo ohne jnr:aktiv: X schliesst sofort wie bisher.
+describe('Schliess-Knopf (X) des Overlays', () => {
+  const { schliessKnopfAktion } = require('../../1x1-trainer/logic.js');
+  test('Lumo im aktiven Spiel: X pausiert zuerst', () => {
+    expect(schliessKnopfAktion('jnr', { meldet: true, aktiv: true })).toBe('pausieren');
+  });
+  test('Lumo in Pause, Menue oder Dialog: X schliesst', () => {
+    expect(schliessKnopfAktion('jnr', { meldet: true, aktiv: false })).toBe('schliessen');
+  });
+  test('altes Lumo ohne jnr:aktiv: X schliesst sofort wie frueher', () => {
+    expect(schliessKnopfAktion('jnr', { meldet: false, aktiv: false })).toBe('schliessen');
+  });
+  test('anderes Spiel oder kein Spiel: X schliesst', () => {
+    expect(schliessKnopfAktion('knobel', { meldet: true, aktiv: true })).toBe('schliessen');
+    expect(schliessKnopfAktion(null, { meldet: true, aktiv: true })).toBe('schliessen');
+    expect(schliessKnopfAktion('jnr', null)).toBe('schliessen');
+  });
+});

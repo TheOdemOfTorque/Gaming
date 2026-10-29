@@ -213,6 +213,31 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(await page.evaluate(() => state.gameSecondsLeft)).toBe(600);
   });
 
+  test('✕ im laufenden Level pausiert Lumo zuerst (Pause-Dialog), das zweite ✕ schließt; im Menü schließt ✕ sofort', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-2"]').click();
+    await frame.locator('#rw-los').click();
+    await expect(frame.locator('#hud')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => lumoAktiv.aktiv)).toBe(true);
+    await page.locator('#game-overlay-close').click();
+    await expect(page.locator('#game-overlay')).toHaveClass(/active/); // kein Rauswurf mitten im Sprung (B6)
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await expect(frame.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal', '? So spielst du', 'Zum Menü']);
+    await expect.poll(() => page.evaluate(() => lumoAktiv.aktiv)).toBe(false);
+    await page.locator('#game-overlay-close').click(); // Notausgang aus der Pause
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+    await expect(page.locator('#game-frame')).toHaveAttribute('src', 'about:blank');
+
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    await expect(frame.locator('#menu')).toBeVisible();
+    await page.locator('#game-overlay-close').click();
+    await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
+  });
+
   test('„Zurück zum Trainer“ im Lumo-Menü schließt das Overlay', async ({ page }) => {
     const base = migrateState(defaultState());
     await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });

@@ -1150,7 +1150,7 @@
 <!-- GAME OVERLAY: Lumo + Knobelwerkstatt (Same-Origin-iframe, ADR-0001) -->
 <div id="game-overlay" class="game-overlay">
   <div class="game-overlay-bar">
-    <button id="game-overlay-close" onclick="closeGame()">✕</button>
+    <button id="game-overlay-close" onclick="schliessKnopf()">✕</button>
     <div id="game-overlay-timer" class="game-overlay-timer"></div>
   </div>
   <iframe id="game-frame" class="game-frame" allow="autoplay" title="Spiel"></iframe>
@@ -2082,6 +2082,12 @@ function openGame(gameId) {
   }, SPIEL_LADE_TIMEOUT_MS);
 }
 
+// ✕ der Trainer-Leiste: im laufenden Lumo-Level zuerst pausieren (jnr:pause, Lumo zeigt den
+// Pause-Dialog mit „Zum Menü“ und dort „Zurück zum Trainer“), sonst schließen (schliessKnopfAktion).
+function schliessKnopf() {
+  if (schliessKnopfAktion(currentGame, lumoAktiv) === 'pausieren') sendToGameFrame({ type: 'jnr:pause' });
+  else closeGame();
+}
 function closeGame() {
   stopStarTimer();
   spielLadeTimerStoppen();
