@@ -640,6 +640,74 @@ test.describe('Menü quer 844×340 (iPhone im Trainer-iframe, B8)', () => {
   });
 });
 
+// K5: Der Hilfe-Dialog ist bei 844×340 (iPhone im Trainer-iframe) deutlich länger als die Karte.
+// „Verstanden“ muss trotzdem ohne Scrollen im Bild liegen (auf dem Handy gibt es kein Esc):
+// die Knopfleiste ist unten angepinnt. Die kurzen Dialoge (Pause usw.) bleiben unverändert.
+test.describe('Hilfe-Dialog quer 844×340 (K5)', () => {
+  test.use({ viewport: { width: 844, height: 340 } });
+  const imBild = (b) => b.y >= 0 && b.y + b.height <= 340;
+  const karte = (page) => page.locator('#msg .card').evaluate(c => ({ sh: c.scrollHeight, ch: c.clientHeight, st: c.scrollTop }));
+  // Text bis zum Ende scrollbar, die Leiste verdeckt den letzten Absatz nicht
+  async function textBleibtLesbar(page) {
+    await page.locator('#msg .card').evaluate(c => { c.scrollTop = c.scrollHeight; });
+    const letzter = await page.locator('#msg-body .help p').last().boundingBox();
+    const leiste = await page.locator('#msg-buttons').boundingBox();
+    expect(letzter.y + letzter.height).toBeLessThanOrEqual(leiste.y + 0.5);
+    expect(letzter.y).toBeGreaterThanOrEqual(0);
+  }
+
+  test('Hilfe aus dem Menü: „Verstanden“ ohne Scrollen im Bild, klickbar, Dialog schließt', async ({ page }) => {
+    await tutorialGesehen(page);
+    await page.goto('/jumpnrun/index.html?jnrDebug=1');
+    await page.locator('#btn-hilfe').click();
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.locator('#msg-title')).toHaveText('So spielst du');
+    const k = await karte(page);
+    expect(k.st).toBe(0);
+    expect(k.sh).toBeGreaterThan(k.ch); // die Hilfe ist wirklich länger als die Karte
+    const b = await page.getByRole('button', { name: 'Verstanden' }).boundingBox();
+    expect(imBild(b)).toBe(true);
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    await textBleibtLesbar(page);
+    await page.locator('#msg .card').evaluate(c => { c.scrollTop = 0; });
+    await page.getByRole('button', { name: 'Verstanden' }).click();
+    await expect(page.locator('#msg')).toBeHidden();
+    await expect(page.locator('#menu')).toBeVisible();
+  });
+
+  test('Hilfe aus der Level-Pause: „Verstanden“ ohne Scrollen im Bild, zurück zur Pause', async ({ page }) => {
+    await page.goto(URL1);
+    await page.locator('#btn-pause').click();
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    await page.getByRole('button', { name: '? So spielst du' }).click();
+    await expect(page.locator('#msg-title')).toHaveText('So spielst du');
+    expect((await karte(page)).st).toBe(0);
+    const b = await page.getByRole('button', { name: 'Verstanden' }).boundingBox();
+    expect(imBild(b)).toBe(true);
+    await textBleibtLesbar(page);
+    await page.getByRole('button', { name: 'Verstanden' }).click();
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    await expect(page.locator('#msg-buttons button')).toHaveText(['Weiter', 'Nochmal', '? So spielst du', 'Zum Menü']);
+    expect(await state(page)).toMatchObject({ mode: 'pause' });
+  });
+
+  test('Pause-Dialog bleibt kurz: nichts scrollt, Knopfleiste sitzt am Kartenende', async ({ page }) => {
+    await page.goto(URL1);
+    await page.locator('#btn-pause').click();
+    await expect(page.locator('#msg')).toBeVisible();
+    await expect(page.locator('#msg-title')).toHaveText('Pause');
+    const k = await karte(page);
+    expect(k.sh).toBeLessThanOrEqual(k.ch);
+    const card = await page.locator('#msg .card').boundingBox();
+    const leiste = await page.locator('#msg-buttons').boundingBox();
+    const letzterKnopf = await page.getByRole('button', { name: 'Zum Menü' }).boundingBox();
+    expect(imBild(letzterKnopf)).toBe(true);
+    expect(leiste.y + leiste.height).toBeLessThanOrEqual(card.y + card.height + 0.5);
+    expect(card.y + card.height - (letzterKnopf.y + letzterKnopf.height)).toBeGreaterThanOrEqual(14); // Karten-Innenabstand bleibt
+  });
+});
+
 // ---------- Rechenwicht (Spec "Lumo Leben, Gegner und Reihenwahl", Abschnitt 3 und 5) ----------
 test.describe('Lumo: Rechenwicht', () => {
   const URLW = '/jumpnrun/index.html?jnrLevel=1-2&jnrSeed=1&jnrReihe=7';

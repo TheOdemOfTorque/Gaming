@@ -153,9 +153,18 @@
   label.opt { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; }
   label.opt input { width: 22px; height: 22px; accent-color: var(--violet); }
   #msg-title { margin: 0 0 6px; font-size: 26px; color: #fff; }
-  #msg-body { margin: 0 0 12px; line-height: 1.6; font-size: 16px; }
+  #msg-body { margin: 0 0 4px; line-height: 1.6; font-size: 16px; }
   #msg-body .got { color: var(--amber); }
   #msg-body .miss { opacity: .5; }
+  /* Knopfleiste unten angepinnt: die lange Hilfe scrollt, „Verstanden“ bleibt im Bild (K5). Der untere
+     Innenabstand der Karte wandert in die Leiste (Chrome klebt sticky erst oberhalb des Innenabstands),
+     ihr Hintergrund deckt den scrollenden Text ab. Abstände bleiben für kurze Dialoge gleich:
+     Body 4 px + Leiste 8 px = 12 px wie zuvor, Knopf-Rand 8 px + Leiste 14 px = 22 px wie zuvor. */
+  #msg .card { padding-bottom: 0; }
+  #msg-buttons {
+    position: sticky; bottom: 0; margin: 0 -18px; padding: 8px 18px 14px;
+    background: #13133b; /* --panel ist zu 92 % deckend; das ist die Panelfarbe über dem dunklen Overlay, deckend */
+  }
 
   /* Reihenwahl */
   #reihenwahl .card { max-width: 620px; }
