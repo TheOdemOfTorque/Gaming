@@ -6,8 +6,14 @@
 //
 // Energie und Leben: Der Bot schaut auf einer Kopie des Spiels (game.cloneGame) voraus. Kostet der
 // reine Reflexweg Energie oder ein Leben (falsche Zahl, Dornen, Rechenwicht, Sturz), probiert er Alternativen
-// (springen, kurz springen, bremsen, zuruecklenken) und nimmt die billigste. Ein Kind kann falschen Zahlen genauso ausweichen; der Bot
-// beweist so, dass jede Stufe auch mit 3 Leben x 3 Energie schaffbar ist.
+// (springen, kurz springen, bremsen, zuruecklenken) und nimmt die billigste. Ein Kind kann falschen Zahlen genauso ausweichen.
+//
+// Was der Bot beweist (Marco, 29.10.): nur die Erreichbarkeit des Ziels. Dafuer laeuft er unsterblich
+// (botOpts.unsterblich -> game.createGame opts.unsterblich: Sturz und Treffer loesen weiter Respawn und
+// Rueckstoss aus, kosten aber nichts). Kommt er SOFTLOCK Schritte lang nicht ueber sein bisheriges
+// x-Maximum hinaus (z. B. Endlosschleife Sturz/Respawn vor einer zu breiten Grube), gilt der Lauf als
+// steckengeblieben (softlock). Verlorene Leben, Schaden und Dauer des Laufs mit 3 Leben sind nur noch
+// Messwerte dafuer, wie schwer es fuer den Bot war (scripts/jnr-messen.js).
 (function (root, factory) {
   var deps = (typeof module === 'object' && module.exports)
     ? { game: require('./game.js'), physics: require('./physics.js'), collision: require('./collision.js'), gegner: require('./gegner.js') }
@@ -24,6 +30,10 @@
   var RECHECK = 3;     // Schritte bis zur naechsten Pruefung, wenn keine Alternative hilft
   var STEER = 8;       // Schritte beim Bremsen oder Zuruecklenken
   var WICHT_ABSTAND = 14; // px: so nah vor einem Rechenwicht springt der Reflex ab
+  // Schritte ohne neues x-Maximum, ab denen der Lauf als steckengeblieben gilt (10 s). Gemessen am
+  // 3-Leben-Bot in Stufe 1-2 ueber 200 Seeds: laengste Spanne ohne Fortschritt 145 Schritte; alle
+  // 3 Leben in einer Grube zu verlieren dauert 261 Schritte. 600 laesst beidem mehr als das Doppelte Luft.
+  var SOFTLOCK = 600;
 
   function hazardAt(list, tx, ty) {
     for (var i = 0; i < list.length; i++) if (list[i].tx === tx && list[i].ty === ty) return true;
@@ -103,23 +113,76 @@
   }
 
   // level: geparstes Level (core/level.js). gameOpts: wie Game.createGame. maxFrames: Abbruch (nicht loesbar).
-  // Ergebnis: { won, frames, game, schaden } mit den Schadensquellen des echten Laufs.
-  function solve(level, gameOpts, maxFrames) {
+  // botOpts: { unsterblich } (nur fuer Tests, siehe Kopf).
+  // Ergebnis: { won, softlock, frames, game, schaden, verluste, fehler? } mit den Schadensquellen
+  // (z. B. { kristall: 2 }) und den Lebensverlusten je Grund ({ abgrund: 1, energie: 0 }) des echten
+  // Laufs; unsterblich zaehlen die Verluste die Stuerze und leeren Energien, die nichts gekostet haben.
+  // fehler: Text, wenn die Spielerposition ungueltig wurde (NaN/unendlich), dann won = false.
+  function solve(level, gameOpts, maxFrames, botOpts) {
     maxFrames = maxFrames || 60 * 180;
+    botOpts = botOpts || {};
+    if (botOpts.unsterblich) gameOpts = Object.assign({}, gameOpts, { unsterblich: true });
     var game = G.createGame(level, gameOpts);
     var st = { jumpUntil: -1, steerUntil: -1, steer: 1, safeUntil: -1 };
-    var schaden = {}; // Schadensquellen im echten Lauf, z. B. { kristall: 2, gegner: 0 }
+    var schaden = {}, verluste = {};
+    var maxX = game.player.x, fortschritt = 0; // letzter Schritt mit neuem x-Maximum
+    function ergebnis(won, f, extra) {
+      var r = { won: won, softlock: false, frames: f, game: game, schaden: schaden, verluste: verluste };
+      return extra ? Object.assign(r, extra) : r;
+    }
     for (var f = 0; f < maxFrames; f++) {
       stepBot(game, level, st, f, choose(game, level, st, f));
       for (var i = 0; i < game.events.length; i++) {
         var ev = game.events[i];
         if (ev.type === 'schaden') schaden[ev.quelle] = (schaden[ev.quelle] || 0) + 1;
+        else if (ev.type === 'leben') verluste[ev.grund] = (verluste[ev.grund] || 0) + 1;
       }
-      if (game.status === 'won') return { won: true, frames: f + 1, game: game, schaden: schaden };
-      if (game.status === 'lost') return { won: false, frames: f + 1, game: game, schaden: schaden };
+      var p = game.player;
+      if (!isFinite(p.x) || !isFinite(p.y)) return ergebnis(false, f + 1, { fehler: 'ungueltige Spielerposition in Schritt ' + (f + 1) + ': x=' + p.x + ', y=' + p.y });
+      if (game.status === 'won') return ergebnis(true, f + 1);
+      if (game.status === 'lost') return ergebnis(false, f + 1);
+      if (p.x > maxX) { maxX = p.x; fortschritt = f; }
+      else if (f - fortschritt >= SOFTLOCK) return ergebnis(false, f + 1, { softlock: true });
     }
-    return { won: false, frames: maxFrames, game: game, schaden: schaden };
+    return ergebnis(false, maxFrames);
   }
 
-  return { solve: solve, HOLD: HOLD };
+  // Vermessene Reichweite des Bot-Sprungs (HOLD Schritte gehalten, Absprung per Reflex an der Kante
+  // bzw. vor der Wand) in ganzen Kacheln: die breiteste Luecke und die hoechste Stufe, die er auf einem
+  // sonst flachen Level schafft. Kommt aus der Physik (core/physics.js) per Simulation, nicht geraten;
+  // der Wert wird einmal gemessen und dann gecacht. Die Geometrie-Tests pruefen Level dagegen.
+  var mass = null;
+  function sprungmass() {
+    if (mass) return mass;
+    function level(rows) {
+      var h = rows.length, w = rows[0].length, solid = new Uint8Array(w * h), start = null, goal = null;
+      for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+        var c = rows[y][x];
+        if (c === '#') solid[y * w + x] = 1;
+        else if (c === 'S') start = { tx: x, ty: y, x: x * T + (T - P.W) / 2, y: (y + 1) * T - P.H };
+        else if (c === 'G') goal = { tx: x, ty: y };
+      }
+      return { w: w, h: h, solid: solid, start: start, goal: goal, checkpoints: [], crystalSlots: [], spikes: [], springs: [], enemies: [] };
+    }
+    function rep(c, n) { return new Array(n + 1).join(c); }
+    function luecke(n) { // Boden, n Kacheln Abgrund, Boden
+      var rows = [rep('.', 20 + n), 'S' + rep('.', 18 + n) + 'G', rep('#', 6) + rep('.', n) + rep('#', 14)];
+      return solve(level(rows), { mode: 'aus' }, 900).won;
+    }
+    function stufe(h) { // Boden, ab Spalte 10 eine h Kacheln hohe Stufe mit dem Ziel oben
+      var rows = [], w = 24;
+      for (var y = 0; y < h + 3; y++) rows.push(y >= 2 && y < h + 2 ? rep('.', 10) + rep('#', 14) : rep('.', w));
+      rows[h + 2] = rep('#', w);
+      rows[h + 1] = 'S' + rows[h + 1].slice(1);
+      rows[1] = rows[1].slice(0, w - 1) + 'G';
+      return solve(level(rows), { mode: 'aus' }, 900).won;
+    }
+    var l = 0, s = 0;
+    while (l < 12 && luecke(l + 1)) l++;
+    while (s < 12 && stufe(s + 1)) s++;
+    mass = { luecke: l, stufe: s };
+    return mass;
+  }
+
+  return { solve: solve, sprungmass: sprungmass, HOLD: HOLD, SOFTLOCK: SOFTLOCK };
 });
