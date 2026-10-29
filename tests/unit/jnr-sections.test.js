@@ -69,9 +69,41 @@ describe('Platz fuer Rechenwichte', () => {
     for (let x = 0; x < w; x++) { const st = strecke(L, x, 6); if (st) best = Math.max(best, st.bis - st.von + 1); }
     return best;
   }
-  test.each(['d1-lauf-a', 'd1-lauf-b', 'd1-lauf-c', 'd2-federpilz-a'])('%s hat eine kristallfreie flache Strecke fuer einen Wicht', (id) => {
+  test.each(['d1-lauf-a', 'd1-lauf-b', 'd1-lauf-c', 'd2-federpilz-a', 'd2-wichtwiese-a', 'd3-wicht-dornen', 'd3-wicht-luecke'])('%s hat eine kristallfreie flache Strecke fuer einen Wicht', (id) => {
     const sec = D.SECTIONS.find(s => s.id === id);
+    expect(sec).toBeDefined();
     expect(laengsteStrecke(sec)).toBeGreaterThanOrEqual(MIN_STRECKE);
+  });
+
+  // Aufgabe 9 (Marco 30.10.): drei Wicht-Abschnitte fuer die Level 1-3 und 2-1 (Plan "Lumo zwei neue
+  // Stufen", Zeilen aus der Messung der Vornacht: Wichte eine Kachel nach innen, damit die Enden flach
+  // bleiben). d3-wicht-luecke behaelt beide Luecken mit 2 Kacheln, die rechte wird nicht verkleinert.
+  const NEU = [
+    ['d2-wichtwiese-a', 2, ['gegner'], 18, 2],
+    ['d3-wicht-dornen', 3, ['gegner', 'dornen'], 20, 2],
+    ['d3-wicht-luecke', 3, ['gegner', 'luecke'], 20, 2],
+  ];
+  test.each(NEU)('%s: Schwierigkeit %i, Mechanik %j, %i breit, %i Kristallplaetze auf dem Boden', (id, schw, mech, breite, kristalle) => {
+    const sec = D.SECTIONS.find(s => s.id === id);
+    expect(sec).toBeDefined();
+    expect(sec.schwierigkeit).toBe(schw);
+    expect(sec.mechanik).toEqual(mech);
+    expect(sec.rows[0].length).toBe(breite);
+    expect(sec.rows[6].split('').filter(c => c === 'o')).toHaveLength(kristalle);
+    expect(sec.rows.slice(0, 6).join('')).toMatch(/^\.+$/); // Zeilen 0-5 reine Luft
+  });
+
+  test('d3-wicht-luecke: zwei Luecken zu je 2 Kacheln, der Wicht-Platz liegt dazwischen', () => {
+    const sec = D.SECTIONS.find(s => s.id === 'd3-wicht-luecke');
+    expect(sec.rows[7]).toBe('####..########..####');
+    expect(sec.rows[8]).toBe(sec.rows[7]);
+    expect(sec.rows[6]).toBe('..o..............o..');
+  });
+
+  test('d3-wicht-dornen: zwei Dornenfelder auf dem Boden, Kristalle an den Enden', () => {
+    const sec = D.SECTIONS.find(s => s.id === 'd3-wicht-dornen');
+    expect(sec.rows[6]).toBe('..o..^........^..o..');
+    expect(sec.rows[7]).toBe('#'.repeat(20));
   });
 });
 

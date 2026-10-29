@@ -6,8 +6,10 @@
 // (Zahl kommt von core/mathgen.js), '^' Dornen, '~' Federpilz.
 //
 // schwierigkeit 1: nur Laufen/Springen/Sammeln, keine Gefahren (leichte Abschnitte der Stufe 1-2).
-// schwierigkeit 2: genau ein Gefahrentyp (Dornen oder Federpilz).
+// schwierigkeit 2: genau ein Gefahrentyp (Dornen oder Federpilz) oder eine flache Wichtwiese.
 // schwierigkeit 3: Kombinationen, etwas laenger.
+// mechanik "gegner": der Abschnitt hat eine freie Laufstrecke von mindestens core/level.js MIN_STRECKE
+// Kacheln fuer einen Rechenwicht (die Wichte selbst setzt core/levelgen.js, siehe Level 1-3 und 2-1).
 (function (root, factory) {
   var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -320,6 +322,48 @@
       '....~.##.^..o...',
       '#####....#.#####',
       '#####....#.#####',
+      ]
+    },
+    {
+      id: 'd2-wichtwiese-a', schwierigkeit: 2, mechanik: ["gegner"],
+      rows: [
+      '..................',
+      '..................',
+      '..................',
+      '..................',
+      '..................',
+      '..................',
+      '..o............o..',
+      '##################',
+      '##################',
+      ]
+    },
+    {
+      id: 'd3-wicht-dornen', schwierigkeit: 3, mechanik: ["gegner","dornen"],
+      rows: [
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '..o..^........^..o..',
+      '####################',
+      '####################',
+      ]
+    },
+    {
+      id: 'd3-wicht-luecke', schwierigkeit: 3, mechanik: ["gegner","luecke"],
+      rows: [
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '....................',
+      '..o..............o..',
+      '####..########..####',
+      '####..########..####',
       ]
     },
   ];
