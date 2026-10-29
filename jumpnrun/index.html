@@ -239,9 +239,11 @@
   @media (prefers-reduced-motion: reduce) { #portrait-hint .phone { animation: none; } }
   body.quer-pflicht #portrait-hint { display: flex; }
   @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } label.opt { min-height: 36px; } }
-  /* Menü: Tastatur-Hinweis nur mit Maus/Trackpad; Hilfe und Tutorial nebeneinander (B8) */
+  /* Menü: Tastatur-Hinweis nur mit Maus/Trackpad; Hilfe und Tutorial nebeneinander (B8).
+     Bei flachem Fenster (Trainer-iframe quer, rund 340 px) bleibt er auch mit Maus weg, sonst
+     schiebt er „Zurück zum Trainer“ unter den Rand (K1). */
   #tasten-hinweis { display: none; }
-  @media (pointer: fine) { #tasten-hinweis { display: block; } }
+  @media (pointer: fine) and (min-height: 421px) { #tasten-hinweis { display: block; } }
   .menu-row { display: flex; gap: 8px; }
   .menu-row .big { flex: 1 1 0; min-width: 0; padding-left: 8px; padding-right: 8px; }
 </style>

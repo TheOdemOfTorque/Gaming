@@ -261,6 +261,32 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     expect(await page.evaluate(() => currentGame)).toBeNull();
   });
 
+  // K1: Im Trainer bleiben Lumo bei 844×390 nur rund 340 px unter der Schließen-Leiste. Mit Maus
+  // (pointer: fine, Standard-Kontext dieser Datei) darf der Tastatur-Hinweis „Zurück zum Trainer“
+  // nicht unter den Rand des iframes schieben.
+  test('Lumo-Menü quer im Trainer mit Maus: Tastatur-Hinweis weg, „Zurück zum Trainer“ und „Tutorial“ ohne Scrollen im Bild', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(frame.locator('#btn-trainer')).toBeVisible();
+    expect(await page.evaluate(() => matchMedia('(pointer: fine)').matches)).toBe(true); // Voraussetzung: Maus
+    const fb = await page.locator('#game-frame').boundingBox();
+    expect(fb.height).toBeLessThanOrEqual(345);
+    const trainer = await frame.locator('#btn-trainer').boundingBox();
+    expect(trainer.y + trainer.height).toBeLessThanOrEqual(fb.y + fb.height); // Knopf nicht unter dem Rand
+    const tutorial = await frame.locator('#btn-tutorial').boundingBox();
+    expect(tutorial.y + tutorial.height).toBeLessThanOrEqual(fb.y + fb.height);
+    expect(tutorial.y).toBeGreaterThanOrEqual(fb.y);
+    // Beide Knöpfe liegen innerhalb der ungescrollten Karte (die Spalten ragen auf diesem Stand noch
+    // rund 17 px in den unteren Innenabstand der Karte, das war mit Touch genauso und ist kein K1-Thema)
+    const card = await frame.locator('#menu .card').boundingBox();
+    expect(trainer.y + trainer.height).toBeLessThanOrEqual(card.y + card.height);
+    expect(await frame.locator('#menu .card').evaluate(c => c.scrollTop)).toBe(0);
+    await expect(frame.locator('#tasten-hinweis')).toBeHidden();
+  });
+
   test('Stern-Zeit steht in Lumos Menü, Reihenwahl und Pause-Dialog und läuft nur im Spiel', async ({ page }) => {
     const base = migrateState(defaultState());
     const jnr = Object.assign({}, base.jnr, { levels: { '1-1': { medals: 2, bestTimeMs: 1000, bestFunken: 5 } }, tutorialGesehen: true });
