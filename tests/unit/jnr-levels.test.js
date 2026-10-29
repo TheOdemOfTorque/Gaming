@@ -72,13 +72,78 @@ function spur(r) {
     x: r.game.player.x, y: r.game.player.y, funken: r.game.funken, t: r.game.t };
 }
 
-describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
-  test('Welt 1 hat nur noch die Stufe 1-2 Zahlenwiese, 1-1 Erste Schritte ist gestrichen', () => {
-    expect(D.ORDER).toEqual(['1-2']);
+// Laenge je Level in Kacheln (Spec erlaubt 200 bis 400). Gemessen ueber 400 Seeds (Vornacht 29.10.):
+// 1-2 Ø 274 (249-294), 1-3 Ø 295 (266-338), 2-1 Ø 333 (294-370).
+const LAENGE = { '1-2': [200, 320], '1-3': [200, 360], '2-1': [200, 400] };
+
+describe('Level-Tabelle (data/levels.js): Welt 1 Daemmerwiese und Welt 2 Sternenhuegel', () => {
+  test('drei Level in der Reihenfolge 1-2, 1-3, 2-1; 1-1 Erste Schritte bleibt gestrichen', () => {
+    expect(D.ORDER).toEqual(['1-2', '1-3', '2-1']);
     expect(new Set(D.ORDER).size).toBe(D.ORDER.length);
-    D.STAGES.forEach(l => expect(l.welt).toBe(1));
+    expect(D.STAGES.map(l => l.id)).toEqual(D.ORDER);
     expect(D.byId('1-2').name).toBe('Zahlenwiese');
+    expect(D.byId('1-3').name).toBe('Glühwürmchenpfad');
+    expect(D.byId('2-1').name).toBe('Wichtelhügel');
     expect(D.STAGES.some(l => l.name === 'Erste Schritte')).toBe(false);
+    expect(Object.keys(LAENGE)).toEqual(D.ORDER);
+  });
+
+  test('Welt 1 heisst Daemmerwiese (1-2, 1-3), Welt 2 Sternenhuegel (2-1); welt passt zur ID', () => {
+    expect(D.byId('1-2')).toMatchObject({ welt: 1, weltName: 'Dämmerwiese' });
+    expect(D.byId('1-3')).toMatchObject({ welt: 1, weltName: 'Dämmerwiese' });
+    expect(D.byId('2-1')).toMatchObject({ welt: 2, weltName: 'Sternenhügel' });
+    D.STAGES.forEach(l => expect(l.welt).toBe(R.parseLevelId(l.id).welt));
+  });
+
+  test('Welten fuer das Menue: Reihenfolge der Welten, Level darunter in ORDER-Reihenfolge', () => {
+    expect(D.welten()).toEqual([
+      { welt: 1, name: 'Dämmerwiese', levels: ['1-2', '1-3'] },
+      { welt: 2, name: 'Sternenhügel', levels: ['2-1'] }
+    ]);
+  });
+
+  test('gen-Parameter nach dem Plan: 1-3 nur Pool und Laenge, 2-1 dichter mit Mindestzahl Wichte', () => {
+    expect(D.byId('1-2').gen).toEqual({ minDifficulty: 1, maxDifficulty: 2, minSections: 16, maxSections: 18, gegner: true });
+    expect(D.byId('1-3').gen).toEqual({ minDifficulty: 1, maxDifficulty: 3, minSections: 16, maxSections: 18, gegner: true });
+    expect(D.byId('2-1').gen).toEqual({ minDifficulty: 2, maxDifficulty: 3, minSections: 17, maxSections: 19, gegner: true, gegnerAbstand: [1, 1], minGegner: 4 });
+  });
+
+  test('Freischaltkette: 1-3 nach einer Medaille in 1-2, 2-1 nach einer Medaille in 1-3', () => {
+    const j0 = R.defaultJnr();
+    expect(D.ORDER.map(id => R.isUnlocked(j0, id, D.ORDER))).toEqual([true, false, false]);
+    const j1 = R.mergeResult(j0, { level: '1-2', medaillen: 1, funken: 1, xp: 50, timeMs: 1 });
+    expect(D.ORDER.map(id => R.isUnlocked(j1, id, D.ORDER))).toEqual([true, true, false]);
+    const j2 = R.mergeResult(j1, { level: '1-3', medaillen: 1, funken: 1, xp: 70, timeMs: 1 });
+    expect(D.ORDER.map(id => R.isUnlocked(j2, id, D.ORDER))).toEqual([true, true, true]);
+    // drei Medaillen in 1-2 allein oeffnen 2-1 nicht
+    const j3 = R.mergeResult(j0, { level: '1-2', medaillen: 3, funken: 1, xp: 70, timeMs: 1 });
+    expect(R.isUnlocked(j3, '2-1', D.ORDER)).toBe(false);
+  });
+
+  test('2-1 Wichtelhuegel: fuer 200 Seeds mindestens 4 Rechenwichte je Lauf', () => {
+    let summe = 0;
+    for (let seed = 1; seed <= SEEDS_PROPERTY; seed++) {
+      const gen = D.generateFor('2-1', seed);
+      expect(gen.gegner.length).toBeGreaterThanOrEqual(4);
+      expect(parseLevel(gen.rows).enemies.length).toBe(gen.gegner.length);
+      summe += gen.gegner.length;
+    }
+    expect(summe / SEEDS_PROPERTY).toBeGreaterThan(4);
+  });
+
+  test('monotone Kurve: Gefahren (Dornen, Federpilze, Luecken) im Schnitt 1-2 < 1-3 < 2-1 ueber 50 Seeds', () => {
+    const gefahren = id => {
+      let g = 0;
+      for (let seed = 1; seed <= 50; seed++) {
+        const L = parseLevel(D.generateFor(id, seed).rows);
+        g += L.spikes.length + L.springs.length + geometrie(L).luecken.length;
+      }
+      return g / 50;
+    };
+    const k = D.ORDER.map(gefahren);
+    expect(k[0]).toBeLessThan(k[1]);
+    expect(k[1]).toBeLessThan(k[2]);
+    console.log('Gefahren Ø je Lauf (50 Seeds): ' + D.ORDER.map((id, i) => id + ' ' + k[i].toFixed(1)).join(', '));
   });
 
   test('gestrichene oder unbekannte Stufe: byId liefert null, generateFor wirft verstaendlich', () => {
@@ -97,19 +162,22 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     expect(R.isUnlocked(alt, '1-1', D.ORDER)).toBe(false); // Geisterstufe wird nie freigeschaltet
   });
 
-  test('nach der letzten Stufe gibt es keine naechste (kein Verweis auf eine fehlende Stufe)', () => {
+  test('naechstes Level: 1-2 -> 1-3 -> 2-1, nach dem letzten Level gibt es keines (kein Verweis ins Leere)', () => {
     D.ORDER.forEach((id, i) => {
       const next = D.ORDER[i + 1];
       if (next !== undefined) expect(D.byId(next)).not.toBeNull();
     });
-    expect(D.ORDER[D.ORDER.indexOf('1-2') + 1]).toBeUndefined();
+    expect(D.ORDER[D.ORDER.indexOf('1-2') + 1]).toBe('1-3');
+    expect(D.ORDER[D.ORDER.indexOf('1-3') + 1]).toBe('2-1');
+    expect(D.ORDER[D.ORDER.indexOf('2-1') + 1]).toBeUndefined();
   });
 
-  test('Stufe 1-2 hat eine gueltige Reihe als Vorschlag, jede Stufe der Welt 1 hat Zahlen', () => {
-    const l2 = D.byId('1-2');
-    expect(l2.mathe).toBe(true);
-    expect(Number.isInteger(l2.reihe) && l2.reihe >= 2).toBe(true);
-    D.STAGES.forEach(l => expect(l.mathe).toBe(true));
+  test('jedes Level hat Zahlen und eine gueltige Reihe als Vorschlag (wie 1-2)', () => {
+    D.STAGES.forEach(l => {
+      expect(l.mathe).toBe(true);
+      expect(l.reihe).toBe(D.byId('1-2').reihe);
+      expect(Number.isInteger(l.reihe) && l.reihe >= 2 && l.reihe <= 10).toBe(true);
+    });
   });
 
   test('gameOptions: Mathe-Modus aus der Einstellung ueberschreibt die Stufe', () => {
@@ -164,16 +232,35 @@ describe('Stufen-Tabelle Welt 1 (data/levels.js)', () => {
     g.crystals.forEach(c => expect(c.value % reihe === 0).toBe(c.good));
   });
 
+  // Neue Level (Aufgabe 9): Kristalle und Wicht-Tafeln rechnen in der gewaehlten Reihe, hier fuer zwei Reihen.
+  describe.each(['1-3', '2-1'])('Level %s: Zahlen in der gewaehlten Reihe', (id) => {
+    test.each([2, 7])('Reihe %i: Kristalle nur Vielfache als gute Zahlen, Wicht-Tafeln in der Reihe, Zahlen aus ohne Wichte', (reihe) => {
+      const meta = D.byId(id);
+      for (let seed = 1; seed <= 5; seed++) {
+        const gen = D.generateFor(id, seed);
+        const level = parseLevel(gen.rows);
+        const g = G.createGame(level, D.gameOptions(meta, { mathe: 'ziel' }, seed, reihe));
+        expect(g.totalGood).toBeGreaterThan(0);
+        g.crystals.forEach(c => expect(c.value % reihe === 0).toBe(c.good));
+        expect(g.enemies.length).toBe(gen.gegner.length);
+        g.enemies.forEach(e => expect(e.rechnung.reihe).toBe(reihe));
+        expect(D.gameOptions(meta, { mathe: 'aus' }, seed, reihe).mode).toBe('aus');
+      }
+      expect(D.brauchtReihenwahl(meta, { mathe: 'ziel' })).toBe(true);
+      expect(D.menuUntertitel(meta, { mathe: 'ziel' })).toBe('Reihe wählst du vor dem Start');
+    });
+  });
+
   describe.each(D.ORDER)('Stufe %s: generateFor', (id) => {
     const meta = D.byId(id);
 
-    test('ist fuer jeden Seed ein gueltiges Raster mit Gesamtlaenge ca. 200-300 Kacheln', () => {
+    test(`ist fuer jeden Seed ein gueltiges Raster mit Gesamtlaenge ${LAENGE[id][0]}-${LAENGE[id][1]} Kacheln`, () => {
       for (let seed = 1; seed <= 30; seed++) {
         const gen = D.generateFor(id, seed);
         const L = parseLevel(gen.rows);
         expect(L.h).toBe(9);
-        expect(L.w).toBeGreaterThanOrEqual(200);
-        expect(L.w).toBeLessThanOrEqual(320); // "ca. 200-300", Toleranz nach oben siehe BERICHT
+        expect(L.w).toBeGreaterThanOrEqual(LAENGE[id][0]);
+        expect(L.w).toBeLessThanOrEqual(LAENGE[id][1]);
         expect(L.checkpoints.length).toBe(gen.sections.length - 1);
       }
     });
