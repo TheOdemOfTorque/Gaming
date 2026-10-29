@@ -74,3 +74,69 @@ describe('Platz fuer Rechenwichte', () => {
     expect(laengsteStrecke(sec)).toBeGreaterThanOrEqual(MIN_STRECKE);
   });
 });
+
+// Aufgabe 10 (Marco, 29.10.): statische Geometrie je Abschnitt gegen die vermessene Sprungweite und
+// -hoehe des Bots (core/solver.js sprungmass, per Simulation aus core/physics.js abgeleitet). Das sind
+// notwendige Bedingungen; den hinreichenden Nachweis liefert der unsterbliche Bot-Lauf in
+// jnr-solver.test.js und jnr-levels.test.js. Flache Enden (2 Kacheln) prueft der Test oben schon.
+describe('Geometrie je Abschnitt (core/level.js geometrie)', () => {
+  const { geometrie } = require('../../jumpnrun/core/level.js');
+  const SOLVER = require('../../jumpnrun/core/solver.js');
+  const MASS = SOLVER.sprungmass();
+
+  function alsLevel(section) {
+    const rows = section.rows.map(r => r.split(''));
+    rows[6][0] = 'S';
+    rows[6][section.rows[0].length - 1] = 'G';
+    return parseLevel(rows.map(r => r.join('')));
+  }
+
+  test('Messwerte sind ganze Kacheln (Luecke und Stufe mindestens 2, Bibliothek bleibt mit 1-2 darunter)', () => {
+    expect(MASS.luecke).toBeGreaterThanOrEqual(2);
+    expect(MASS.stufe).toBeGreaterThanOrEqual(2);
+  });
+
+  test.each(D.SECTIONS.map(s => [s.id, s]))('%s: jede Luecke und jede Stufe liegt in Sprungweite bzw. -hoehe', (id, s) => {
+    const g = geometrie(alsLevel(s));
+    expect(Math.max(0, ...g.luecken)).toBeLessThanOrEqual(MASS.luecke);
+    expect(Math.max(0, ...g.stufen)).toBeLessThanOrEqual(MASS.stufe);
+  });
+
+  test.each(D.SECTIONS.map(s => [s.id, s]))('%s: jeder Kristall hat festen Boden in seiner Spalte, hoechstens Sprunghoehe tiefer', (id, s) => {
+    // Erreichbar heisst hier: in der Spalte des Kristalls liegt fester Boden, und der Kristall schwebt
+    // hoechstens MASS.stufe Kacheln ueber der Standkachel darauf (0 = er liegt direkt auf dem Boden).
+    const g = geometrie(alsLevel(s));
+    expect(g.kristallHoehen.length).toBe(alsLevel(s).crystalSlots.length);
+    g.kristallHoehen.forEach(h => expect(h).toBeLessThanOrEqual(MASS.stufe));
+  });
+
+  test('geometrie misst Luecken, Stufen und Kristallhoehen an einem handgebauten Level', () => {
+    const L = parseLevel([
+      '.........o....',
+      '.....o...##...',
+      'S.........##.G',
+      '###..#########',
+    ]);
+    const g = geometrie(L);
+    expect(g.luecken).toEqual([2]);
+    expect(g.stufen).toEqual([2, -1, -1]); // hoch auf die 2er-Stufe, dann zweimal eine Kachel runter
+    expect(g.kristallHoehen).toEqual([1, 0]); // Kristall ueber Spalte 5 schwebt 1 Kachel, der andere liegt auf
+    expect(g.startFrei).toBe(true);
+  });
+
+  test('geometrie: Kristall ohne Boden darunter zaehlt als unendlich hoch, Start in Dornen ist nicht frei', () => {
+    const L = parseLevel([
+      '...o..........',
+      '......o.......',
+      'S^...........G',
+      '###..#########',
+    ]);
+    const g = geometrie(L);
+    expect(g.kristallHoehen).toEqual([Infinity, 1]);
+    expect(g.startFrei).toBe(true);
+    const IN_WAND = Object.assign({}, L, { start: { tx: 2, ty: 3, x: 2 * 16 + 3, y: 4 * 16 - 12 } });
+    expect(geometrie(IN_WAND).startFrei).toBe(false);
+    const IN_DORNEN = Object.assign({}, L, { start: { tx: 1, ty: 2, x: 1 * 16 + 3, y: 3 * 16 - 12 } });
+    expect(geometrie(IN_DORNEN).startFrei).toBe(false);
+  });
+});
