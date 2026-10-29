@@ -4,16 +4,65 @@
 // Zahlen nie geaendert. Dieselben Helfer nutzt tests/unit/jnr-levels.test.js fuer seine
 // console.log-Zusammenfassung je Stufe.
 //
-// Aufruf: node scripts/jnr-messen.js [levelId] [seeds] [reihen]
-//   levelId  Stufe aus jumpnrun/data/levels.js (Standard 1-2) oder d1 fuer den reinen
+// Aufruf: node scripts/jnr-messen.js [levelIds] [seeds] [reihen]
+//   levelIds Komma-Liste von Leveln aus jumpnrun/data/levels.js (Standard 1-2) oder d1 fuer den reinen
 //            Schwierigkeit-1-Pool (Zahlen aus, Parameter der frueheren Stufe 1-1)
 //   seeds    Anzahl Seeds ab 1 (Standard 200)
-//   reihen   Komma-Liste der Reihen 2..10, je Reihe eine Tabellenzeile (Standard: Vorschlag der Stufe)
-// Je Seed laufen zwei Bots: mit 3 Leben (Messwerte) und unsterblich (Erreichbarkeit, Softlock, Anteil
-// der eingesammelten guten Kristalle).
+//   reihen   Komma-Liste der Reihen 2..10, je Reihe eine Tabellenzeile (Standard: Vorschlag des Levels)
+// Je Level zuerst die Struktur (reihenunabhaengig: Laenge, Wichte, Dornen, Federpilze, Luecken,
+// Geometrie-Verstoesse, Neuwuerfe durch minGegner), dann je Reihe die Bot-Zeile. Je Seed laufen zwei
+// Bots: mit 3 Leben (Messwerte) und unsterblich (Erreichbarkeit, Softlock, Anteil der eingesammelten
+// guten Kristalle).
 var path = require('path');
 var ROOT = path.join(__dirname, '..');
 var SOLVER = require(path.join(ROOT, 'jumpnrun/core/solver.js'));
+var LV = require(path.join(ROOT, 'jumpnrun/core/level.js'));
+
+// ---- Struktur je Seed (ohne Bot): was im Raster steht ----
+// verstoesse: Luecken breiter als die Sprungweite, Stufen hoeher als die Sprunghoehe, Kristalle hoeher
+// als die Sprunghoehe ueber dem Boden, Start nicht frei (core/level.js geometrie gegen solver.sprungmass).
+function strukturWert(gen, level) {
+  var g = LV.geometrie(level), mass = SOLVER.sprungmass(), v = 0;
+  g.luecken.forEach(function (b) { if (b > mass.luecke) v++; });
+  g.stufen.forEach(function (h) { if (h > mass.stufe) v++; });
+  g.kristallHoehen.forEach(function (h) { if (!(h <= mass.stufe)) v++; });
+  if (!g.startFrei) v++;
+  return {
+    laenge: level.w, wichte: gen.gegner.length, dornen: level.spikes.length, federpilze: level.springs.length,
+    luecken: g.luecken.length, verstoesse: v, versuch: gen.versuch || 0
+  };
+}
+
+function struktur(levelId, seeds) {
+  var D = require(path.join(ROOT, 'jumpnrun/data/levels.js')), liste = [];
+  for (var seed = 1; seed <= seeds; seed++) {
+    var gen = D.generateFor(levelId, seed);
+    liste.push(strukturWert(gen, LV.parseLevel(gen.rows)));
+  }
+  return liste;
+}
+
+function spanne(liste, feld) {
+  var w = liste.map(function (m) { return m[feld]; });
+  return { mittel: mittel(liste, feld), min: Math.min.apply(null, w), max: Math.max.apply(null, w) };
+}
+
+function strukturZusammenfassung(liste) {
+  return {
+    n: liste.length,
+    laenge: spanne(liste, 'laenge'), wichte: spanne(liste, 'wichte'), dornen: spanne(liste, 'dornen'),
+    federpilze: spanne(liste, 'federpilze'), luecken: spanne(liste, 'luecken'),
+    verstoesse: liste.reduce(function (a, m) { return a + m.verstoesse; }, 0),
+    neuGewuerfelt: liste.filter(function (m) { return m.versuch > 0; }).length
+  };
+}
+
+function sp(s) { return s.mittel.toFixed(1) + ' (' + s.min + '-' + s.max + ')'; }
+function strukturZeile(name, z) {
+  return 'Struktur ' + name + ', ' + z.n + ' Seeds: Laenge Ø ' + sp(z.laenge) + ' Kacheln | Wichte Ø ' + sp(z.wichte) +
+    ' | Dornen Ø ' + sp(z.dornen) + ' | Federpilze Ø ' + sp(z.federpilze) + ' | Luecken Ø ' + sp(z.luecken) +
+    ' | Geometrie-Verstoesse ' + z.verstoesse + ' | neu gewuerfelt (minGegner) ' + z.neuGewuerfelt;
+}
 
 // Ein Messwert je Seed aus dem 3-Leben-Lauf (mit) und dem unsterblichen Lauf (frei).
 function messwert(mit, frei) {
@@ -117,23 +166,28 @@ function messen(levelId, seeds, reihe) {
 }
 
 function main(argv) {
-  var levelId = argv[0] || '1-2';
+  var levelIds = (argv[0] || '1-2').split(',');
   var seeds = parseInt(argv[1] || '200', 10);
   var D = require(path.join(ROOT, 'jumpnrun/data/levels.js'));
-  var meta = levelId === 'd1' ? null : D.byId(levelId);
-  if (levelId !== 'd1' && !meta) { console.error('Unbekannte Stufe: ' + levelId + ' (bekannt: ' + D.ORDER.join(', ') + ', d1)'); process.exit(1); }
-  var reihen = argv[2] ? argv[2].split(',').map(function (s) { return parseInt(s, 10); }) : [meta ? meta.reihe : null];
   var mass = SOLVER.sprungmass();
-  console.log('Lumo Bot-Messung: ' + (meta ? 'Stufe ' + levelId + ' ' + meta.name : 'Schwierigkeit-1-Pool (Zahlen aus)') +
-    ', ' + seeds + ' Seeds, Sprungweite ' + mass.luecke + ' / Sprunghoehe ' + mass.stufe + ' Kacheln, Softlock ab ' + SOLVER.SOFTLOCK + ' Schritten');
-  var zeilen = [], t0 = Date.now();
-  reihen.forEach(function (reihe) {
-    zeilen.push({ name: reihe == null ? 'aus' : String(reihe), z: messen(levelId, seeds, reihe) });
+  levelIds.forEach(function (levelId) {
+    var meta = levelId === 'd1' ? null : D.byId(levelId);
+    if (levelId !== 'd1' && !meta) { console.error('Unbekanntes Level: ' + levelId + ' (bekannt: ' + D.ORDER.join(', ') + ', d1)'); process.exit(1); }
+    var reihen = argv[2] ? argv[2].split(',').map(function (s) { return parseInt(s, 10); }) : [meta ? meta.reihe : null];
+    console.log('Lumo Bot-Messung: ' + (meta ? 'Level ' + levelId + ' ' + meta.name : 'Schwierigkeit-1-Pool (Zahlen aus)') +
+      ', ' + seeds + ' Seeds, Sprungweite ' + mass.luecke + ' / Sprunghoehe ' + mass.stufe + ' Kacheln, Softlock ab ' + SOLVER.SOFTLOCK + ' Schritten');
+    if (meta) console.log(strukturZeile('Level ' + levelId, strukturZusammenfassung(struktur(levelId, seeds))));
+    var zeilen = [], t0 = Date.now();
+    reihen.forEach(function (reihe) {
+      zeilen.push({ name: reihe == null ? 'aus' : String(reihe), z: messen(levelId, seeds, reihe) });
+    });
+    console.log(tabelle(zeilen));
+    console.log('(' + ((Date.now() - t0) / 1000).toFixed(1) + ' s, Dauer = Spielzeit des 3-Leben-Bots bei 60 Schritten je Sekunde, nur geschaffte Laeufe)');
+    console.log('');
   });
-  console.log(tabelle(zeilen));
-  console.log('(' + ((Date.now() - t0) / 1000).toFixed(1) + ' s, Dauer = Spielzeit des 3-Leben-Bots bei 60 Schritten je Sekunde, nur geschaffte Laeufe)');
 }
 
 if (require.main === module) main(process.argv.slice(2));
 
-module.exports = { messwert: messwert, zusammenfassung: zusammenfassung, zeile: zeile, tabelle: tabelle, messen: messen };
+module.exports = { messwert: messwert, zusammenfassung: zusammenfassung, zeile: zeile, tabelle: tabelle, messen: messen,
+  strukturWert: strukturWert, struktur: struktur, strukturZusammenfassung: strukturZusammenfassung, strukturZeile: strukturZeile };

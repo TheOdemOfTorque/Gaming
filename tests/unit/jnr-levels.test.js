@@ -391,3 +391,34 @@ describe('menuUntertitel (Levelauswahl, QA-Befund N2)', () => {
     expect(D.menuUntertitel(D.byId('1-2'), { mathe: 'aus' })).toBe('Laufen, Springen, Sammeln');
   });
 });
+
+// scripts/jnr-messen.js struktur: Laenge, Wichte, Dornen, Federpilze, Luecken und Geometrie-Verstoesse je Seed
+// (reihenunabhaengig), fuer die Messtabelle der Level (Aufgabe 9). Hier nur der Vertrag an wenigen Seeds.
+describe('Struktur-Messung (scripts/jnr-messen.js struktur)', () => {
+  test('zaehlt je Seed, was im Raster steht, und fasst Ø/min/max zusammen', () => {
+    const liste = MESSEN.struktur('2-1', 5);
+    expect(liste).toHaveLength(5);
+    liste.forEach((m, i) => {
+      const gen = D.generateFor('2-1', i + 1), L = parseLevel(gen.rows), g = geometrie(L);
+      expect(m).toEqual({
+        laenge: L.w, wichte: gen.gegner.length, dornen: L.spikes.length, federpilze: L.springs.length,
+        luecken: g.luecken.length, verstoesse: 0, versuch: gen.versuch
+      });
+      expect(m.wichte).toBeGreaterThanOrEqual(4);
+    });
+    const z = MESSEN.strukturZusammenfassung(liste);
+    expect(z.n).toBe(5);
+    expect(z.laenge.min).toBeLessThanOrEqual(z.laenge.mittel);
+    expect(z.laenge.mittel).toBeLessThanOrEqual(z.laenge.max);
+    expect(z.wichte.min).toBeGreaterThanOrEqual(4);
+    expect(z.verstoesse).toBe(0);
+    expect(z.neuGewuerfelt).toBe(liste.filter(m => m.versuch > 0).length);
+    expect(typeof MESSEN.strukturZeile('2-1', z)).toBe('string');
+    expect(MESSEN.strukturZeile('2-1', z)).toMatch(/Laenge/);
+  });
+
+  test('Geometrie-Verstoesse werden gezaehlt (handgebautes Level mit zu breiter Luecke)', () => {
+    const L = parseLevel(['S..............G', '###.........####']);
+    expect(MESSEN.strukturWert({ gegner: [], versuch: 0 }, L).verstoesse).toBeGreaterThan(0);
+  });
+});
