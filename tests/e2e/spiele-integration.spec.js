@@ -157,7 +157,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.setViewportSize({ width: 844, height: 390 });
     await page.locator('.game-card[data-game="jnr"] button').click();
     const frame = page.frameLocator('#game-frame');
-    await expect(frame.locator('#levellist button')).toHaveCount(1);
+    await expect(frame.locator('#levellist button')).toHaveCount(3);
     await expect(frame.locator('button[data-level="1-2"]')).toBeEnabled();
     await expect(frame.locator('button[data-level="1-2"]')).toContainText('Zahlenwiese');
     await frame.locator('body').evaluate(() => {

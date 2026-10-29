@@ -49,17 +49,23 @@ test('Debug-Parameter startet Level 1-2 ohne Menü', async ({ page }) => {
   await expect(page.locator('#ziel .z-reihe')).toHaveText('2er-Reihe');
 });
 
-test('Ohne Parameter erscheint das Menü: nur die Zahlenwiese, sofort offen, ohne Stufennummer', async ({ page }) => {
+test('Ohne Parameter erscheint das Menü: drei Level in zwei Welten, nur die Zahlenwiese offen, ohne Levelnummer', async ({ page }) => {
   await tutorialGesehen(page);
   await page.goto('/jumpnrun/index.html?jnrDebug=1');
   await expect(page.locator('#menu')).toBeVisible();
-  await expect(page.locator('#levellist button')).toHaveCount(1);
+  await expect(page.locator('#levellist button')).toHaveCount(3);
+  expect(await page.locator('#levellist button').evaluateAll(bs => bs.map(b => b.getAttribute('data-level')))).toEqual(['1-2', '1-3', '2-1']);
+  await expect(page.locator('#levellist h2')).toHaveText(['Welt 1 · Dämmerwiese', 'Welt 2 · Sternenhügel']);
   await expect(page.locator('button[data-level="1-1"]')).toHaveCount(0);
   const b = page.locator('button[data-level="1-2"]');
   await expect(b).toBeEnabled();
   await expect(b).toContainText('Zahlenwiese');
   await expect(b).not.toContainText('1-2');
+  await expect(page.locator('button[data-level="1-3"]')).toBeDisabled();
+  await expect(page.locator('button[data-level="1-3"] .medals')).toHaveText('🔒');
+  await expect(page.locator('button[data-level="2-1"]')).toBeDisabled();
   await expect(page.locator('#menu')).not.toContainText('Erste Schritte');
+  await expect(page.locator('#menu')).not.toContainText('Stufe');
   await b.click();
   await expect(page.locator('#menu')).toBeHidden();
   await expect(page.locator('#reihenwahl')).toBeVisible(); // Mathe-Stufe: erst die Reihenwahl
@@ -77,9 +83,10 @@ test('Alter Spielstand mit der gestrichenen Stufe 1-1: kein Fehler, keine Geiste
     levels: { '1-1': { medals: 3, bestTimeMs: 5000, bestFunken: 7 } }, xpAwarded: { '1-1': true }
   })));
   await page.goto('/jumpnrun/index.html?jnrDebug=1');
-  await expect(page.locator('#levellist button')).toHaveCount(1);
+  await expect(page.locator('#levellist button')).toHaveCount(3);
   await expect(page.locator('button[data-level="1-2"]')).toBeEnabled();
   await expect(page.locator('button[data-level="1-2"] .medals')).toHaveText('☆☆☆');
+  await expect(page.locator('button[data-level="1-3"]')).toBeDisabled(); // 1-1-Medaillen schalten nichts frei
   expect(errors).toEqual([]);
 });
 
@@ -506,31 +513,149 @@ test('Pause: Weiter, Nochmal, ? So spielst du, Zum Menü; Nochmal startet sofort
   expect(s.t).toBeLessThan(30); // neuer Lauf
 });
 
-test('Geschafft: Nochmal startet sofort dieselbe Reihe neu, Zum Menü geht ins Menü (kein nächstes Level in Welt 1)', async ({ page }) => {
+// Lumo direkt vor den Leuchtturm setzen (im Harness-iframe)
+const zumZiel = (page) => page.evaluate(() => {
+  const w = document.getElementById('f').contentWindow;
+  w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1);
+});
+
+test('Geschafft in 1-2: Nächstes Level (Hauptknopf), Nochmal startet sofort dieselbe Reihe neu, Zum Menü geht ins Menü', async ({ page }) => {
   await harness(page);
   await page.goto('/jumpnrun-harness.html');
   const frame = page.frameLocator('#f');
   await expect(frame.locator('#menu')).toBeVisible();
   await sendTo(page, INIT12);
   await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
-  // Lumo direkt vor den Leuchtturm setzen
-  const zumZiel = () => page.evaluate(() => {
-    const w = document.getElementById('f').contentWindow;
-    w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1);
-  });
-  await zumZiel();
+  await zumZiel(page);
   await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
-  await expect(frame.locator('#msg-buttons button')).toHaveText(['Nochmal', 'Zum Menü']);
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Nächstes Level', 'Nochmal', 'Zum Menü']);
   await expect(frame.locator('#msg-buttons button').first()).toHaveClass(/main/);
   await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click();
   await expect(frame.locator('#msg')).toBeHidden();
   await expect(frame.locator('#reihenwahl')).toBeHidden();
   await expect(frame.locator('#ziel .z-reihe')).toHaveText('4er-Reihe');
-  expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state())).toMatchObject({ mode: 'play', reihe: 4 });
-  await zumZiel();
+  expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state())).toMatchObject({ mode: 'play', level: '1-2', reihe: 4 });
+  await zumZiel(page);
   await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
   await frame.locator('#msg').getByRole('button', { name: 'Zum Menü' }).click();
   await expect(frame.locator('#menu')).toBeVisible();
+  await expect(frame.locator('button[data-level="1-3"]')).toBeEnabled(); // eine Medaille in 1-2 reicht
+  await expect(frame.locator('button[data-level="2-1"]')).toBeDisabled();
+});
+
+// Aufgabe 9 (Marco 30.10.): "Nächstes Level" fuehrt 1-2 -> 1-3 -> 2-1 und waehlt die zuletzt gespielte Reihe
+// vor (K4 der Vornacht), obwohl der Lernstand die 7er-Reihe empfiehlt. Nach 2-1 gibt es kein naechstes Level.
+test('Nächstes Level: 1-2 -> 1-3 -> 2-1 mit vorgewählter zuletzt gespielter Reihe, nach 2-1 kein Knopf ins Leere', async ({ page }) => {
+  await harness(page);
+  await page.goto('/jumpnrun-harness.html');
+  const frame = page.frameLocator('#f');
+  const fs = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+  const rw = () => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.reihenwahl());
+  await expect(frame.locator('#menu')).toBeVisible();
+  await sendTo(page, INIT12);
+  expect(await rw()).toMatchObject({ level: '1-2', sel: 7, empfohlen: [7, 9] }); // Empfehlung aus dem Lernstand
+  await frame.locator('#rw-grid .rw[data-reihe="4"]').click();
+  await zumZiel(page);
+  await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+  await frame.locator('#msg').getByRole('button', { name: 'Nächstes Level' }).click();
+  await expect(frame.locator('#reihenwahl')).toBeVisible();
+  await expect(frame.locator('#rw-sub')).toContainText('Glühwürmchenpfad');
+  expect(await rw()).toMatchObject({ level: '1-3', sel: 4 }); // zuletzt gespielte Reihe, nicht die Empfehlung
+  await expect(frame.locator('#rw-los')).toHaveText('Los mit der 4er-Reihe');
+  await frame.locator('#rw-los').click();
+  expect(await fs()).toMatchObject({ mode: 'play', level: '1-3', reihe: 4 });
+  await zumZiel(page);
+  await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Nächstes Level', 'Nochmal', 'Zum Menü']);
+  await frame.locator('#msg').getByRole('button', { name: 'Nächstes Level' }).click();
+  await expect(frame.locator('#rw-sub')).toContainText('Wichtelhügel');
+  expect(await rw()).toMatchObject({ level: '2-1', sel: 4 });
+  await frame.locator('#rw-grid .rw[data-reihe="6"]').click(); // andere Reihe, die naechste Vorwahl folgt ihr
+  expect(await fs()).toMatchObject({ mode: 'play', level: '2-1', reihe: 6 });
+  await zumZiel(page);
+  await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+  await expect(frame.locator('#msg-buttons button')).toHaveText(['Nochmal', 'Zum Menü']);
+  await expect(frame.locator('#msg-buttons button').first()).toHaveClass(/main/);
+  await frame.locator('#msg').getByRole('button', { name: 'Zum Menü' }).click();
+  await expect(frame.locator('#menu')).toBeVisible();
+  await expect(frame.locator('#levellist button:enabled')).toHaveCount(3);
+});
+
+// Levelauswahl mit zwei Welten: beide Ueberschriften und alle drei Level-Knoepfe sichtbar und nicht
+// abgeschnitten, quer 844x340 (iPhone im Trainer-iframe), eingebettet bei 844x340 und am Desktop 1280x800.
+test.describe('Levelauswahl mit zwei Welten (Aufgabe 9)', () => {
+  // Screenshots landen im Playwright-Ausgabeordner des Tests (testInfo.outputPath), nie in einem festen Pfad.
+  async function pruefeMenue(scope, hoehe) {
+    await expect(scope.locator('#levellist h2')).toHaveText(['Welt 1 · Dämmerwiese', 'Welt 2 · Sternenhügel']);
+    await expect(scope.locator('#levellist button')).toHaveCount(3);
+    for (const sel of ['#levellist h2', '#levellist button']) {
+      const n = await scope.locator(sel).count();
+      for (let i = 0; i < n; i++) {
+        const el = scope.locator(sel).nth(i);
+        await el.scrollIntoViewIfNeeded();
+        const b = await el.boundingBox();
+        expect(b, sel + ' ' + i).not.toBeNull();
+        expect(b.y, sel + ' ' + i + ' oben').toBeGreaterThanOrEqual(0);
+        expect(b.y + b.height, sel + ' ' + i + ' unten').toBeLessThanOrEqual(hoehe);
+      }
+    }
+    const btn = await scope.locator('#levellist button').first().boundingBox();
+    expect(btn.height).toBeGreaterThanOrEqual(44);
+  }
+
+  test.describe('quer 844×340, standalone', () => {
+    test.use({ viewport: { width: 844, height: 340 } });
+    test('Ueberschriften und Knoepfe im Bild, Tutorial-Knopf weiter ohne Scrollen erreichbar', async ({ page }, testInfo) => {
+      await tutorialGesehen(page);
+      await page.goto('/jumpnrun/index.html?jnrDebug=1');
+      await expect(page.locator('#menu')).toBeVisible();
+      await pruefeMenue(page, 340);
+      const card = await page.locator('#menu .card').evaluate(c => ({ sh: c.scrollHeight, ch: c.clientHeight }));
+      expect(card.sh).toBeLessThanOrEqual(card.ch); // kein Scrollen noetig (B8 bleibt)
+      await page.screenshot({ path: testInfo.outputPath('menu-quer-844x340.png') });
+    });
+  });
+
+  test.describe('quer 844×340, eingebettet (Trainer-iframe)', () => {
+    test.use({ viewport: { width: 844, height: 340 } });
+    test('Ueberschriften, Knoepfe und „Zurück zum Trainer“ erreichbar', async ({ page }, testInfo) => {
+      await page.route('**/jumpnrun-harness.html', route => route.fulfill({
+        contentType: 'text/html',
+        body: '<!DOCTYPE html><html><body style="margin:0"><iframe id="f" style="width:844px;height:340px;border:0" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+      }));
+      await page.goto('/jumpnrun-harness.html');
+      const frame = page.frameLocator('#f');
+      await expect(frame.locator('#menu')).toBeVisible();
+      await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true, levels: { '1-2': { medals: 2, bestTimeMs: 1, bestFunken: 1 } } } });
+      await expect(frame.locator('button[data-level="1-3"]')).toBeEnabled();
+      await pruefeMenue(frame, 340);
+      await frame.locator('#btn-trainer').scrollIntoViewIfNeeded();
+      const b = await frame.locator('#btn-trainer').boundingBox();
+      expect(b.y).toBeGreaterThanOrEqual(0);
+      expect(b.y + b.height).toBeLessThanOrEqual(340);
+      await page.screenshot({ path: testInfo.outputPath('menu-quer-844x340-eingebettet.png') });
+    });
+  });
+
+  test.describe('Desktop 1280×800 mit Maus', () => {
+    test.use({ viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 });
+    test('alles ohne Scrollen im Bild, Tastatur-Hinweis sichtbar', async ({ page }, testInfo) => {
+      await page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({
+        tutorialGesehen: true, levels: { '1-2': { medals: 3, bestTimeMs: 1, bestFunken: 1 }, '1-3': { medals: 1, bestTimeMs: 1, bestFunken: 1 } }
+      })));
+      await page.goto('/jumpnrun/index.html?jnrDebug=1');
+      await expect(page.locator('#menu')).toBeVisible();
+      await pruefeMenue(page, 800);
+      await expect(page.locator('button[data-level="1-2"] .medals')).toHaveText('★★★');
+      await expect(page.locator('button[data-level="1-3"] .medals')).toHaveText('★☆☆');
+      await expect(page.locator('button[data-level="2-1"]')).toBeEnabled();
+      await expect(page.locator('button[data-level="2-1"] .medals')).toHaveText('☆☆☆');
+      const card = await page.locator('#menu .card').evaluate(c => ({ sh: c.scrollHeight, ch: c.clientHeight }));
+      expect(card.sh).toBeLessThanOrEqual(card.ch);
+      await expect(page.locator('#tasten-hinweis')).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('menu-desktop-1280x800.png') });
+    });
+  });
 });
 
 test('Stern-Zeit-Ende während der Reihenwahl blendet die Auswahl aus und zeigt den Dialog', async ({ page }) => {

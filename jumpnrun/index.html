@@ -248,6 +248,9 @@
   @media (prefers-reduced-motion: reduce) { #portrait-hint .phone { animation: none; } }
   body.quer-pflicht #portrait-hint { display: flex; }
   @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } label.opt { min-height: 36px; } }
+  /* Flaches Fenster (Trainer-iframe quer, 340 px): zwei Welt-Ueberschriften und drei Level-Knoepfe muessen
+     ohne Scrollen in die linke Spalte passen (Aufgabe 9). Knoepfe 50 statt 54 px, Ueberschriften enger. */
+  @media (max-height: 420px) { .lvl { padding-top: 6px; padding-bottom: 6px; } .lvl small { font-size: 11px; } h2 { margin-bottom: 4px; } }
   /* Menü: Tastatur-Hinweis nur mit Maus/Trackpad; Hilfe und Tutorial nebeneinander (B8).
      Bei flachem Fenster (Trainer-iframe quer, rund 340 px) bleibt er auch mit Maus weg, sonst
      schiebt er „Zurück zum Trainer“ unter den Rand (K1). */
@@ -295,10 +298,7 @@
       <h1>Lumo <span>und die Zahlennacht</span></h1>
       <p class="sub">In der Zahlennacht sind die Leuchttürme der Zahlen-Insel ausgegangen. Lumo sammelt leuchtende Zahlenkristalle und entzündet am Ende jedes Levels einen Leuchtturm.</p>
       <div class="cols">
-        <div>
-          <h2>Welt 1 · Dämmerwiese</h2>
-          <div id="levellist"></div>
-        </div>
+        <div id="levellist"></div>
         <div>
           <h2>Einstellungen</h2>
           <label class="opt"><input type="checkbox" id="opt-einfach"> Einfach (Lumo läuft von selbst)</label>
@@ -573,16 +573,24 @@
 
   // ---------- Menü ----------
   function medalStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
+  // Levelauswahl: je Welt eine Ueberschrift (Welt-Nummer und Name), darunter ihre Level in ORDER-Reihenfolge;
+  // gesperrte Level bleiben sichtbar (Schloss statt Medaillen), frei wird Level n+1 nach einer Medaille in n.
   function buildMenu() {
     var box = $('levellist'); box.innerHTML = '';
-    LV.STAGES.forEach(function (l) {
-      var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
-      var b = document.createElement('button');
-      b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-      b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
-        '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
-      b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
-      box.appendChild(b);
+    LV.welten().forEach(function (w) {
+      var h = document.createElement('h2');
+      h.setAttribute('data-welt', String(w.welt));
+      h.textContent = 'Welt ' + w.welt + ' · ' + w.name;
+      box.appendChild(h);
+      w.levels.forEach(function (id) {
+        var l = LV.byId(id), rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
+        var b = document.createElement('button');
+        b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
+        b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
+          '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
+        b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
+        box.appendChild(b);
+      });
     });
     $('opt-einfach').checked = einfach();
     $('opt-mathe').checked = jnr.options.mathe === 'ziel';
@@ -633,11 +641,13 @@
     $('rw-los').textContent = 'Los mit der ' + RW.chipReihe(reihe);
     $('rw-hilfe').innerHTML = rwHilfeHtml(reihe);
   }
-  // fest: Reihe, die vorgewählt sein soll (z.B. die zuletzt gespielte)
+  // fest: Reihe, die vorgewählt sein soll ("Nächstes Level" bringt die zuletzt gespielte Reihe mit, K4);
+  // sie geht der Empfehlung aus dem Lernstand vor (RW.vorauswahl). rwFest merkt sie fuer ein jnr:init.
+  var rwFest = null;
   function showReihenwahl(id, fest) {
     var m = LV.byId(id); if (!m) return showMenu();
     tutAus();
-    setMode('reihenwahl'); rwLevel = id; game = null;
+    setMode('reihenwahl'); rwLevel = id; rwFest = RW.istReihe(fest) ? fest : null; game = null;
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
     $('ziel-intro').classList.add('hidden');
@@ -655,7 +665,7 @@
       grid.appendChild(b);
     });
     $('reihenwahl').classList.remove('hidden');
-    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, fest), true);
+    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, rwFest), true);
   }
   function rwStart(reihe) {
     if (mode !== 'reihenwahl' || !RW.istReihe(reihe)) return;
@@ -694,12 +704,13 @@
   }
 
   // ---------- Level starten ----------
-  // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl.
-  function startLevel(id, reihe) {
+  // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl, dort mit
+  // vorwahl vorgewählt (optional, "Nächstes Level" gibt die zuletzt gespielte Reihe mit).
+  function startLevel(id, reihe, vorwahl) {
     meta = LV.byId(id); if (!meta) return showMenu();
     tutAus();
     if (!RW.istReihe(reihe) && RW.istReihe(dbgReihe)) reihe = dbgReihe;
-    if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id);
+    if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id, vorwahl);
     if (RW.istReihe(reihe)) letzteReihe = reihe;
     // Jeder Start bekommt einen neuen Seed (auch "Nochmal"/"Level neu starten"); ?jnrSeed= erzwingt einen festen.
     var seed = (dbgSeed != null && !isNaN(dbgSeed)) ? dbgSeed : (Date.now() >>> 0);
@@ -990,7 +1001,8 @@
     rows += '<div style="margin-top:6px;font-size:14px;opacity:.8">Zeit: ' + sek + ' s · Funken: ✦ ' + st.funken +
       (res.xp > 0 ? ' · +' + res.xp + ' XP' : '') + '</div>';
     var btns = [];
-    if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next); } });
+    var gespielt = aktReihe; // zuletzt gespielte Reihe als Vorwahl der naechsten Reihenwahl (K4)
+    if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next, undefined, gespielt); } });
     btns.push({ text: 'Nochmal', main: !next, fn: nochmal });
     btns.push({ text: 'Zum Menü', fn: showMenu });
     setTimeout(function () { if (mode === 'won') showMsg('Geschafft!', rows, btns); }, 900);
@@ -1008,7 +1020,7 @@
         jnr = m.jnr;
         if (sitzungGesehen()) jnr.tutorialGesehen = true; // Fallback, falls der Trainer jnr:tutorial nicht kennt
         lernstand = m.lernstand;
-        if (mode === 'reihenwahl') showReihenwahl(rwLevel); // Empfehlung nachziehen
+        if (mode === 'reihenwahl') showReihenwahl(rwLevel, rwFest); // Empfehlung nachziehen
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
         else if (mode === 'ended' || mode === 'won' || mode === 'lost') {
           // Reset-Pfad aus einem beendeten Lauf heraus: ohne ihn bliebe das Spiel nach
