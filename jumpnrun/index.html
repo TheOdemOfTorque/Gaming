@@ -999,8 +999,8 @@
       [d.fehlerfrei, 'Ohne Fehltreffer']
     ].map(function (r) { return '<div class="' + (r[0] ? 'got' : 'miss') + '">' + (r[0] ? '★' : '☆') + ' ' + r[1] + '</div>'; }).join('');
     var sek = Math.round(st.timeMs / 100) / 10;
-    rows += '<div style="margin-top:6px;font-size:14px;opacity:.8">Zeit: ' + sek + ' s · Funken: ✦ ' + st.funken +
-      (res.xp > 0 ? ' · +' + res.xp + ' XP' : '') + '</div>';
+    // Keine XP-Zeile: Lumo gibt keine XP (Marco 30.10.2026), nur Medaillen und Funken.
+    rows += '<div style="margin-top:6px;font-size:14px;opacity:.8">Zeit: ' + sek + ' s · Funken: ✦ ' + st.funken + '</div>';
     var btns = [];
     var gespielt = aktReihe; // zuletzt gespielte Reihe als Vorwahl der naechsten Reihenwahl (K4)
     if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next, undefined, gespielt); } });

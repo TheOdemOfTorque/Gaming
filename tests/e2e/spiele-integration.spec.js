@@ -107,7 +107,9 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
   });
 
-  test('Lumo im iframe: Ergebnis kommt an, XP steigt', async ({ page }) => {
+  // Lumo gibt keine XP (Marco 30.10.2026): auch ein altes Lumo aus dem Cache, das noch xp meldet,
+  // bekommt im Trainer nichts gutgeschrieben. Medaillen und Funken kommen an.
+  test('Lumo im iframe: Ergebnis kommt an, Medaillen ja, XP nein (auch wenn ein altes Lumo XP meldet)', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 600 });
     await page.locator('.game-card[data-game="jnr"] button').click();
 
@@ -121,9 +123,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
       );
     });
 
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(60);
-    const awarded = await page.evaluate(() => state.jnr.xpAwarded['1-2']);
-    expect(awarded).toBe(true);
+    await expect.poll(() => page.evaluate(() => state.jnr.levels['1-2'] && state.jnr.levels['1-2'].medals)).toBe(2);
+    expect(await page.evaluate(() => [state.xp, state.jnr.funkenTotal])).toEqual([0, 10]);
 
     await page.locator('#game-overlay-close').click();
     await expect(page.locator('#game-overlay')).not.toHaveClass(/active/);
@@ -138,15 +139,15 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
         location.origin
       );
     });
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(60);
+    await expect.poll(() => page.evaluate(() => state.jnr.levels['1-2'] && state.jnr.levels['1-2'].medals)).toBe(2);
     await page.locator('#game-overlay-close').click();
 
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    const [xp, awarded] = await page.evaluate(() => [state.xp, state.jnr.xpAwarded['1-2']]);
-    expect(xp).toBe(60);
-    expect(awarded).toBe(true);
+    const [xp, medals] = await page.evaluate(() => [state.xp, state.jnr.levels['1-2'].medals]);
+    expect(xp).toBe(0);
+    expect(medals).toBe(2);
   });
 
   test('Alter Trainer-Spielstand mit der gestrichenen Stufe 1-1: Lumo zeigt nur die Zahlenwiese, offen', async ({ page }) => {
@@ -163,8 +164,9 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await frame.locator('body').evaluate(() => {
       window.parent.postMessage({ type: 'jnr:result', level: '1-2', medaillen: 1, funken: 3, xp: 50 }, location.origin);
     });
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(100);
-    expect(await page.evaluate(() => state.jnr.xpAwarded)).toEqual({ '1-1': true, '1-2': true });
+    await expect.poll(() => page.evaluate(() => state.jnr.lastLevel)).toBe('1-2');
+    expect(await page.evaluate(() => state.xp)).toBe(50); // alte XP bleiben, neue gibt es nicht
+    expect(await page.evaluate(() => state.jnr.levels['1-1'].medals)).toBe(3);
   });
 
   // Stern-Zeit 0:00 (Vertrag jumpnrun/core/host.js): Trainer sendet jnr:timeup, Lumo zeigt

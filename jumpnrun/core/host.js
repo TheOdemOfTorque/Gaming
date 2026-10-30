@@ -8,7 +8,8 @@
 //       level      "1-2"  Level-ID (Welt-Nummer)
 //       medaillen  0..3   Anzahl in diesem Lauf (0, wenn das Ziel nicht erreicht wurde)
 //       funken     >= 0   Funkenstand am Levelende (Spielwährung, nur Kosmetik)
-//       xp         >= 0   XP-Vorschlag: nur beim ersten Abschluss des Levels > 0 (Trainer rechnet gut)
+//       xp         0      immer 0: Lumo gibt keine XP (Marco 30.10.2026). Das Feld bleibt, damit ein alter
+//                         Trainer nicht bricht; der neue Trainer ignoriert es (applyJnrResult).
 //
 //   Spiel -> Trainer, sobald das Mitmach-Tutorial (core/tutorial.js) zu Ende gespielt ODER uebersprungen ist:
 //     parent.postMessage({ type: 'jnr:tutorial', gesehen: true }, location.origin)

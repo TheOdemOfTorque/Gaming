@@ -2117,7 +2117,7 @@ window.addEventListener('message', (e) => {
     saveState();
     updateHomeUI();
   } else if (e.data.type === 'jnr:result') {
-    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult, JNR.rewards.xpFor);
+    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult); // Lumo gibt keine XP
     Object.assign(state, next);
     saveState();
     updateHomeUI();

@@ -1,6 +1,6 @@
 const { applyKnobelResult, applyJnrResult, applyJnrTutorial, migrateState } = require('../../1x1-trainer/logic.js');
 const { computeKnobelXP } = require('../../knobel/knobel-logic.js');
-const { mergeResult, xpFor } = require('../../jumpnrun/core/rewards.js');
+const { mergeResult } = require('../../jumpnrun/core/rewards.js');
 
 function stateWithKnobelJnr(over) {
   return Object.assign(migrateState({}), over);
@@ -67,75 +67,61 @@ describe('applyKnobelResult', () => {
   });
 });
 
+// Lumo gibt keine XP mehr (Marco 30.10.2026). Medaillen, Funken und Fortschritt kommen weiter ueber
+// mergeResult. Ein altes Lumo aus dem Cache meldet evtl. noch xp > 0: der Trainer schreibt nichts gut.
 describe('applyJnrResult', () => {
-  test('schreibt die XP beim ersten Levelabschluss gut und merkt sich den Fortschritt', () => {
+  test('schreibt keine XP gut, merkt sich aber Medaillen, Funken und Fortschritt', () => {
     const state = stateWithKnobelJnr({ xp: 0 });
-    const msg = { type: 'jnr:result', level: '1-2', medaillen: 2, funken: 30, xp: 60 };
-    const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
-    expect(next.xp).toBe(60);
+    const msg = { type: 'jnr:result', level: '1-2', medaillen: 2, funken: 30, xp: 0 };
+    const { state: next, creditedXp } = applyJnrResult(state, msg, mergeResult);
+    expect(next.xp).toBe(0);
+    expect(creditedXp).toBe(0);
     expect(next.jnr.levels['1-2'].medals).toBe(2);
-    expect(next.jnr.xpAwarded['1-2']).toBe(true);
     expect(next.jnr.funkenTotal).toBe(30);
     expect(next.jnr.lastLevel).toBe('1-2');
   });
 
-  test('zweiter Abschluss desselben Levels gibt keine weitere XP, aktualisiert aber den Fortschritt', () => {
-    let state = stateWithKnobelJnr({ xp: 0 });
-    const erst = { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 10, xp: 50 };
-    state = applyJnrResult(state, erst, mergeResult, xpFor).state;
-    expect(state.xp).toBe(50);
+  test('ein altes Lumo aus dem Cache meldet noch XP: der Trainer schreibt trotzdem nichts gut', () => {
+    const state = stateWithKnobelJnr({ xp: 120 });
+    const msg = { type: 'jnr:result', level: '1-3', medaillen: 3, funken: 5, xp: 90 };
+    // auch mit dem alten Aufruf (xpFor als viertes Argument) bleibt es bei 0
+    const alt = () => 90;
+    const { state: next, creditedXp } = applyJnrResult(state, msg, mergeResult, alt);
+    expect(next.xp).toBe(120);
+    expect(creditedXp).toBe(0);
+    expect(next.jnr.levels['1-3'].medals).toBe(3);
+  });
 
-    const zweit = { type: 'jnr:result', level: '1-2', medaillen: 3, funken: 25, xp: 0 };
-    const { state: next } = applyJnrResult(state, zweit, mergeResult, xpFor);
-    expect(next.xp).toBe(50); // keine weitere Gutschrift
-    expect(next.jnr.levels['1-2'].medals).toBe(3); // Fortschritt trotzdem aktualisiert
+  test('zweiter Abschluss desselben Levels aktualisiert den Fortschritt', () => {
+    let state = stateWithKnobelJnr({ xp: 0 });
+    state = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 10, xp: 0 }, mergeResult).state;
+    const { state: next } = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 3, funken: 25, xp: 0 }, mergeResult);
+    expect(next.xp).toBe(0);
+    expect(next.jnr.levels['1-2'].medals).toBe(3);
     expect(next.jnr.funkenTotal).toBe(35);
   });
 
-  test('kappt eine vom iframe zu hoch gemeldete XP auf die plausible Obergrenze', () => {
-    const state = stateWithKnobelJnr({ xp: 0 });
-    const msg = { type: 'jnr:result', level: '2-3', medaillen: 3, funken: 5, xp: 999999 };
-    const obergrenze = xpFor('2-3', 3, false);
-    const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
-    expect(next.xp).toBe(obergrenze);
-  });
-
-  test('0 Medaillen (Ziel nicht erreicht) gibt keine XP, Level bleibt wie gemerkt', () => {
-    const state = stateWithKnobelJnr({ xp: 0 });
-    const msg = { type: 'jnr:result', level: '1-2', medaillen: 0, funken: 0, xp: 0 };
-    const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
-    expect(next.xp).toBe(0);
-    expect(next.jnr.xpAwarded['1-2']).toBeUndefined();
-  });
-
-  test('alter Spielstand mit der gestrichenen Stufe 1-1: XP fuer 1-2 kommen einmal, 1-1 bleibt stehen', () => {
-    const state = stateWithKnobelJnr({ xp: 50 }); // 50 XP stammen noch aus 1-1
+  test('alter Spielstand mit der gestrichenen Stufe 1-1: 1-1 bleibt stehen, XP aendern sich nicht', () => {
+    const state = stateWithKnobelJnr({ xp: 50 }); // 50 XP stammen noch aus 1-1 und bleiben
     state.jnr.levels['1-1'] = { medals: 2, bestTimeMs: 1, bestFunken: 3 };
     state.jnr.xpAwarded['1-1'] = true;
     state.jnr.lastLevel = '1-1';
-    const msg = { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 4, xp: 50 };
-    let next = applyJnrResult(state, msg, mergeResult, xpFor).state;
-    expect(next.xp).toBe(100);
-    expect(next.jnr.xpAwarded).toEqual({ '1-1': true, '1-2': true });
+    const next = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 4, xp: 50 }, mergeResult).state;
+    expect(next.xp).toBe(50);
     expect(next.jnr.levels['1-1'].medals).toBe(2);
     expect(next.jnr.lastLevel).toBe('1-2');
-    next = applyJnrResult(next, msg, mergeResult, xpFor).state; // doppelt gemeldet
-    expect(next.xp).toBe(100);
   });
 
   test('mutiert den Eingabe-State nicht', () => {
     const state = stateWithKnobelJnr({ xp: 0 });
-    const msg = { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 5, xp: 30 };
-    applyJnrResult(state, msg, mergeResult, xpFor);
+    applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 5, xp: 30 }, mergeResult);
     expect(state.xp).toBe(0);
     expect(state.jnr.levels).toEqual({});
   });
 
-  test('nicht-numerische gemeldete XP (z.B. gefälschte Nachricht) zerstört den XP-Zähler nicht mit NaN', () => {
+  test('nicht-numerische gemeldete XP (z.B. gefälschte Nachricht) lässt den XP-Zähler stehen', () => {
     const state = stateWithKnobelJnr({ xp: 50 });
-    const msg = { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 5, xp: 'pwned' };
-    const { state: next } = applyJnrResult(state, msg, mergeResult, xpFor);
-    expect(Number.isFinite(next.xp)).toBe(true);
+    const { state: next } = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 5, xp: 'pwned' }, mergeResult);
     expect(next.xp).toBe(50);
   });
 });
@@ -161,7 +147,7 @@ describe('applyJnrTutorial (Nachricht jnr:tutorial, Vertrag jumpnrun/core/host.j
   });
   test('das Flag übersteht ein späteres jnr:result', () => {
     let state = applyJnrTutorial(stateWithKnobelJnr({}), { type: 'jnr:tutorial', gesehen: true });
-    state = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 1, xp: 50 }, mergeResult, xpFor).state;
+    state = applyJnrResult(state, { type: 'jnr:result', level: '1-2', medaillen: 1, funken: 1, xp: 0 }, mergeResult).state;
     expect(state.jnr.tutorialGesehen).toBe(true);
   });
 });

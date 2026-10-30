@@ -1,4 +1,4 @@
-// Lumo - Medaillen, XP und Spielstand (state.jnr). Reine Funktionen, kein localStorage.
+// Lumo - Medaillen und Spielstand (state.jnr). Reine Funktionen, kein localStorage.
 // Das Spiel vergibt keine Sterne (Sterne kaufen Spielzeit, das gäbe eine Endlosschleife).
 (function (root, factory) {
   var api = factory();
@@ -6,8 +6,6 @@
   else { root.JNR = root.JNR || {}; root.JNR.rewards = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   var FUNKEN_QUOTE = 0.8;
-  var XP_JE_LEVEL = 20;                 // XP je Levelnummer in der Welt
-  var WELT_VERSATZ = 3 * XP_JE_LEVEL;   // 60 XP je Welt ueber 1: drei Level-Plaetze je Welt (1-1 bis 1-3)
 
   function parseLevelId(id) {
     var m = /^(\d+)-(\d+)$/.exec(String(id));
@@ -23,15 +21,11 @@
     return { geschafft: true, funken: funken, fehlerfrei: fehlerfrei, anzahl: 1 + (funken ? 1 : 0) + (fehlerfrei ? 1 : 0) };
   }
 
-  // Einmalig pro Level: 20 XP mal Levelnummer in der Welt, plus 60 je Welt ueber der ersten, plus 10 je
-  // Medaille. Welt 2 setzt damit nach Welt 1 fort: 1-2 = 40, 1-3 = 60, 2-1 = 80, 2-2 = 100 (jeweils plus
-  // Medaillen). Der Trainer laedt diese Datei selbst (Obergrenze in applyJnrResult): Aenderung hier heisst
-  // CACHE in 1x1-trainer/sw.js hochzaehlen.
-  function xpFor(levelId, anzahl, bereitsErhalten) {
-    if (bereitsErhalten || anzahl < 1) return 0;
-    var id = parseLevelId(levelId);
-    return XP_JE_LEVEL * id.nr + WELT_VERSATZ * (id.welt - 1) + 10 * anzahl;
-  }
+  // Lumo gibt keine XP (Marco 30.10.2026): es ist ein reines Spiel wie Space Invader, fuer das Kinder
+  // Spielzeit verdienen. xpFor bleibt, damit das Feld xp im jnr:result (core/host.js) fuer alte Trainer
+  // weiter eine Zahl ist. Der Trainer schreibt Lumo-XP ohnehin nie gut (applyJnrResult in
+  // 1x1-trainer/logic.js). xpAwarded bleibt im Spielstand, wird aber nicht mehr gebraucht.
+  function xpFor() { return 0; }
 
   function defaultOptions() { return { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true }; }
   function defaultJnr() {
@@ -80,7 +74,7 @@
       level: levelId,
       medaillen: m.anzahl,
       funken: stats.funken,
-      xp: xpFor(levelId, m.anzahl, !!(jnr && jnr.xpAwarded && jnr.xpAwarded[levelId])),
+      xp: xpFor(), // immer 0, Feld bleibt fuer alte Trainer
       timeMs: stats.timeMs,
       details: m
     };
@@ -102,7 +96,7 @@
   }
 
   // Nur ein geschaffter Lauf geht als jnr:result an den Trainer und in den Spielstand. Ein verlorener
-  // Lauf (alle Leben weg) bringt weder XP noch Funken noch Fortschritt.
+  // Lauf (alle Leben weg) bringt weder Funken noch Fortschritt.
   function shouldReport(stats) {
     return !!(stats && stats.reached && !stats.lost);
   }
@@ -116,7 +110,7 @@
   }
 
   return {
-    parseLevelId: parseLevelId, calcMedals: calcMedals, xpFor: xpFor, WELT_VERSATZ: WELT_VERSATZ,
+    parseLevelId: parseLevelId, calcMedals: calcMedals, xpFor: xpFor,
     defaultJnr: defaultJnr, sanitizeJnr: sanitizeJnr,
     buildResult: buildResult, mergeResult: mergeResult, isUnlocked: isUnlocked, shouldReport: shouldReport
   };

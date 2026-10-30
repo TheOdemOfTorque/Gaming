@@ -2,8 +2,8 @@ const H = require('../../jumpnrun/core/host.js');
 
 describe('buildResultMessage', () => {
   test('hat genau die Vertragsfelder', () => {
-    const m = H.buildResultMessage({ level: '1-2', medaillen: 3, funken: 9, xp: 70, timeMs: 1234 });
-    expect(m).toEqual({ type: 'jnr:result', level: '1-2', medaillen: 3, funken: 9, xp: 70 });
+    const m = H.buildResultMessage({ level: '1-2', medaillen: 3, funken: 9, xp: 0, timeMs: 1234 });
+    expect(m).toEqual({ type: 'jnr:result', level: '1-2', medaillen: 3, funken: 9, xp: 0 });
   });
 });
 

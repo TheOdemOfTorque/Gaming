@@ -30,37 +30,29 @@ describe('calcMedals', () => {
   });
 });
 
+// Marco 30.10.2026 (Spec „Spielzeit und XP für Lumo und Knobel“): Lumo ist ein reines Spiel wie
+// Space Invader und gibt keine XP mehr. Medaillen, Funken und Fortschritt bleiben.
 describe('xpFor', () => {
-  test('Welt 1 unveraendert: 20 mal Levelnummer plus 10 je Medaille (1-2: 50 bis 70, 1-3: 70 bis 90)', () => {
-    expect(R.xpFor('1-2', 3, false)).toBe(20 * 2 + 30);
-    expect(R.xpFor('1-2', 1, false)).toBe(20 * 2 + 10);
-    expect(R.xpFor('1-3', 1, false)).toBe(70);
-    expect(R.xpFor('1-3', 3, false)).toBe(90);
+  test('liefert immer 0, egal welches Level und wie viele Medaillen', () => {
+    ['1-2', '1-3', '2-1', '2-2', '3-1'].forEach(id => {
+      [0, 1, 2, 3].forEach(n => {
+        expect(R.xpFor(id, n, false)).toBe(0);
+        expect(R.xpFor(id, n, true)).toBe(0);
+      });
+    });
   });
-  // Aufgabe 9 (Marco 30.10.): Welt 2 setzt nach Welt 1 fort. Versatz WELT_VERSATZ = 60 XP je Welt ueber 1
-  // (20 XP mal drei Level-Plaetze je Welt, 1-1 bis 1-3): 2-1 = 20 + 60 + 10 je Medaille = 90 bis 110.
-  test('Welt 2 setzt fort: 2-1 gibt 80 plus 10 je Medaille, 2-2 100 plus 10 je Medaille', () => {
-    expect(R.WELT_VERSATZ).toBe(60);
-    expect(R.xpFor('2-1', 1, false)).toBe(90);
-    expect(R.xpFor('2-1', 3, false)).toBe(110);
-    expect(R.xpFor('2-2', 1, false)).toBe(110);
-    expect(R.xpFor('3-1', 1, false)).toBe(150);
+  test('die alte Welt-Versatz-Konstante gibt es nicht mehr', () => {
+    expect(R.WELT_VERSATZ).toBeUndefined();
   });
-  test('die Kurve ist ueber die Reihenfolge 1-2, 1-3, 2-1 streng steigend', () => {
-    const xp = ['1-2', '1-3', '2-1'].map(id => R.xpFor(id, 1, false));
-    expect(xp).toEqual([50, 70, 90]);
-  });
-  test('Wiederholung gibt keine XP', () => { expect(R.xpFor('1-2', 3, true)).toBe(0); });
-  test('ohne Medaille keine XP', () => { expect(R.xpFor('1-2', 0, false)).toBe(0); });
 });
 
 describe('buildResult', () => {
   const jnr = R.defaultJnr();
-  test('liefert Level, Medaillen, Funken und XP', () => {
+  test('liefert Level, Medaillen, Funken und xp 0 (Feld bleibt fuer alte Trainer)', () => {
     const r = R.buildResult('1-2', { ...base, funken: 9, timeMs: 61000 }, jnr);
-    expect(r).toMatchObject({ level: '1-2', medaillen: 3, funken: 9, xp: 70, timeMs: 61000 });
+    expect(r).toMatchObject({ level: '1-2', medaillen: 3, funken: 9, xp: 0, timeMs: 61000 });
   });
-  test('zweiter Abschluss desselben Levels gibt 0 XP', () => {
+  test('zweiter Abschluss desselben Levels gibt ebenfalls 0 XP', () => {
     const j2 = R.mergeResult(jnr, R.buildResult('1-2', { ...base, funken: 9, timeMs: 61000 }, jnr));
     expect(R.buildResult('1-2', { ...base, funken: 9, timeMs: 50000 }, j2).xp).toBe(0);
   });
@@ -122,9 +114,10 @@ describe('sanitizeJnr', () => {
     const j = R.sanitizeJnr(alt);
     expect(j.levels['1-1']).toEqual({ medals: 3, bestTimeMs: 4000, bestFunken: 12 }); // nichts geht verloren
     expect(j.xpAwarded['1-1']).toBe(true);
-    // erster Abschluss von 1-2 bringt trotz altem 1-1-Eintrag die vollen XP der Stufe 1-2
+    // erster Abschluss von 1-2 neben altem 1-1-Eintrag: Medaillen zaehlen, XP gibt es keine
     const r = R.buildResult('1-2', { ...base, funken: 5, timeMs: 1000 }, j);
-    expect(r.xp).toBe(R.xpFor('1-2', 3, false));
+    expect(r.medaillen).toBe(3);
+    expect(r.xp).toBe(0);
     const j2 = R.mergeResult(j, r);
     expect(j2.funkenTotal).toBe(17);
     expect(j2.lastLevel).toBe('1-2');

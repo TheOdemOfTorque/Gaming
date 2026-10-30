@@ -548,6 +548,8 @@ test('Geschafft in 1-2: Nächstes Level (Hauptknopf), Nochmal startet sofort die
   await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
   await expect(frame.locator('#msg-buttons button')).toHaveText(['Nächstes Level', 'Nochmal', 'Zum Menü']);
   await expect(frame.locator('#msg-buttons button').first()).toHaveClass(/main/);
+  await expect(frame.locator('#msg-body')).toContainText('Funken');
+  await expect(frame.locator('#msg-body')).not.toContainText('XP'); // Lumo gibt keine XP (Marco 30.10.2026)
   await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click();
   await expect(frame.locator('#msg')).toBeHidden();
   await expect(frame.locator('#reihenwahl')).toBeHidden();

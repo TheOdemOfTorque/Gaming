@@ -588,8 +588,8 @@ function lokalesDatum(d) {
 }
 
 // ── SPIEL-ERGEBNISSE (Knobelwerkstatt + Lumo) ───────────────────────────────
-// Beide Funktionen bekommen die XP-Rechenfunktion des jeweiligen Spiels
-// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. xpFor/mergeResult
+// Beide Funktionen bekommen die Rechenfunktion des jeweiligen Spiels
+// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. mergeResult
 // aus jumpnrun/core/rewards.js), damit logic.js dependency-frei bleibt.
 // index.html lädt die echten Module zusätzlich per <script>; Jest requirt sie
 // direkt. Tests: tests/unit/spiele-ergebnisse.test.js
@@ -627,18 +627,13 @@ function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
 
 // msg: { type:'jnr:result', level, medaillen, funken, xp }
 // mergeResultFn: rewards.mergeResult(jnr, msg) -> neues jnr (idempotent)
-// xpForFn: rewards.xpFor(level, medaillen, bereitsErhalten) -> plausible Obergrenze
-function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
-  const bereitsErhalten = !!(state.jnr.xpAwarded && state.jnr.xpAwarded[msg.level]);
-  const obergrenze = xpForFn(msg.level, msg.medaillen, bereitsErhalten);
-  // Nicht-numerische/absurde xp (gefälschte Nachricht) darf den Zähler nicht
-  // mit NaN zerstören — Math.min/-max geben bei nicht-numerischen Operanden NaN.
-  const gemeldeteXp = typeof msg.xp === 'number' && isFinite(msg.xp) ? msg.xp : 0;
-  const credit = Math.max(0, Math.min(gemeldeteXp, obergrenze));
+// Lumo gibt keine XP (Marco 30.10.2026): msg.xp wird ignoriert, auch wenn ein altes Lumo aus dem
+// Cache noch XP meldet. Medaillen, Funken und Fortschritt übernimmt mergeResult.
+function applyJnrResult(state, msg, mergeResultFn) {
   const jnr = mergeResultFn(state.jnr, msg);
   return {
-    state: Object.assign({}, state, { xp: (state.xp || 0) + credit, jnr: jnr }),
-    creditedXp: credit,
+    state: Object.assign({}, state, { jnr: jnr }),
+    creditedXp: 0,
   };
 }
 
