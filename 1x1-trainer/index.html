@@ -1833,26 +1833,53 @@ function floatXP(txt, x, y) {
 // tickStarTime (logic.js) ist die reine Dekrementier-Logik; hier nur der
 // setInterval-Loop + das Verzweigen bei Ablauf, injiziert über onTimeUp.
 let starTimerInterval = null;
+// Gesammelte Spielzeit unter einer Sekunde, bleibt über Pausen und Neustarts erhalten (sammleSpielzeit).
+let starTimerSammelMs = 0;
+let starTimerLetzterMs = 0;
+let starTimerSoll = null, starTimerAnzeige = null, starTimerAblauf = null;
 
-// sollLaufen (optional): wird jede Sekunde gefragt; false lässt die Sekunde aus (Invader-Pause).
-function startStarTimer(displayFn, onTimeUp, sollLaufen) {
-  if (starTimerInterval) clearInterval(starTimerInterval);
-  displayFn();
-  starTimerInterval = setInterval(() => {
-    if (sollLaufen && !sollLaufen()) return;
+// Verbucht die Zeit seit dem letzten Schritt (zaehlt = sie war Spielzeit) und zieht je volle Sekunde ab.
+function starTimerVerbuchen(zaehlt) {
+  const jetzt = performance.now();
+  const dt = jetzt - starTimerLetzterMs;
+  starTimerLetzterMs = jetzt;
+  const r = sammleSpielzeit(starTimerSammelMs, zaehlt ? dt : 0);
+  starTimerSammelMs = r.gesammeltMs;
+  if (r.sekunden === 0) return;
+  for (let i = 0; i < r.sekunden; i++) {
     const result = tickStarTime(state);
     state.gameSecondsLeft = result.state.gameSecondsLeft;
-    saveState();
-    displayFn();
     if (result.abgelaufen) {
+      saveState();
+      if (starTimerAnzeige) starTimerAnzeige();
       clearInterval(starTimerInterval);
       starTimerInterval = null;
-      onTimeUp();
+      starTimerSammelMs = 0;
+      const ablauf = starTimerAblauf;
+      if (ablauf) ablauf();
+      return;
     }
-  }, 1000);
+  }
+  saveState();
+  if (starTimerAnzeige) starTimerAnzeige();
+}
+
+// Vor einem Wechsel Spiel <-> Pause aufrufen (Invader): verbucht die Zeit bis jetzt mit dem alten Zustand.
+function starTimerZwischenstand() {
+  if (starTimerInterval) starTimerVerbuchen(!starTimerSoll || starTimerSoll());
+}
+
+// sollLaufen (optional): false lässt die Zeit nicht zählen (Invader-Pause).
+function startStarTimer(displayFn, onTimeUp, sollLaufen) {
+  if (starTimerInterval) clearInterval(starTimerInterval);
+  starTimerAnzeige = displayFn; starTimerAblauf = onTimeUp; starTimerSoll = sollLaufen || null;
+  displayFn();
+  starTimerLetzterMs = performance.now();
+  starTimerInterval = setInterval(() => starTimerVerbuchen(!starTimerSoll || starTimerSoll()), 200);
 }
 
 function stopStarTimer() {
+  starTimerZwischenstand(); // die angefangene Sekunde bleibt gesammelt
   if (starTimerInterval) {
     clearInterval(starTimerInterval);
     starTimerInterval = null;
@@ -3966,6 +3993,7 @@ function hideAll(){
   document.getElementById('ui').style.display='none';
 }
 function invShowMenu(){
+  starTimerZwischenstand();
   hideAll();
   document.getElementById('menuBtns').style.display='flex';
   invState='menu';
@@ -3973,11 +4001,13 @@ function invShowMenu(){
 
 // ── Pause ─────────────────────────────────────────────────────
 function showPause(){
+  starTimerZwischenstand(); // bis hier war Spielzeit (Review B3)
   document.getElementById('pauseOv').classList.add('show');
   document.getElementById('ui').style.display='none';
   invState='paused';
 }
 function resumeGame(){
+  starTimerZwischenstand(); // die Pause zählt nicht
   document.getElementById('pauseOv').classList.remove('show');
   document.getElementById('ui').style.display='flex';
   invState='playing';
@@ -4016,6 +4046,7 @@ function buildSettingsUI(){
   });
 }
 function showSettings(from){
+  starTimerZwischenstand();
   settFrom=from;
   buildSettingsUI();
   hideAll();
@@ -4023,6 +4054,7 @@ function showSettings(from){
   invState='settings';
 }
 document.getElementById('settBack').addEventListener('click',()=>{
+  starTimerZwischenstand();
   document.getElementById('settOv').classList.remove('show');
   if      (settFrom==='pause')  { document.getElementById('pauseOv').classList.add('show'); invState='paused'; }
   else if (settFrom==='scores') showHsOverlay(null);

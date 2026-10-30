@@ -459,6 +459,51 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await laeuft(); // nach "Weiter" läuft sie wieder
   });
 
+  // Review B3: viele kurze Pausen dürfen die angefangenen Sekunden nicht verschlucken.
+  test('Lumo: kurze Pausen im Wechsel verbrauchen trotzdem die gespielte Zeit', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-2"]').click();
+    await frame.locator('#rw-los').click();
+    await expect(frame.locator('#hud')).toBeVisible();
+    await frame.locator('#btn-pause').click();
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await page.waitForTimeout(300);
+    const vorher = await page.evaluate(() => state.gameSecondsLeft);
+    for (let i = 0; i < 8; i++) {
+      await frame.getByRole('button', { name: 'Weiter' }).click();
+      await expect(frame.locator('#msg')).toBeHidden();
+      await page.waitForTimeout(800);
+      await frame.locator('#btn-pause').click();
+      await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    }
+    await page.waitForTimeout(300);
+    const verbraucht = vorher - await page.evaluate(() => state.gameSecondsLeft);
+    expect(verbraucht).toBeGreaterThanOrEqual(5); // rund 6,4 s gespielt
+    expect(verbraucht).toBeLessThanOrEqual(9);
+  });
+
+  test('Space Invader: kurze Pausen im Wechsel verbrauchen trotzdem die gespielte Zeit', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600 });
+    await page.locator('.game-card[data-game="invader"] button').click();
+    await expect(page.locator('#space-invader')).toHaveClass(/active/);
+    await page.evaluate(() => showPause());
+    await page.waitForTimeout(300);
+    const vorher = await page.evaluate(() => state.gameSecondsLeft);
+    for (let i = 0; i < 8; i++) {
+      await page.evaluate(() => resumeGame());
+      await page.waitForTimeout(800);
+      await page.evaluate(() => showPause());
+      await page.waitForTimeout(500);
+    }
+    const verbraucht = vorher - await page.evaluate(() => state.gameSecondsLeft);
+    expect(verbraucht).toBeGreaterThanOrEqual(5); // 6,4 s gespielt, 4 s Pause zählen nicht
+    expect(verbraucht).toBeLessThanOrEqual(7);
+  });
+
   test('Knobelwerkstatt im iframe: "Zum Trainer"-Link ist nicht sichtbar/klickbar (würde den Trainer im iframe verschachteln)', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 0 });
     await page.locator('.game-card[data-game="knobel"] button').click();

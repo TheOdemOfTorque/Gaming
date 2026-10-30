@@ -545,6 +545,19 @@ function invaderTimerSollLaufen({ invState, settFrom, sichtbar, sternDialog }) {
   return true;
 }
 
+// Gemeinsamer Stern-Timer (index.html startStarTimer): verbrauchte Millisekunden werden über Pausen
+// hinweg gesammelt, abgezogen wird je volle Sekunde (Review B3: viele kurze Pausen verschluckten sonst
+// die angefangenen Sekunden). dtMs < 0 oder kaputt zählt nicht; mehr als 5 s je Schritt (z.B. nach
+// einem eingefrorenen Tab) zählen höchstens 5 s. Tests: tests/unit/spielzeit.test.js
+const SPIELZEIT_MAX_SCHRITT_MS = 5000;
+function sammleSpielzeit(gesammeltMs, dtMs) {
+  const g = typeof gesammeltMs === 'number' && isFinite(gesammeltMs) && gesammeltMs > 0 ? gesammeltMs : 0;
+  const dt = typeof dtMs === 'number' && isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, SPIELZEIT_MAX_SCHRITT_MS) : 0;
+  const summe = g + dt;
+  const sekunden = Math.floor(summe / 1000);
+  return { gesammeltMs: summe - sekunden * 1000, sekunden };
+}
+
 // Stern-Zeit bei 0:00, für beide Spiele gleich: mit Sternen 'stern_anbieten', sonst 'ende'.
 // Der Stern selbst wird mit sternZeitEinloesen eingesetzt.
 function zeitAbgelaufenAktion(state) {
@@ -859,7 +872,7 @@ if (typeof module !== 'undefined') {
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
-                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen, invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige,
+                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen, invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige, sammleSpielzeit,
                      lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, lumoZeitendeBestaetigt, schliessKnopfAktion,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,

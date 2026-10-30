@@ -67,3 +67,27 @@ describe('zeitAnzeige (Invader und Lumo, rot ab 2 Minuten)', () => {
     expect(zeitAnzeige(-5).text).toBe('⏱ 0:00');
   });
 });
+
+// Review B3: kurze Pausen duerfen angefangene Sekunden nicht verschlucken. Der gemeinsame Timer
+// sammelt verbrauchte Millisekunden ueber Pausen hinweg und zieht erst je volle Sekunde ab.
+describe('sammleSpielzeit (Millisekunden ueber Pausen hinweg aufsummieren)', () => {
+  const { sammleSpielzeit } = require('../../1x1-trainer/logic.js');
+  test('unter einer Sekunde wird nur gesammelt', () => {
+    expect(sammleSpielzeit(0, 800)).toEqual({ gesammeltMs: 800, sekunden: 0 });
+  });
+  test('angefangene Sekunden aus mehreren kurzen Stuecken ergeben volle Sekunden', () => {
+    let g = 0, sek = 0;
+    for (let i = 0; i < 10; i++) { const r = sammleSpielzeit(g, 800); g = r.gesammeltMs; sek += r.sekunden; }
+    expect(sek).toBe(8);
+    expect(g).toBe(0);
+  });
+  test('Rest bleibt stehen, mehrere Sekunden auf einmal', () => {
+    expect(sammleSpielzeit(700, 2500)).toEqual({ gesammeltMs: 200, sekunden: 3 });
+  });
+  test('negative, kaputte oder riesige Zeitspruenge zaehlen nicht oder hoechstens 5 s', () => {
+    expect(sammleSpielzeit(300, -50)).toEqual({ gesammeltMs: 300, sekunden: 0 });
+    expect(sammleSpielzeit(300, NaN)).toEqual({ gesammeltMs: 300, sekunden: 0 });
+    expect(sammleSpielzeit(0, 60000)).toEqual({ gesammeltMs: 0, sekunden: 5 });
+    expect(sammleSpielzeit(undefined, 400)).toEqual({ gesammeltMs: 400, sekunden: 0 });
+  });
+});
