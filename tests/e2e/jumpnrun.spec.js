@@ -344,7 +344,8 @@ test.describe('Lumo: Energie und Leben', () => {
     await expect(page.locator('#msg-body')).not.toContainText('Stufe');
     // Review n5 (H2): eine Medaille in einem Level oeffnet das naechste
     await expect(page.locator('#msg-body')).toContainText('Hol dir in einem Level eine Medaille ★, dann geht das nächste Level auf.');
-    await expect(page.locator('#msg-body')).not.toContainText('–');
+    await expect(page.locator('#msg-body')).not.toContainText('–'); // keine Gedankenstriche
+    await expect(page.locator('#msg-body')).not.toContainText('—');
     await expect(page.locator('#msg-buttons button')).toHaveText(['Verstanden', 'Tutorial']);
     await expect(page.locator('#msg-buttons button').first()).toHaveClass(/main/);
     await page.getByRole('button', { name: 'Verstanden' }).click();

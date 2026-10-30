@@ -196,7 +196,7 @@ describe('Level-Tabelle (data/levels.js): Welt 1 Daemmerwiese und Welt 2 Sternen
     });
   });
 
-  describe.each(D.ORDER)('Stufe %s: generateFor', (id) => {
+  describe.each(D.ORDER)('Level %s: generateFor', (id) => {
     test(`ist fuer jeden Seed ein gueltiges Raster mit Gesamtlaenge ${LAENGE[id][0]}-${LAENGE[id][1]} Kacheln`, () => {
       for (let seed = 1; seed <= 30; seed++) {
         const gen = D.generateFor(id, seed);
