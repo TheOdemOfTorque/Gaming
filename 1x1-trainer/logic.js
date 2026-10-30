@@ -514,17 +514,50 @@ function rundeSchaltetKnobelFrei(game, reason) {
   return (game.correct || 0) + (game.wrong || 0) > 0;
 }
 
-// Lumo meldet per jnr:aktiv, ob gerade aktiv gespielt wird (Vertrag jumpnrun/core/host.js).
-// Zustand { meldet, aktiv }: meldet = Lumo kennt die Nachricht. Ein Lumo ohne jnr:aktiv
-// (z.B. alter Cache) lässt den Timer wie früher durchlaufen. Tests: tests/unit/lumo-aktiv.test.js
-function lumoAktivNeu() { return { meldet: false, aktiv: false }; }
+// ── SPIELZEIT (gleiche Regel für Space Invader und Lumo, Marco 30.10.2026) ──
+// Die Stern-Zeit läuft, solange das Spiel offen und sichtbar ist, auch im Menü (Lumo: Levelauswahl
+// und Reihenwahl). Sie steht in der Pause, im Hintergrund und in Dialogen, die das Spiel anhalten.
+// Bei 0:00 mit Sternen: „Stern einsetzen & weiterspielen“, ohne Sterne: Hinweis, zurück zum Trainer.
+// Tests: tests/unit/spielzeit.test.js, tests/unit/lumo-aktiv.test.js
+
+// Lumo meldet per jnr:aktiv, ob ein Level läuft (aktiv) und ob die Stern-Zeit laufen soll (zeit),
+// Vertrag jumpnrun/core/host.js. Zustand { meldet, aktiv, zeit }: meldet = Lumo kennt die Nachricht.
+// Fallbacks: Ein Lumo ohne jnr:aktiv (alter Cache) lässt den Timer wie früher durchlaufen; ein Lumo
+// ohne Feld zeit meldet aktiv nur im Level, dann gilt zeit = aktiv.
+function lumoAktivNeu() { return { meldet: false, aktiv: false, zeit: false }; }
 function applyJnrAktiv(z, data) {
   if (!data || typeof data.aktiv !== 'boolean') return z;
-  return { meldet: true, aktiv: data.aktiv };
+  if (typeof data.zeit === 'boolean') return { meldet: true, aktiv: data.aktiv, zeit: data.zeit };
+  if ('zeit' in data) return { meldet: true, aktiv: data.aktiv, zeit: false };
+  return { meldet: true, aktiv: data.aktiv, zeit: data.aktiv };
 }
 // sichtbar: !document.hidden; sternZeit: Stern-Zeit ist für dieses Öffnen eingelöst (Spiel geladen).
 function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
-  return !!sternZeit && !!sichtbar && (!z.meldet || z.aktiv);
+  return !!sternZeit && !!sichtbar && (!z.meldet || !!z.zeit);
+}
+
+// Space Invader: die Zeit steht in der Pause (showPause), in den Einstellungen aus der Pause, solange
+// der Stern-Dialog offen ist und im Hintergrund. Menü, Spiel, Game Over und Bestenliste zählen.
+function invaderTimerSollLaufen({ invState, settFrom, sichtbar, sternDialog }) {
+  if (!sichtbar || sternDialog) return false;
+  if (invState === 'paused') return false;
+  if (invState === 'settings' && settFrom === 'pause') return false;
+  return true;
+}
+
+// Stern-Zeit bei 0:00, für beide Spiele gleich: mit Sternen 'stern_anbieten', sonst 'ende'.
+// Der Stern selbst wird mit sternZeitEinloesen eingesetzt.
+function zeitAbgelaufenAktion(state) {
+  return (state.stars || 0) > 0 ? 'stern_anbieten' : 'ende';
+}
+
+// Zeitanzeige für Invader (#invader-timer) und Lumo (#game-overlay-timer): rot ab 2 Minuten.
+const ZEIT_WARNUNG_AB_SEK = 120;
+function zeitAnzeige(sekunden) {
+  const sek = typeof sekunden === 'number' && isFinite(sekunden) && sekunden > 0 ? Math.floor(sekunden) : 0;
+  const m = Math.floor(sek / 60);
+  const ss = sek % 60;
+  return { text: `⏱ ${m}:${String(ss).padStart(2, '0')}`, warnung: sek <= ZEIT_WARNUNG_AB_SEK };
 }
 
 // Lumo will verlassen werden (Knopf "Zurück zum Trainer" im Menü oder im Dialog "Deine Stern-Zeit
@@ -826,7 +859,7 @@ if (typeof module !== 'undefined') {
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
-                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
+                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen, invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige,
                      lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, lumoZeitendeBestaetigt, schliessKnopfAktion,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,

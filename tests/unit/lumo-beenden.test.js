@@ -38,8 +38,9 @@ describe('Lumo beenden (jnr:beenden)', () => {
 });
 
 // Das X der Trainer-Leiste bleibt Notausgang, loest aber im laufenden Level zuerst die Pause aus
-// (Soll-Struktur im Review, B6): nur wenn Lumo per jnr:aktiv "aktiv" meldet. Pause, Menue, Dialoge
-// oder ein altes Lumo ohne jnr:aktiv: X schliesst sofort wie bisher.
+// (Soll-Struktur im Review, B6): nur wenn Lumo per jnr:aktiv "aktiv" meldet (im Level). Pause, Menue,
+// Dialoge oder ein altes Lumo ohne jnr:aktiv: X schliesst sofort wie bisher. Dass die Stern-Zeit im
+// Menue laeuft (zeit true), aendert daran nichts.
 describe('Schliess-Knopf (X) des Overlays', () => {
   const { schliessKnopfAktion } = require('../../1x1-trainer/logic.js');
   test('Lumo im aktiven Spiel: X pausiert zuerst', () => {
@@ -47,6 +48,9 @@ describe('Schliess-Knopf (X) des Overlays', () => {
   });
   test('Lumo in Pause, Menue oder Dialog: X schliesst', () => {
     expect(schliessKnopfAktion('jnr', { meldet: true, aktiv: false })).toBe('schliessen');
+  });
+  test('Lumo im Menue (Stern-Zeit laeuft, aber kein Level): X schliesst', () => {
+    expect(schliessKnopfAktion('jnr', { meldet: true, aktiv: false, zeit: true })).toBe('schliessen');
   });
   test('altes Lumo ohne jnr:aktiv: X schliesst sofort wie frueher', () => {
     expect(schliessKnopfAktion('jnr', { meldet: false, aktiv: false })).toBe('schliessen');
