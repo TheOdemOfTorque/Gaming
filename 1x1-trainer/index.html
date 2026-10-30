@@ -1839,34 +1839,32 @@ let starTimerLetzterMs = 0;
 let starTimerSoll = null, starTimerAnzeige = null, starTimerAblauf = null;
 
 // Verbucht die Zeit seit dem letzten Schritt (zaehlt = sie war Spielzeit) und zieht je volle Sekunde ab.
-function starTimerVerbuchen(zaehlt) {
+// Den Ablauf (onTimeUp) löst nur der laufende Takt aus (imTakt): beim Stoppen oder beim Wechsel in die
+// Pause bleibt die Zeit bei 0 stehen, und der nächste zählende Takt (Weiter, neuer Start) meldet den
+// Ablauf (Review Runde 2: sonst lag der Dialog auf dem Startbildschirm oder unter dem Pause-Overlay).
+function starTimerVerbuchen(zaehlt, imTakt) {
   const jetzt = performance.now();
   const dt = jetzt - starTimerLetzterMs;
   starTimerLetzterMs = jetzt;
   const r = sammleSpielzeit(starTimerSammelMs, zaehlt ? dt : 0);
   starTimerSammelMs = r.gesammeltMs;
-  if (r.sekunden === 0) return;
-  for (let i = 0; i < r.sekunden; i++) {
-    const result = tickStarTime(state);
-    state.gameSecondsLeft = result.state.gameSecondsLeft;
-    if (result.abgelaufen) {
-      saveState();
-      if (starTimerAnzeige) starTimerAnzeige();
-      clearInterval(starTimerInterval);
-      starTimerInterval = null;
-      starTimerSammelMs = 0;
-      const ablauf = starTimerAblauf;
-      if (ablauf) ablauf();
-      return;
-    }
+  if (r.sekunden > 0) {
+    for (let i = 0; i < r.sekunden; i++) state.gameSecondsLeft = tickStarTime(state).state.gameSecondsLeft;
+    saveState();
+    if (starTimerAnzeige) starTimerAnzeige();
   }
-  saveState();
-  if (starTimerAnzeige) starTimerAnzeige();
+  if (imTakt && zaehlt && (state.gameSecondsLeft || 0) <= 0) {
+    clearInterval(starTimerInterval);
+    starTimerInterval = null;
+    starTimerSammelMs = 0;
+    const ablauf = starTimerAblauf;
+    if (ablauf) ablauf();
+  }
 }
 
 // Vor einem Wechsel Spiel <-> Pause aufrufen (Invader): verbucht die Zeit bis jetzt mit dem alten Zustand.
 function starTimerZwischenstand() {
-  if (starTimerInterval) starTimerVerbuchen(!starTimerSoll || starTimerSoll());
+  if (starTimerInterval) starTimerVerbuchen(!starTimerSoll || starTimerSoll(), false);
 }
 
 // sollLaufen (optional): false lässt die Zeit nicht zählen (Invader-Pause).
@@ -1875,7 +1873,7 @@ function startStarTimer(displayFn, onTimeUp, sollLaufen) {
   starTimerAnzeige = displayFn; starTimerAblauf = onTimeUp; starTimerSoll = sollLaufen || null;
   displayFn();
   starTimerLetzterMs = performance.now();
-  starTimerInterval = setInterval(() => starTimerVerbuchen(!starTimerSoll || starTimerSoll()), 200);
+  starTimerInterval = setInterval(() => starTimerVerbuchen(!starTimerSoll || starTimerSoll(), true), 200);
 }
 
 function stopStarTimer() {
@@ -2080,6 +2078,7 @@ function startLumoTimer() {
       zeigeSternDialog('jnr');
       return;
     }
+    lumoZeitEnde = true;
     sendToGameFrame({ type: 'jnr:timeup' });
     lumoBeendenFallbackStoppen();
     lumoBeendenFallback = setTimeout(() => {
@@ -2096,10 +2095,13 @@ function startLumoTimer() {
 // nach dem Laden, nach dem Stern-Dialog und bei visibilitychange.
 let lumoAktiv = lumoAktivNeu();
 let lumoSternZeit = false; // Stern-Zeit für dieses Öffnen eingelöst (Spiel geladen)
+let lumoZeitEnde = false;  // jnr:timeup ist für dieses Öffnen gesendet (keine Sterne mehr)
 function syncLumoTimer() {
   if (currentGame !== 'jnr') return;
+  // Bei 0 s startet der Timer trotzdem: sein erster Takt meldet den Ablauf (Dialog oder jnr:timeup),
+  // damit nach einer Pause in der letzten Sekunde nichts gratis läuft. Nach jnr:timeup nicht noch einmal.
   const soll = lumoTimerSollLaufen(lumoAktiv, { sichtbar: !document.hidden, sternZeit: lumoSternZeit })
-    && sternDialogFuer === null && (state.gameSecondsLeft || 0) > 0;
+    && sternDialogFuer === null && !lumoZeitEnde;
   if (soll && !starTimerInterval) startLumoTimer();
   else if (!soll) stopStarTimer();
 }
@@ -2117,6 +2119,7 @@ function openGame(gameId) {
   currentGame = gameId;
   lumoAktiv = lumoAktivNeu();
   lumoSternZeit = false;
+  lumoZeitEnde = false;
   const frame = document.getElementById('game-frame');
   document.getElementById('game-overlay-timer').classList.remove('show');
   frame.onload = () => {
@@ -2182,6 +2185,7 @@ function closeGame() {
   currentGame = null;
   lumoAktiv = lumoAktivNeu();
   lumoSternZeit = false;
+  lumoZeitEnde = false;
   updateHomeUI();
 }
 
