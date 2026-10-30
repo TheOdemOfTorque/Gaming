@@ -76,7 +76,11 @@
 
   // Untertitel eines Level-Knopfs in der Levelauswahl. Die Reihe waehlt das Kind erst auf dem
   // Auswahlbildschirm, meta.reihe ist nur noch der Vorschlag, deshalb nennt der Knopf keine.
-  function menuUntertitel(meta, options) {
+  // gesperrt: das Level ist noch zu (rewards.isUnlocked), dann nennt der Knopf das Level davor in ORDER
+  // (Review n5, H2). Ein Level ohne Vorgaenger ist nie gesperrt und behaelt den normalen Untertitel.
+  function menuUntertitel(meta, options, gesperrt) {
+    var vor = gesperrt ? byId(ORDER[ORDER.indexOf(meta.id) - 1]) : null;
+    if (vor) return 'Erst ' + vor.name + ' schaffen';
     return brauchtReihenwahl(meta, options) ? 'Reihe wählst du vor dem Start' : 'Laufen, Springen, Sammeln';
   }
 

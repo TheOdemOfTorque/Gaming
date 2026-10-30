@@ -586,7 +586,7 @@
         var l = LV.byId(id), rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
         var b = document.createElement('button');
         b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-        b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
+        b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options, !open) +
           '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
         b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
         box.appendChild(b);
@@ -779,6 +779,7 @@
     '<p><b>Rechenwicht:</b> Der kleine türkise Wicht trägt eine Tafel mit einer falschen Rechnung. Spring von oben auf ihn: Die Tafel dreht sich um, zeigt die richtige Rechnung und du bekommst einen Funken ✦. Läufst du von der Seite in ihn hinein, kostet das einen Lichtpunkt. Du kannst auch einfach über ihn springen.</p>' +
     '<p><b>Leben <span style="color:#fb7185">♥♥♥</span>:</b> Sind alle Lichtpunkte aus, ist ein Leben weg. Lumo startet dann an der letzten Laterne mit voller Energie. Ein Sturz in die Schlucht kostet sofort ein Leben.</p>' +
     '<p><b>Laternen:</b> Lauf an einer Laterne vorbei, dann leuchtet sie und du startest dort neu.</p>' +
+    '<p><b>Neue Level:</b> Hol dir in einem Level eine Medaille ★, dann geht das nächste Level auf.</p>' +
     '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du das Level in einer neuen Landschaft.</p>' +
     '</div>';
   // ausMenue: aus dem Menü gibt es zusätzlich "Tutorial". Aus der Level-Pause nur "Verstanden":

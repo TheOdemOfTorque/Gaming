@@ -347,7 +347,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
 
     const frame = page.frameLocator('#game-frame');
-    await frame.getByRole('button', { name: /Zahlenwiese/ }).click();
+    await frame.locator('#levellist button[data-level="1-2"]').click();
     await frame.locator('#rw-los').click();
     const missionText = frame.locator('#ziel');
     await expect(missionText).toBeVisible();

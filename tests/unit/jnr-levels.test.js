@@ -399,6 +399,19 @@ describe('menuUntertitel (Levelauswahl, QA-Befund N2)', () => {
     expect(D.menuUntertitel(OHNE_ZAHLEN, { mathe: 'ziel' })).toBe('Laufen, Springen, Sammeln');
     expect(D.menuUntertitel(D.byId('1-2'), { mathe: 'aus' })).toBe('Laufen, Springen, Sammeln');
   });
+
+  // Review n5 (H2, Marco 30.10.): gesperrte Level sagen, welches Level davor zu schaffen ist.
+  test('gesperrtes Level nennt den Vorgaenger aus ORDER, unabhaengig vom Zahlen-Modus', () => {
+    expect(D.menuUntertitel(D.byId('1-3'), { mathe: 'ziel' }, true)).toBe('Erst Zahlenwiese schaffen');
+    expect(D.menuUntertitel(D.byId('2-1'), { mathe: 'ziel' }, true)).toBe('Erst Glühwürmchenpfad schaffen');
+    expect(D.menuUntertitel(D.byId('2-1'), { mathe: 'aus' }, true)).toBe('Erst Glühwürmchenpfad schaffen');
+    D.ORDER.slice(1).forEach((id, i) => {
+      expect(D.menuUntertitel(D.byId(id), { mathe: 'ziel' }, true)).toBe('Erst ' + D.byId(D.ORDER[i]).name + ' schaffen');
+    });
+    // offen oder ohne Vorgaenger: der normale Untertitel
+    expect(D.menuUntertitel(D.byId('1-3'), { mathe: 'ziel' }, false)).toBe('Reihe wählst du vor dem Start');
+    expect(D.menuUntertitel(D.byId('1-2'), { mathe: 'ziel' }, true)).toBe('Reihe wählst du vor dem Start');
+  });
 });
 
 // scripts/jnr-messen.js struktur: Laenge, Wichte, Dornen, Federpilze, Luecken und Geometrie-Verstoesse je Seed

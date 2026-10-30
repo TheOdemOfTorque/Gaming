@@ -64,6 +64,10 @@ test('Ohne Parameter erscheint das Menü: drei Level in zwei Welten, nur die Zah
   await expect(page.locator('button[data-level="1-3"]')).toBeDisabled();
   await expect(page.locator('button[data-level="1-3"] .medals')).toHaveText('🔒');
   await expect(page.locator('button[data-level="2-1"]')).toBeDisabled();
+  // gesperrte Level nennen ihren Vorgaenger (Review n5, H2), das offene behaelt seinen Untertitel
+  await expect(page.locator('button[data-level="1-2"] small')).toHaveText('Reihe wählst du vor dem Start');
+  await expect(page.locator('button[data-level="1-3"] small')).toHaveText('Erst Zahlenwiese schaffen');
+  await expect(page.locator('button[data-level="2-1"] small')).toHaveText('Erst Glühwürmchenpfad schaffen');
   await expect(page.locator('#menu')).not.toContainText('Erste Schritte');
   await expect(page.locator('#menu')).not.toContainText('Stufe');
   await b.click();
@@ -73,6 +77,17 @@ test('Ohne Parameter erscheint das Menü: drei Level in zwei Welten, nur die Zah
   await expect(page.locator('#rw-sub')).not.toContainText('1-2');
   await page.locator('#rw-los').click();
   expect(await state(page)).toMatchObject({ mode: 'play', level: '1-2' });
+});
+
+test('Medaille in der Zahlenwiese: Glühwürmchenpfad offen mit normalem Untertitel, Wichtelhügel nennt den Glühwürmchenpfad', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('henry_jnr', JSON.stringify({
+    tutorialGesehen: true, levels: { '1-2': { medals: 1, bestTimeMs: 60000, bestFunken: 5 } }
+  })));
+  await page.goto('/jumpnrun/index.html?jnrDebug=1');
+  await expect(page.locator('button[data-level="1-3"]')).toBeEnabled();
+  await expect(page.locator('button[data-level="1-3"] small')).toHaveText('Reihe wählst du vor dem Start');
+  await expect(page.locator('button[data-level="2-1"]')).toBeDisabled();
+  await expect(page.locator('button[data-level="2-1"] small')).toHaveText('Erst Glühwürmchenpfad schaffen');
 });
 
 test('Alter Spielstand mit der gestrichenen Stufe 1-1: kein Fehler, keine Geisterstufe, 1-2 offen', async ({ page }) => {
@@ -327,6 +342,9 @@ test.describe('Lumo: Energie und Leben', () => {
     await expect(page.locator('#msg-body')).toContainText('Schlucht');
     await expect(page.locator('#msg-body')).toContainText('Level');
     await expect(page.locator('#msg-body')).not.toContainText('Stufe');
+    // Review n5 (H2): eine Medaille in einem Level oeffnet das naechste
+    await expect(page.locator('#msg-body')).toContainText('Hol dir in einem Level eine Medaille ★, dann geht das nächste Level auf.');
+    await expect(page.locator('#msg-body')).not.toContainText('–');
     await expect(page.locator('#msg-buttons button')).toHaveText(['Verstanden', 'Tutorial']);
     await expect(page.locator('#msg-buttons button').first()).toHaveClass(/main/);
     await page.getByRole('button', { name: 'Verstanden' }).click();
