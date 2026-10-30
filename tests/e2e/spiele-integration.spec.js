@@ -94,12 +94,12 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
 
     await page.frameLocator('#game-frame').locator('body').evaluate(() => {
       window.parent.postMessage(
-        { type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 80, seed: 1 },
+        { type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 30, seed: 1 },
         location.origin
       );
     });
 
-    await expect.poll(() => page.evaluate(() => state.xp)).toBe(80);
+    await expect.poll(() => page.evaluate(() => state.xp)).toBe(30); // Stufe 1: 30 XP (Marco 30.10.2026)
     const secondsLeft = await page.evaluate(() => state.gameSecondsLeft);
     expect(secondsLeft).toBe(0); // Knobel kostet keine Stern-Zeit
 

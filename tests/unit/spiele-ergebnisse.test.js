@@ -9,10 +9,10 @@ function stateWithKnobelJnr(over) {
 describe('applyKnobelResult', () => {
   test('schreibt die vom Spiel gemeldete XP gut, wenn sie plausibel ist', () => {
     const state = stateWithKnobelJnr({ xp: 100 });
-    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 2, tipps: 0, xp: 120, seed: 1 };
+    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 2, tipps: 0, xp: 40, seed: 1 };
     const { state: next } = applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP);
-    expect(next.xp).toBe(220);
-    expect(next.knobel.tagesXp).toEqual({ datum: '2026-10-25', xp: 120 });
+    expect(next.xp).toBe(140);
+    expect(next.knobel.tagesXp).toEqual({ datum: '2026-10-25', xp: 40 });
     expect(next.knobel.stufe.mauer).toBe(2);
   });
 
@@ -34,11 +34,20 @@ describe('applyKnobelResult', () => {
   });
 
   test('tagesXp wird am neuen Tag zurückgesetzt, bevor die neue XP gutgeschrieben wird', () => {
-    const state = stateWithKnobelJnr({ xp: 0, knobel: { tagesXp: { datum: '2026-10-24', xp: 580 }, stufe: { mauer: 1, kaefige: 1 } } });
-    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 3, tipps: 0, xp: 150, seed: 4 };
+    const state = stateWithKnobelJnr({ xp: 0, knobel: { tagesXp: { datum: '2026-10-24', xp: 110 }, stufe: { mauer: 1, kaefige: 1 } } });
+    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 3, tipps: 0, xp: 55, seed: 4 };
     const { state: next } = applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP);
     expect(next.knobel.tagesXp.datum).toBe('2026-10-25');
-    expect(next.xp).toBe(150);
+    expect(next.xp).toBe(55);
+  });
+
+  test('Tagesgrenze 110: am selben Tag kommt nur noch der Rest an', () => {
+    const state = stateWithKnobelJnr({ xp: 500, knobel: { tagesXp: { datum: '2026-10-25', xp: 100 }, stufe: { mauer: 3, kaefige: 1 } } });
+    const msg = { type: 'knobel:result', mode: 'mauer', stufe: 3, tipps: 0, xp: 55, seed: 6 };
+    const { state: next, creditedXp } = applyKnobelResult(state, msg, '2026-10-25', computeKnobelXP);
+    expect(creditedXp).toBe(10);
+    expect(next.xp).toBe(510);
+    expect(next.knobel.tagesXp).toEqual({ datum: '2026-10-25', xp: 110 });
   });
 
   test('mutiert den Eingabe-State nicht', () => {

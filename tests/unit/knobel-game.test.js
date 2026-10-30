@@ -1,35 +1,42 @@
 const K = require('../../knobel/knobel-logic.js');
 
+// Marco 30.10.2026: Knobel-XP hoechstens ein Drittel einer Trainingsreihe pro Tag (rund 110 XP),
+// pro Raetsel 30/40/55/75/100 je Stufe. Tipps und Tagesraetsel wirken wie bisher.
 describe('computeKnobelXP', () => {
-  const base = { 1: 80, 2: 120, 3: 170, 4: 230, 5: 300 };
+  const base = { 1: 30, 2: 40, 3: 55, 4: 75, 5: 100 };
+  test('Basis-XP-Tabelle', () => { expect(K.BASIS_XP).toEqual(base); });
   test.each([1, 2, 3, 4, 5])('Basis-XP Stufe %i ohne Tipp', stufe => {
     const r = K.computeKnobelXP({ modus: 'mauer', stufe, tipps: 0, tagesraetsel: false }, 0);
     expect(r.xp).toBe(base[stufe]);
     expect(r.gedeckelt).toBe(false);
   });
   test('je Tipp minus 20 Prozent der Basis', () => {
-    expect(K.computeKnobelXP({ stufe: 2, tipps: 1 }, 0).xp).toBe(96);
-    expect(K.computeKnobelXP({ stufe: 2, tipps: 2 }, 0).xp).toBe(72);
+    expect(K.computeKnobelXP({ stufe: 2, tipps: 1 }, 0).xp).toBe(32);
+    expect(K.computeKnobelXP({ stufe: 2, tipps: 2 }, 0).xp).toBe(24);
   });
   test('Untergrenze 40 Prozent der Basis', () => {
-    expect(K.computeKnobelXP({ stufe: 5, tipps: 3 }, 0).xp).toBe(120);
-    expect(K.computeKnobelXP({ stufe: 5, tipps: 9 }, 0).xp).toBe(120);
+    expect(K.computeKnobelXP({ stufe: 5, tipps: 3 }, 0).xp).toBe(40);
+    expect(K.computeKnobelXP({ stufe: 5, tipps: 9 }, 0).xp).toBe(40);
   });
   test('Tagesraetsel mal 1,5', () => {
-    expect(K.computeKnobelXP({ stufe: 2, tipps: 0, tagesraetsel: true }, 0).xp).toBe(180);
+    expect(K.computeKnobelXP({ stufe: 2, tipps: 0, tagesraetsel: true }, 0).xp).toBe(60);
+    expect(K.computeKnobelXP({ stufe: 5, tipps: 0, tagesraetsel: true }, 0).xp).toBe(110);
   });
-  test('Tagescap 600: Rest wird ausgezahlt, danach 0 und gedeckelt', () => {
-    const a = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 400);
-    expect(a.xp).toBe(200);
+  test('Tagesgrenze 110: Rest wird ausgezahlt, danach 0 und gedeckelt', () => {
+    const a = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 40);
+    expect(a.xp).toBe(70);
     expect(a.gedeckelt).toBe(true);
-    const b = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 600);
+    const b = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 110);
     expect(b.xp).toBe(0);
     expect(b.gedeckelt).toBe(true);
-    const c = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 300);
-    expect(c.xp).toBe(300);
+    const c = K.computeKnobelXP({ stufe: 5, tipps: 0 }, 10);
+    expect(c.xp).toBe(100);
     expect(c.gedeckelt).toBe(false);
   });
-  test('Cap-Konstante ist 600', () => { expect(K.TAGES_CAP).toBe(600); });
+  test('Tagesraetsel auf Stufe 5 mit Vorrat wird ebenfalls an der Tagesgrenze gekappt', () => {
+    expect(K.computeKnobelXP({ stufe: 5, tipps: 0, tagesraetsel: true }, 30)).toMatchObject({ xp: 80, gedeckelt: true });
+  });
+  test('Grenz-Konstante ist 110', () => { expect(K.TAGES_CAP).toBe(110); });
 });
 
 describe('nextKnobelStufe', () => {
