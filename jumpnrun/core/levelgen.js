@@ -25,7 +25,8 @@
   var GEGNER_SALZ = 0x2F6B1D3A;
   var GEGNER_ABSTAND = [2, 1];    // Standard: naechster Wicht fruehestens 2, spaetestens 2 + 1 Abschnitte weiter
   var VERSUCH_PRIME = 0x9E3779B1; // abgeleiteter Seed je Wiederholung (opts.minGegner): seed + k * PRIME
-  var MAX_VERSUCHE = 8;           // hoechstens so viele Wiederholungen, danach gilt der beste Versuch
+  var MAX_VERSUCHE = 24;          // hoechstens so viele Wiederholungen, danach gilt der beste Versuch (wichtMangel).
+                                  // 8 reichten nicht: Seed 2058 der Stufe 2-1 blieb bei 3 Wichten; mit 24 kein Mangel in 20 000 Seeds (max. Versuch 9)
 
   function byId(id) {
     for (var i = 0; i < SEC.SECTIONS.length; i++) if (SEC.SECTIONS[i].id === id) return SEC.SECTIONS[i];

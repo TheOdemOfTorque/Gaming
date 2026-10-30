@@ -192,6 +192,19 @@ describe('gegnerAbstand und minGegner (Aufgabe 9)', () => {
     expect(nachgewuerfelt).toBeLessThan(200); // der erste Durchgang reicht meistens
   });
 
+  // Review 30.10. (H1): mit 8 Neuwuerfen lieferte Seed 2058 still nur 3 Wichte (wichtMangel). Die Mindestzahl
+  // ist eine Zusage an das Kind, deshalb ueber 5000 Seeds: nie ein Mangel, nie mehr Versuche als MAX_VERSUCHE.
+  test('minGegner 4: fuer 5000 Seeds nie ein Mangel (wichtMangel), auch Seed 2058 bekommt 4 Wichte', () => {
+    let maxVersuch = 0;
+    for (let seed = 1; seed <= 5000; seed++) {
+      const g = LG.generate(ZWEI_EINS, seed);
+      if (g.wichtMangel || g.gegner.length < 4) throw new Error('Seed ' + seed + ': nur ' + g.gegner.length + ' Wichte nach ' + g.versuch + ' Versuchen');
+      maxVersuch = Math.max(maxVersuch, g.versuch);
+    }
+    expect(maxVersuch).toBeLessThanOrEqual(LG.MAX_VERSUCHE);
+    expect(maxVersuch).toBeGreaterThan(8); // Seed 2058 braucht den neunten Versuch
+  }, 30000);
+
   test('ohne minGegner liefern dieselben Parameter auch Laeufe unter 4 Wichten (der Parameter wirkt)', () => {
     let unter4 = 0;
     for (let seed = 1; seed <= 200; seed++) if (LG.generate(Object.assign({}, ZWEI_EINS, { minGegner: 0 }), seed).gegner.length < 4) unter4++;
