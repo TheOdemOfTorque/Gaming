@@ -123,7 +123,7 @@ describe('Geometrie je Abschnitt (core/level.js geometrie)', () => {
     return parseLevel(rows.map(r => r.join('')));
   }
 
-  test('Messwerte sind ganze Kacheln (Luecke und Stufe mindestens 2, Bibliothek bleibt mit 1-2 darunter)', () => {
+  test('Messwerte sind ganze Kacheln (Luecke und Stufe mindestens 2, Bibliothek geht bis genau 3)', () => {
     expect(MASS.luecke).toBeGreaterThanOrEqual(2);
     expect(MASS.stufe).toBeGreaterThanOrEqual(2);
   });

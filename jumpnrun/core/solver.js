@@ -2,7 +2,8 @@
 // Laeuft immer nach rechts, springt reflexhaft vor Kante, Wand, Dornen oder einem Rechenwicht. Keine Zufallszahlen,
 // also deterministisch bei gleichem Level/gleichen Optionen. Haelt den Sprung immer 22 Schritte
 // (siehe HOLD): das ist in core/physics.js vermessen die Dauer, die auf eine Luecke oder Stufe von
-// bis zu 3 Kacheln reicht (core/levelgen.js und data/sections.js bleiben mit 1-2 Kacheln darunter).
+// bis zu 3 Kacheln reicht (data/sections.js geht bis genau 3: d3-kombo-a und d3-kombo-c liegen am
+// Maximum, tests/unit/jnr-sections.test.js prueft die Bibliothek gegen sprungmass).
 //
 // Energie und Leben: Der Bot schaut auf einer Kopie des Spiels (game.cloneGame) voraus. Kostet der
 // reine Reflexweg Energie oder ein Leben (falsche Zahl, Dornen, Rechenwicht, Sturz), probiert er Alternativen
@@ -116,7 +117,8 @@
   // botOpts: { unsterblich } (nur fuer Tests, siehe Kopf).
   // Ergebnis: { won, softlock, frames, game, schaden, verluste, fehler? } mit den Schadensquellen
   // (z. B. { kristall: 2 }) und den Lebensverlusten je Grund ({ abgrund: 1, energie: 0 }) des echten
-  // Laufs; unsterblich zaehlen die Verluste die Stuerze und leeren Energien, die nichts gekostet haben.
+  // Laufs; unsterblich zaehlt verluste.abgrund die Stuerze, die nichts gekostet haben, verluste.energie
+  // bleibt dort 0, weil die Energie nicht sinkt (game.js damage).
   // fehler: Text, wenn die Spielerposition ungueltig wurde (NaN/unendlich), dann won = false.
   function solve(level, gameOpts, maxFrames, botOpts) {
     maxFrames = maxFrames || 60 * 180;

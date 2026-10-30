@@ -108,6 +108,15 @@ describe('Level-Tabelle (data/levels.js): Welt 1 Daemmerwiese und Welt 2 Sternen
     expect(D.byId('2-1').gen).toEqual({ minDifficulty: 2, maxDifficulty: 3, minSections: 17, maxSections: 19, gegner: true, gegnerAbstand: [1, 1], minGegner: 4 });
   });
 
+  // Review 30.10. (K4): rewards.xpFor rechnet mit WELT_VERSATZ = 60 = drei Level-Plaetze je Welt. Ein
+  // viertes Level in einer Welt (z. B. 2-4) bekaeme so viele XP wie das erste der naechsten (3-1).
+  test('hoechstens drei Level je Welt, sonst passt der Welt-Versatz der XP nicht mehr', () => {
+    expect(R.WELT_VERSATZ).toBe(60);
+    const jeWelt = {};
+    D.ORDER.forEach(id => { const w = R.parseLevelId(id); jeWelt[w.welt] = (jeWelt[w.welt] || 0) + 1; expect(w.nr).toBeLessThanOrEqual(3); });
+    Object.values(jeWelt).forEach(n => expect(n).toBeLessThanOrEqual(3));
+  });
+
   test('Freischaltkette: 1-3 nach einer Medaille in 1-2, 2-1 nach einer Medaille in 1-3', () => {
     const j0 = R.defaultJnr();
     expect(D.ORDER.map(id => R.isUnlocked(j0, id, D.ORDER))).toEqual([true, false, false]);
@@ -292,7 +301,7 @@ describe('Level-Tabelle (data/levels.js): Welt 1 Daemmerwiese und Welt 2 Sternen
     // mit 2 Kacheln Kopffreiheit, ohne Kristallplatz auf der Strecke und ohne Abstand zu Start, Ziel und
     // Laternen (ABSTAND_LATERNE), Strecke kuerzer als MIN_STRECKE. jnr-sections.test.js prueft je
     // Abschnitt 2 flache Kacheln an beiden Enden (anschlussfaehig) und dieselbe Geometrie wie hier.
-    // Oben in dieser Datei: Breite 200-320, 9 Zeilen, Checkpoints = Abschnitte - 1, gleicher Seed ->
+    // Oben in dieser Datei: Breite je Level (LAENGE), 9 Zeilen, Checkpoints = Abschnitte - 1, gleicher Seed ->
     // gleiche Zeilen.
     test.each(BLOECKE)(`Seeds %i-%i: unsterblich erreichbar, Geometrie in Sprungreichweite, Wichte und Start sauber (3-Leben-Bot nur Messwert)`, (von, bis) => {
       const options = R.defaultJnr().options;
