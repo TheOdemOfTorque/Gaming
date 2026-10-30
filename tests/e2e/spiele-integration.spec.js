@@ -244,8 +244,21 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect(frame.locator('#msg-title')).toHaveText('Pause'); // Lumo hält an
     await expect(frame.locator('#msg-title')).not.toHaveText('Deine Stern-Zeit ist vorbei');
     expect(await page.evaluate(() => [state.stars, state.gameSecondsLeft])).toEqual([2, 0]);
-    await page.waitForTimeout(1500);
-    expect(await page.evaluate(() => state.gameSecondsLeft)).toBe(0); // steht, solange der Dialog offen ist
+    await expect(page.locator('#star-expired-modal .modal-title')).toHaveText('Deine Spielzeit ist um!');
+    // Review B1: unter dem Dialog kann das Kind nicht weiterspielen. Der Fokus ist nicht mehr im
+    // iframe, Tasten erreichen Lumo nicht, und selbst ein „Weiter“ in Lumo wird sofort wieder pausiert.
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).not.toBe('game-frame');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await expect(page.locator('#star-expired-modal')).toHaveClass(/active/);
+    await frame.locator('#msg-buttons button', { hasText: 'Weiter' }).evaluate(b => b.click()); // erzwungen
+    await expect(frame.locator('#msg-title')).toHaveText('Pause'); // der Trainer pausiert gleich wieder
+    await expect(frame.locator('#msg')).toBeVisible();
+    await page.waitForTimeout(600);
+    await expect(frame.locator('#msg')).toBeVisible();
+    expect(await page.evaluate(() => [state.stars, state.gameSecondsLeft, starTimerInterval])).toEqual([2, 0, null]);
 
     await page.getByRole('button', { name: /Stern einsetzen/ }).click();
     await expect(page.locator('#star-expired-modal')).not.toHaveClass(/active/);
@@ -255,6 +268,53 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 5000 }).toBeLessThan(600);
     expect(await page.evaluate(() => state.gameSecondsLeft)).toBeGreaterThan(590);
     await expect(page.locator('#game-overlay')).toHaveClass(/active/);
+  });
+
+  // Review B1 im Menü: Zeit läuft im Menü ab, das Kind startet unter dem Dialog ein Level. Lumo darf
+  // dann nicht mit 0 Sekunden spielen, es landet in der Pause und hängt nicht.
+  test('Timer-Ablauf im Lumo-Menü: ein unter dem Dialog gestartetes Level wird sofort pausiert', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 2, stars: 1, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(frame.locator('#menu')).toBeVisible();
+    await frame.locator('#menu').click({ position: { x: 5, y: 5 } }); // Fokus ins iframe
+    await expect(page.locator('#star-expired-modal')).toHaveClass(/active/, { timeout: 6000 });
+    expect(await page.evaluate(() => document.activeElement && document.activeElement.id)).not.toBe('game-frame');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    await expect(frame.locator('#menu')).toBeVisible(); // Tasten erreichen Lumo nicht
+    // erzwungener Start unter dem Dialog (z. B. Tastatur, die doch noch im iframe hing)
+    await frame.locator('button[data-level="1-2"]').evaluate(b => b.click());
+    await frame.locator('#rw-los').evaluate(b => b.click());
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await page.waitForTimeout(600);
+    await expect(frame.locator('#msg')).toBeVisible();
+    expect(await page.evaluate(() => [state.gameSecondsLeft, starTimerInterval])).toEqual([0, null]);
+    // nach dem Einsetzen geht das Level weiter, nichts hängt
+    await page.getByRole('button', { name: /Stern einsetzen/ }).click();
+    await expect(frame.locator('#msg')).toBeHidden();
+    await expect(frame.locator('#hud')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 5000 }).toBeLessThan(600);
+  });
+
+  test('„Stern einsetzen“ im Lumo-Menü: Lumo bleibt im Menü, genau ein Timer läuft', async ({ page }) => {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 2, stars: 1, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await expect(page.locator('#star-expired-modal')).toHaveClass(/active/, { timeout: 6000 });
+    await page.getByRole('button', { name: /Stern einsetzen/ }).click();
+    await expect(frame.locator('#menu')).toBeVisible();
+    expect(await page.evaluate(() => state.stars)).toBe(0);
+    await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 3000 }).toBeLessThan(600);
+    const a = await page.evaluate(() => state.gameSecondsLeft);
+    await page.waitForTimeout(4000);
+    const verbraucht = a - await page.evaluate(() => state.gameSecondsLeft);
+    expect(verbraucht).toBeGreaterThanOrEqual(3); // läuft
+    expect(verbraucht).toBeLessThanOrEqual(5);    // aber nicht doppelt
   });
 
   test('Timer-Ablauf mit Stern im Menü: „Aufhören“ schließt Lumo, der Stern bleibt', async ({ page }) => {
@@ -512,6 +572,38 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('#pauseRestart').click(); // „Zum Menü“
     expect(await page.evaluate(() => invState)).toBe('menu');
     await laeuft(); // Menü: läuft
+  });
+
+  // Review B2: läuft die Zeit im Invader-Menü ab, startet Leertaste oder Enter unter dem Dialog kein Spiel.
+  async function invaderAblaufImMenue(page) {
+    await seedState(page, { gameSecondsLeft: 600, stars: 1 });
+    await page.locator('.game-card[data-game="invader"] button').click();
+    await page.locator('#bPause').click();
+    await page.locator('#pauseRestart').click(); // „Zum Menü“
+    expect(await page.evaluate(() => invState)).toBe('menu');
+    await page.evaluate(() => { state.gameSecondsLeft = 2; });
+    await expect(page.locator('#star-expired-modal')).toHaveClass(/active/, { timeout: 5000 });
+    await expect(page.locator('#star-expired-modal .modal-title')).toHaveText('Deine Spielzeit ist um!');
+    await page.keyboard.down('Space'); await page.waitForTimeout(300); await page.keyboard.up('Space');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => [invState, state.stars])).toEqual(['menu', 1]);
+  }
+
+  test('Space Invader: Ablauf im Menü, Tasten starten unter dem Dialog nichts, „Aufhören“ geht zum Trainer', async ({ page }) => {
+    await invaderAblaufImMenue(page);
+    await page.getByRole('button', { name: /Aufhören/ }).click();
+    await expect(page.locator('#star-expired-modal')).not.toHaveClass(/active/);
+    await expect(page.locator('#screen-home')).toHaveClass(/active/);
+    await expect(page.locator('#space-invader')).not.toHaveClass(/active/);
+    expect(await page.evaluate(() => [state.stars, state.gameSecondsLeft, starTimerInterval])).toEqual([1, 0, null]);
+  });
+
+  test('Space Invader: Ablauf im Menü, „Stern einsetzen“ bleibt im Menü und die Zeit läuft', async ({ page }) => {
+    await invaderAblaufImMenue(page);
+    await page.getByRole('button', { name: /Stern einsetzen/ }).click();
+    expect(await page.evaluate(() => [invState, state.stars])).toEqual(['menu', 0]);
+    await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 5000 }).toBeLessThan(600);
   });
 
   test('Space Invader: bei 0:00 mit Stern „Stern einsetzen & weiterspielen“, Zeitanzeige ab 2 Minuten rot', async ({ page }) => {

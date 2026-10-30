@@ -972,9 +972,9 @@
 </div>
 
 <div class="modal-overlay" id="star-expired-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet" id="star-expired-sheet" tabindex="-1" style="outline:none">
     <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
-    <div class="modal-title">10 Minuten sind um!</div>
+    <div class="modal-title">Deine Spielzeit ist um!</div>
     <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
       Du hast noch <strong id="star-count-in-modal">0 Sterne</strong> übrig.<br>
       Möchtest du einen einsetzen und weiterspielen?
@@ -1931,6 +1931,16 @@ function zeigeSternDialog(spiel) {
   const n = state.stars;
   document.getElementById('star-count-in-modal').textContent = n === 1 ? '1 Stern' : n + ' Sterne';
   document.getElementById('star-expired-modal').classList.add('active');
+  sternDialogFokus();
+}
+// Fokus aus dem Lumo-iframe holen, sonst erreichen Enter/Esc weiter Lumo (Review B1). Bewusst aufs
+// Blatt, nicht auf „Stern einsetzen“: bei Invader hält das Kind oft die Leertaste zum Schießen.
+// Lumos Pause-Dialog fokussiert seinen Knopf „Weiter“ erst nach jnr:pause, darum ruft auch der
+// jnr:aktiv-Handler das erneut auf, solange der Dialog offen ist.
+function sternDialogFokus() {
+  const frame = document.getElementById('game-frame');
+  if (frame && document.activeElement === frame) frame.blur();
+  try { document.getElementById('star-expired-sheet').focus({ preventScroll: true }); } catch (e) { /* egal */ }
 }
 function sternDialogSchliessen() {
   sternDialogFuer = null;
@@ -2168,6 +2178,12 @@ window.addEventListener('message', (e) => {
   } else if (e.data.type === 'jnr:aktiv') {
     if (currentGame !== 'jnr') return;
     lumoAktiv = applyJnrAktiv(lumoAktiv, e.data);
+    // Unter dem Stern-Dialog wird nicht gespielt (Review B1): läuft ein Level an (Weiter, Start aus
+    // Menü oder Reihenwahl), sofort wieder pausieren. jnr:weiter nach dem Einsetzen setzt es fort.
+    if (sternDialogFuer === 'jnr') {
+      if (lumoAktiv.aktiv) sendToGameFrame({ type: 'jnr:pause' });
+      sternDialogFokus();
+    }
     syncLumoTimer();
   } else if (e.data.type === 'jnr:tutorial') {
     // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
@@ -4068,6 +4084,7 @@ document.getElementById('hsSettings').addEventListener('click',()=>showSettings(
 
 // ── Game logic ────────────────────────────────────────────────
 function invStartGame(){
+  if (sternDialogFuer !== null) return; // unter dem Stern-Dialog startet kein Spiel (Review B2)
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
