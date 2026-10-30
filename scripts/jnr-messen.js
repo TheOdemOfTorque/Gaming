@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Lumo - Messwerte des Greedy-Bots (core/solver.js). Kein Pass-Kriterium: die Zahlen sagen nur, wie
 // schwer eine Stufe fuer den Bot war (Aufgabe 10, Marco 29.10.). Level-Inhalte werden wegen dieser
-// Zahlen nie geaendert. Dieselben Helfer nutzt tests/unit/jnr-levels.test.js fuer seine
-// console.log-Zusammenfassung je Stufe.
+// Zahlen nie geaendert. Der Bot mit 3 Leben laeuft nur hier, nicht mehr in Jest (Review n5, H4);
+// die Spielbarkeits-Tests (tests/unit/jnr-spielbarkeit-<id>.test.js) lassen nur den unsterblichen Bot laufen.
 //
 // Aufruf: node scripts/jnr-messen.js [levelIds] [seeds] [reihen]
 //   levelIds Komma-Liste von Leveln aus jumpnrun/data/levels.js (Standard 1-2) oder d1 fuer den reinen
