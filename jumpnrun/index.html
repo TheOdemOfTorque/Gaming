@@ -436,7 +436,8 @@
   ctx.imageSmoothingEnabled = false;
   var mode = 'menu'; // menu | reihenwahl | play | pause | won | lost | ended
   // Jeder Moduswechsel geht über setMode: eingebettet meldet Lumo dem Trainer per jnr:aktiv, ob gerade
-  // aktiv gespielt wird (nur dann läuft die Stern-Zeit, Vertrag in core/host.js). Standalone: nichts.
+  // ein Level läuft und ob die Stern-Zeit laufen soll (Menü, Reihenwahl, Spiel; Vertrag in core/host.js).
+  // Standalone: nichts.
   var aktivMelder = H.createAktivMelder(function (msg) {
     if (!embedded) return;
     try { window.parent.postMessage(msg, location.origin); } catch (e) { /* kein Parent */ }
@@ -1017,6 +1018,7 @@
       if (!m) return;
       if (m.kind === 'pause') pause();
       else if (m.kind === 'timeup') endByTime();
+      else if (m.kind === 'weiter') resume(); // Stern im Trainer eingesetzt: die Pause vom Ablauf endet
       else if (m.kind === 'init') {
         jnr = m.jnr;
         if (sitzungGesehen()) jnr.tutorialGesehen = true; // Fallback, falls der Trainer jnr:tutorial nicht kennt

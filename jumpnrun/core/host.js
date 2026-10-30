@@ -19,16 +19,22 @@
 //       (noch) nicht kennt: Lumo merkt sich das Flag zusaetzlich in sessionStorage (`henry_jnr_tutorial`),
 //       damit es in derselben Browser-Sitzung nicht bei jedem Oeffnen wieder startet.
 //
-//   Spiel -> Trainer, bei jedem Wechsel in den aktiven Spielmodus oder heraus (createAktivMelder):
-//     parent.postMessage({ type: 'jnr:aktiv', aktiv: true|false }, location.origin)
+//   Spiel -> Trainer, bei jedem Wechsel von aktiv oder zeit (createAktivMelder):
+//     parent.postMessage({ type: 'jnr:aktiv', aktiv: true|false, zeit: true|false }, location.origin)
 //       aktiv  true nur in mode 'play' (ein Level oder das Mitmach-Tutorial laeuft), false in Menue/
 //              Levelauswahl, Reihenwahl, Pause-Dialog (auch Hilfe daraus, Dreh-Hinweis), Game Over,
 //              Gewonnen-Dialog und nach jnr:timeup. Die Hilfe im Menue bleibt mode 'menu'.
-//       Der Trainer laesst die Stern-Zeit nur laufen, solange aktiv true ist (lumoTimerSollLaufen in
-//       1x1-trainer/logic.js; Herkunft wie bei jnr:result geprueft). Lumo meldet seinen ersten Stand
-//       sofort beim Start und den aktuellen Stand nochmals als Antwort auf jedes jnr:init. Ein Lumo,
-//       das (z.B. aus einem alten Cache) nie jnr:aktiv sendet, laesst die Zeit wie frueher durchlaufen.
-//       Standalone (ohne Parent) sendet Lumo nichts.
+//              Der Trainer nutzt aktiv fuer das X seiner Leiste (im Level erst Pause, schliessKnopfAktion).
+//       zeit   true, solange die Stern-Zeit laufen soll: in Menue/Levelauswahl (auch Hilfe dort),
+//              Reihenwahl und mode 'play'; false in Pause (auch Hilfe daraus, Dreh-Hinweis), Game Over,
+//              Gewonnen-Dialog und nach jnr:timeup (zeitLaeuft). Gleiche Regel wie Space Invader
+//              (Marco 30.10.2026). Der Trainer laesst die Stern-Zeit nur laufen, solange zeit true ist
+//              (lumoTimerSollLaufen in 1x1-trainer/logic.js; Herkunft wie bei jnr:result geprueft).
+//       Lumo meldet seinen ersten Stand sofort beim Start und den aktuellen Stand nochmals als Antwort
+//       auf jedes jnr:init. Fallbacks: Ein Lumo ohne Feld zeit (alter Cache) meldet aktiv nur im Level,
+//       der Trainer nimmt dann zeit = aktiv (Zeit steht im Menue wie frueher). Ein Lumo, das nie
+//       jnr:aktiv sendet, laesst die Zeit wie frueher durchlaufen. Ein alter Trainer kennt nur aktiv
+//       und behandelt Lumo wie frueher. Standalone (ohne Parent) sendet Lumo nichts.
 //
 //   Spiel -> Trainer, wenn das Kind Lumo verlassen will (buildBeendenMessage):
 //     parent.postMessage({ type: 'jnr:beenden' }, location.origin)
@@ -64,8 +70,12 @@
 //                ungueltig, ist lernstand null: alle Reihen waehlbar, keine Empfehlung. Ungueltige
 //                Eintraege fallen einzeln weg. Nur fluechtig, landet nie im Spielstand.
 //     { type: 'jnr:pause' }   pausiert das Spiel (App-Wechsel, Dialog über dem Spiel; auch das X der
-//                             Trainer-Leiste, solange Lumo aktiv meldet: erst Pause, das zweite X schliesst)
-//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen: Spiel stoppt sauber (Loop aus, Ton aus) und zeigt
+//                             Trainer-Leiste, solange Lumo aktiv meldet: erst Pause, das zweite X schliesst;
+//                             auch beim Stern-Zeit-Ablauf, wenn der Trainer „Stern einsetzen“ anbietet)
+//     { type: 'jnr:weiter' }  das Kind hat im Trainer einen Stern eingesetzt: Lumo setzt die Pause fort
+//                             (resume), sonst nichts. Ein altes Lumo ignoriert die Nachricht, das Kind
+//                             tippt dann selbst „Weiter“.
+//     { type: 'jnr:timeup' }  Stern-Zeit abgelaufen und keine Sterne mehr: Spiel stoppt sauber (Loop aus, Ton aus) und zeigt
 //                             "Deine Stern-Zeit ist vorbei" mit dem Knopf "Zurueck zum Trainer" (jnr:beenden),
 //                             antwortet sofort mit jnr:zeitende, bleibt in mode 'ended' haengen, bis ein erneutes jnr:init kommt (Reset-Pfad,
 //                             z.B. nach Einloesen eines neuen Sterns); ein jnr:init aus mode 'won' wirkt genauso
@@ -110,6 +120,7 @@
     if (!data || typeof data !== 'object' || typeof data.type !== 'string') return null;
     if (data.type === 'jnr:pause') return { kind: 'pause' };
     if (data.type === 'jnr:timeup') return { kind: 'timeup' };
+    if (data.type === 'jnr:weiter') return { kind: 'weiter' };
     if (data.type === 'jnr:init') {
       var merged = Object.assign({}, data.jnr && typeof data.jnr === 'object' ? data.jnr : {});
       if (data.options && typeof data.options === 'object') merged.options = data.options;
@@ -123,21 +134,25 @@
     return null;
   }
 
-  function buildAktivMessage(aktiv) { return { type: 'jnr:aktiv', aktiv: !!aktiv }; }
+  function buildAktivMessage(aktiv, zeit) { return { type: 'jnr:aktiv', aktiv: !!aktiv, zeit: !!zeit }; }
 
   // Aktiv gespielt wird nur in mode 'play' (Level oder Tutorial), siehe Vertrag oben.
   function istAktiv(mode) { return mode === 'play'; }
+  // Die Stern-Zeit laeuft, solange Lumo offen ist, auch in Menue und Reihenwahl (Marco 30.10.2026).
+  // Sie steht in der Pause (auch Hilfe daraus, Dreh-Hinweis) und in den Dialogen Gewonnen, Game Over
+  // und Stern-Zeit vorbei.
+  function zeitLaeuft(mode) { return mode === 'menu' || mode === 'reihenwahl' || mode === 'play'; }
 
-  // Meldet den Aktivzustand ueber send(msg), aber nur bei einem Wechsel (der erste Aufruf meldet
-  // immer). immer = true meldet den aktuellen Stand erneut (Antwort auf jnr:init).
+  // Meldet aktiv und zeit ueber send(msg), aber nur bei einem Wechsel eines der beiden (der erste
+  // Aufruf meldet immer). immer = true meldet den aktuellen Stand erneut (Antwort auf jnr:init).
   function createAktivMelder(send) {
     var letzter = null;
     return {
       melde: function (mode, immer) {
-        var a = istAktiv(mode);
-        if (a === letzter && !immer) return false;
-        letzter = a;
-        send(buildAktivMessage(a));
+        var a = istAktiv(mode), z = zeitLaeuft(mode), key = (a ? 1 : 0) + (z ? 2 : 0);
+        if (key === letzter && !immer) return false;
+        letzter = key;
+        send(buildAktivMessage(a, z));
         return true;
       }
     };
@@ -156,5 +171,5 @@
 
   function isEmbedded(win) { return win.parent !== win; }
 
-  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildBeendenMessage: buildBeendenMessage, buildZeitendeMessage: buildZeitendeMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
+  return { buildResultMessage: buildResultMessage, buildTutorialMessage: buildTutorialMessage, buildBeendenMessage: buildBeendenMessage, buildZeitendeMessage: buildZeitendeMessage, buildAktivMessage: buildAktivMessage, istAktiv: istAktiv, zeitLaeuft: zeitLaeuft, createAktivMelder: createAktivMelder, debugErlaubt: debugErlaubt, parseHostMessage: parseHostMessage, sanitizeLernstand: sanitizeLernstand, isTrustedMessage: isTrustedMessage, isEmbedded: isEmbedded };
 });

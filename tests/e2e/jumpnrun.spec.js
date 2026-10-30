@@ -1261,6 +1261,77 @@ test.describe('jnr:aktiv an den Trainer (Stern-Zeit nur im aktiven Spiel)', () =
   });
 });
 
+// Gleiche Spielzeit-Regel wie Space Invader (Marco 30.10.2026): das Feld zeit in jnr:aktiv sagt dem
+// Trainer, ob die Stern-Zeit laufen soll. Menue und Reihenwahl zaehlen, Pause und Dialoge nicht.
+test.describe('jnr:aktiv mit Feld zeit (Stern-Zeit auch im Menü)', () => {
+  const zeitHarness = (page) => page.route('**/jumpnrun-harness.html', route => route.fulfill({
+    contentType: 'text/html',
+    body: '<!DOCTYPE html><html><body><script>window.__zeit = []; window.addEventListener("message", function (e) {' +
+      ' if (e.data && e.data.type === "jnr:aktiv") window.__zeit.push(e.data.zeit); });</script>' +
+      '<iframe id="f" style="width:844px;height:390px" src="/jumpnrun/index.html?jnrSeed=1"></iframe></body></html>'
+  }));
+  const letztes = async page => { const a = await page.evaluate(() => window.__zeit.slice()); return a[a.length - 1]; };
+  const fs = page => page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state());
+  // Level 1-2 ueber die Reihenwahl starten (der Harness setzt keine feste Reihe)
+  const starte = async (page) => {
+    await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.start('1-2'));
+    await page.frameLocator('#f').locator('#rw-los').click();
+    await expect.poll(async () => (await fs(page)).mode).toBe('play');
+  };
+
+  test('zeit ist true in Menü, Reihenwahl und Level, false in Pause, Game Over, Gewonnen und nach timeup', async ({ page }) => {
+    await zeitHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await expect.poll(() => page.evaluate(() => window.__zeit.slice())).toEqual([true]); // Startstand: Menü
+    await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true } });
+    await expect.poll(() => page.evaluate(() => window.__zeit.length)).toBe(2);
+    expect(await letztes(page)).toBe(true);
+    await frame.locator('button[data-level="1-2"]').click();
+    await expect(frame.locator('#reihenwahl')).toBeVisible();
+    expect(await letztes(page)).toBe(true); // Reihenwahl
+    await frame.locator('#rw-los').click();
+    expect((await fs(page)).mode).toBe('play');
+    expect(await letztes(page)).toBe(true);
+    await sendTo(page, { type: 'jnr:pause' });
+    await expect.poll(() => letztes(page)).toBe(false); // Pause
+    await frame.getByRole('button', { name: 'Zum Menü' }).click();
+    await expect.poll(() => letztes(page)).toBe(true); // zurück im Menü
+    await starte(page);
+    await page.evaluate(() => { const j = document.getElementById('f').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
+    await expect.poll(async () => (await fs(page)).mode).toBe('lost');
+    expect(await letztes(page)).toBe(false); // Game Over
+    await starte(page);
+    await expect.poll(() => letztes(page)).toBe(true);
+    await page.evaluate(() => { const w = document.getElementById('f').contentWindow; w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1); });
+    await expect.poll(async () => (await fs(page)).mode).toBe('won');
+    expect(await letztes(page)).toBe(false); // Gewonnen
+    await frame.locator('#msg').getByRole('button', { name: 'Zum Menü' }).click();
+    await expect.poll(() => letztes(page)).toBe(true);
+    await sendTo(page, { type: 'jnr:timeup' });
+    await expect.poll(() => letztes(page)).toBe(false); // Stern-Zeit vorbei
+  });
+
+  test('jnr:weiter setzt eine Pause fort, im Menü ändert es nichts', async ({ page }) => {
+    await zeitHarness(page);
+    await page.goto('/jumpnrun-harness.html');
+    const frame = page.frameLocator('#f');
+    await sendTo(page, { type: 'jnr:init', jnr: { tutorialGesehen: true } });
+    await expect(frame.locator('#menu')).toBeVisible();
+    await sendTo(page, { type: 'jnr:weiter' });
+    await page.waitForTimeout(200);
+    expect((await fs(page)).mode).toBe('menu');
+    await expect(frame.locator('#menu')).toBeVisible();
+    await starte(page);
+    await sendTo(page, { type: 'jnr:pause' });
+    await expect(frame.locator('#msg-title')).toHaveText('Pause');
+    await sendTo(page, { type: 'jnr:weiter' });
+    await expect.poll(async () => (await fs(page)).mode).toBe('play');
+    await expect(frame.locator('#msg')).toBeHidden();
+    await expect.poll(() => letztes(page)).toBe(true);
+  });
+});
+
 test.describe('Debug-Hilfen nur mit Debug-Parameter', () => {
   test('ohne Parameter gibt es kein window.__jnr, mit ?jnrDebug=1 schon', async ({ page }) => {
     await page.goto('/jumpnrun/index.html');
@@ -1334,7 +1405,8 @@ test.describe('Querformat-Pflicht auf Touch-Geräten', () => {
     await expect.poll(async () => (await fs(page)).mode).toBe('pause');
     await expect(frame.locator('#portrait-hint')).toBeVisible();
     await page.waitForTimeout(200);
-    expect(await page.evaluate(() => window.__aktiv.slice())).toEqual([false, false]); // Start + Antwort auf jnr:init
+    // Start, Wechsel Menü -> Pause (Feld zeit wechselt) und Antwort auf jnr:init: nie aktiv
+    expect(await page.evaluate(() => window.__aktiv.slice())).toEqual([false, false, false]);
     expect(await page.evaluate(() => document.getElementById('f').contentWindow.__jnr.state().pauseTon)).toBe(0);
     await page.setViewportSize({ width: 844, height: 390 });
     await expect(frame.getByRole('button', { name: 'Weiter' })).toBeVisible();
