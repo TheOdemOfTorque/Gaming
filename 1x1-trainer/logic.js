@@ -479,7 +479,7 @@ function computeStreakProtection(state, todayStr) {
 }
 
 // ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
-// Defaults, Marco noch zu bestätigen (siehe Vault-Plan Spiele-Integration):
+// Von Marco bestätigt am 30.10.2026 (siehe Vault-Plan Spiele-Integration):
 // Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
 // bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sterne und
 // Streak-Mindestwert, im Trainer aber erst nach einer gezählten Runde am selben
