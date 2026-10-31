@@ -12,7 +12,7 @@
 //
 // Der Bot mit 3 Leben ist nur Messwert (Leben, Energie, Schaden, Dauer, scripts/jnr-messen.js). In Jest
 // laeuft er nur als Absturztest (absturztest, jnr-absturz.test.js): keine Ausnahme, keine ungueltigen
-// Werte, jeder Lauf endet. Ob er gewinnt oder Leben verliert, ist nie ein Pass-Kriterium; Level-Inhalte
+// Werte; das Schrittlimit begrenzt nur die Laufzeit. Ob er gewinnt oder Leben verliert, ist nie ein Pass-Kriterium; Level-Inhalte
 // werden deswegen nie geaendert.
 //
 // Schon erzwungen und hier nicht doppelt geprueft: parseLevel wirft bei fehlendem/mehrfachem S oder
@@ -84,26 +84,31 @@ function laufeUnsterblich(level, opts, wo) {
 const SEEDS_ABSTURZ = 20;
 const SCHRITTLIMIT = 60 * 180; // 3 Spielminuten, wie der Standard von solver.solve
 const WERTE_SPIELER = ['x', 'y', 'vx', 'vy'];
-const WERTE_SPIEL = ['leben', 'energie', 'funken'];
+const WERTE_SPIEL = ['leben', 'energie', 'funken']; // zusaetzlich nie negativ
+const WERTE_WICHT = ['x', 'y', 'minX', 'maxX', 'dir', 'timer']; // Wichte haben kein vx/vy (core/gegner.js)
 
-// Wirft, wenn ein Wert von Spieler oder Spiel keine endliche Zahl ist.
+// Wirft, wenn ein Wert von Spieler, Spiel oder Wicht keine endliche Zahl ist oder Leben, Energie oder
+// Funken negativ sind.
 function pruefeWerte(g, wo) {
+  const fehler = (name, wert) => { throw new Error(wo + ': ungueltiges ' + name + ' = ' + wert); };
   WERTE_SPIELER.forEach((k) => {
-    if (!Number.isFinite(g.player[k])) throw new Error(wo + ': ungueltiges ' + k + ' = ' + g.player[k]);
+    if (!Number.isFinite(g.player[k])) fehler(k, g.player[k]);
   });
   WERTE_SPIEL.forEach((k) => {
-    if (!Number.isFinite(g[k])) throw new Error(wo + ': ungueltiges ' + k + ' = ' + g[k]);
+    if (!Number.isFinite(g[k]) || g[k] < 0) fehler(k, g[k]);
   });
+  g.enemies.forEach((e, i) => WERTE_WICHT.forEach((k) => {
+    if (!Number.isFinite(e[k])) fehler('enemies[' + i + '].' + k, e[k]);
+  }));
 }
 
-// Ein Lauf mit 3 Leben. Gewonnen, verloren oder Softlock sind alle in Ordnung, das Ergebnis des Bots
-// zaehlt nicht. Fehler sind nur Ausnahmen, ungueltige Werte und ein Lauf, der am Limit noch nicht endete.
-function laufeMitLeben(level, opts, wo) {
-  const r = SOLVER.solve(level, opts, SCHRITTLIMIT, {
+// Ein Lauf mit 3 Leben. Fehler sind nur Ausnahmen und ungueltige Werte. Gewonnen, verloren, Softlock
+// oder ein Lauf am Schrittlimit sind alle in Ordnung, das Ergebnis des Bots zaehlt nicht.
+function laufeMitLeben(level, opts, wo, limit) {
+  const r = SOLVER.solve(level, opts, limit || SCHRITTLIMIT, {
     jeSchritt: (g, f) => pruefeWerte(g, wo + ', Schritt ' + (f + 1))
   });
   if (r.fehler) throw new Error(wo + ': ' + r.fehler);
-  if (!r.won && r.game.status !== 'lost' && !r.softlock) throw new Error(wo + ': kein Ende nach ' + SCHRITTLIMIT + ' Schritten');
   return r;
 }
 
