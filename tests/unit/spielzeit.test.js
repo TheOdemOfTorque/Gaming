@@ -5,9 +5,15 @@ const { invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige, sternZeitEinl
 // steht in der Pause, im Hintergrund und in Dialogen, die das Spiel anhalten.
 describe('invaderTimerSollLaufen', () => {
   const sichtbar = true;
-  test('laeuft im Spiel, im Menue und in den Ende-Bildschirmen', () => {
-    ['playing', 'menu', 'dying', 'entering', 'scores'].forEach((invState) => {
+  test('laeuft im Spiel und im Menue', () => {
+    ['playing', 'menu'].forEach((invState) => {
       expect(invaderTimerSollLaufen({ invState, settFrom: 'menu', sichtbar })).toBe(true);
+    });
+  });
+  // Marco 31.10.2026: bei beiden Spielen steht die Zeit in Game Over, Namenseingabe und Bestenliste.
+  test('steht in Game Over, Namenseingabe und Bestenliste', () => {
+    ['dying', 'entering', 'scores'].forEach((invState) => {
+      expect(invaderTimerSollLaufen({ invState, settFrom: 'menu', sichtbar })).toBe(false);
     });
   });
   test('steht in der Pause', () => {
@@ -16,6 +22,9 @@ describe('invaderTimerSollLaufen', () => {
   test('steht in den Einstellungen, die aus der Pause geoeffnet wurden', () => {
     expect(invaderTimerSollLaufen({ invState: 'settings', settFrom: 'pause', sichtbar })).toBe(false);
     expect(invaderTimerSollLaufen({ invState: 'settings', settFrom: 'menu', sichtbar })).toBe(true);
+  });
+  test('steht in den Einstellungen, die aus der Bestenliste geoeffnet wurden', () => {
+    expect(invaderTimerSollLaufen({ invState: 'settings', settFrom: 'scores', sichtbar })).toBe(false);
   });
   test('steht, solange der Stern-Dialog offen ist', () => {
     expect(invaderTimerSollLaufen({ invState: 'menu', settFrom: 'menu', sichtbar, sternDialog: true })).toBe(false);

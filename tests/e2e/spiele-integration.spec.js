@@ -581,6 +581,110 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await expect.poll(() => page.evaluate(() => state.gameSecondsLeft), { timeout: 3000 }).toBeLessThan(600);
   });
 
+  // Marco 31.10.2026: bei beiden Spielen steht die Zeit in Gewonnen, Game Over, Namenseingabe und
+  // Bestenliste. Sie darf dort nicht ablaufen, und kein Stern-Dialog geht darüber auf.
+  const sekundenVon = (page) => page.evaluate(() => state.gameSecondsLeft);
+  const stehtFuer = async (page, ms) => {
+    await page.waitForTimeout(300); // eine laufende Sekunde darf noch zu Ende gehen
+    const vorher = await sekundenVon(page);
+    await page.waitForTimeout(ms);
+    expect(await sekundenVon(page)).toBe(vorher);
+  };
+  const laeuft = async (page) => {
+    const vorher = await sekundenVon(page);
+    await expect.poll(() => sekundenVon(page), { timeout: 5000 }).toBeLessThan(vorher);
+  };
+  // Eine Sekunde vor dem Ablauf: würde die Zeit zählen, wäre sie nach 1,5 s um und der Dialog offen.
+  const keinAblaufHier = async (page) => {
+    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 990; });
+    await page.waitForTimeout(1500);
+    expect(await tr(page)).toMatchObject({ sek: 1, dialog: null, modal: false });
+    await page.evaluate(() => { state.gameSecondsLeft = 600; starTimerSammelMs = 0; });
+  };
+
+  test('Space Invader: Zeit steht in Game Over, Namenseingabe, Bestenliste und Einstellungen daraus, nach „Nochmal“ läuft sie', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600, stars: 1 });
+    await page.locator('.game-card[data-game="invader"] button').click();
+    await laeuft(page);
+    await page.evaluate(() => { lives = 1; puShield = 0; onHit(); }); // letztes Leben weg
+    expect(await page.evaluate(() => invState)).toBe('dying');
+    await stehtFuer(page, 1000); // Game-Over-Einblendung
+    await expect(page.locator('#goOv')).toHaveClass(/show/, { timeout: 4000 });
+    expect(await page.evaluate(() => invState)).toBe('entering');
+    await stehtFuer(page, 1500); // Namenseingabe
+    await keinAblaufHier(page);
+    await page.locator('#goSkip').click();
+    await expect(page.locator('#hsOv')).toHaveClass(/show/);
+    await stehtFuer(page, 1500); // Bestenliste
+    await keinAblaufHier(page);
+    await page.locator('#hsSettings').click();
+    await expect(page.locator('#settOv')).toHaveClass(/show/);
+    await stehtFuer(page, 1500); // Einstellungen aus der Bestenliste
+    await page.locator('#settBack').click();
+    await expect(page.locator('#hsOv')).toHaveClass(/show/);
+    await page.locator('#playAgain').click();
+    expect(await page.evaluate(() => invState)).toBe('playing');
+    await laeuft(page); // nach dem Neustart läuft sie wieder
+  });
+
+  test('Space Invader: letzte Sekunde beim Game Over, kein Dialog darüber, erst „Nochmal“ bringt ihn', async ({ page }) => {
+    await seedState(page, { gameSecondsLeft: 600, stars: 1 });
+    await page.locator('.game-card[data-game="invader"] button').click();
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 999; lives = 1; puShield = 0; });
+    await page.waitForTimeout(30);
+    await page.evaluate(() => onHit());
+    await expect(page.locator('#goOv')).toHaveClass(/show/, { timeout: 4000 });
+    expect(await tr(page)).toMatchObject({ sek: 0, stars: 1, dialog: null, modal: false });
+    await page.locator('#goSkip').click();
+    await page.waitForTimeout(600);
+    expect(await tr(page)).toMatchObject({ dialog: null, modal: false });
+    await page.locator('#playAgain').click();
+    await expect(page.locator('#star-expired-modal')).toHaveClass(/active/, { timeout: 2000 }); // nichts gratis
+    expect(await page.evaluate(() => invState)).toBe('paused');
+    await page.getByRole('button', { name: /Stern einsetzen/ }).click();
+    expect(await page.evaluate(() => [invState, state.stars])).toEqual(['playing', 0]);
+    await laeuft(page);
+  });
+
+  // Lumo hat das schon: hier mit echtem Lumo im Trainer belegt. GAME_SRC mit Debug-Parameter, damit
+  // das Level im iframe per window.__jnr endet.
+  async function lumoLevelMitDebug(page) {
+    const base = migrateState(defaultState());
+    await seedState(page, { gameSecondsLeft: 600, stars: 1, jnr: Object.assign({}, base.jnr, { tutorialGesehen: true }) });
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.evaluate(() => { GAME_SRC.jnr += '?jnrDebug=1&jnrSeed=1'; });
+    await page.locator('.game-card[data-game="jnr"] button').click();
+    const frame = page.frameLocator('#game-frame');
+    await frame.locator('button[data-level="1-2"]').click();
+    await frame.locator('#rw-los').click();
+    await expect(frame.locator('#hud')).toBeVisible();
+    await laeuft(page);
+    return frame;
+  }
+
+  test('Lumo: Zeit steht im Gewonnen-Dialog, „Nochmal“ lässt sie wieder laufen', async ({ page }) => {
+    const frame = await lumoLevelMitDebug(page);
+    await page.evaluate(() => { const w = document.getElementById('game-frame').contentWindow; w.__jnr.teleport(w.__jnr.goal().tx, w.__jnr.goal().ty - 1); });
+    await expect(frame.locator('#msg-title')).toHaveText('Geschafft!', { timeout: 5000 });
+    await stehtFuer(page, 1500);
+    await keinAblaufHier(page);
+    await frame.locator('#msg').getByRole('button', { name: 'Nochmal' }).click();
+    await expect(frame.locator('#msg')).toBeHidden();
+    await laeuft(page);
+  });
+
+  test('Lumo: Zeit steht bei „Alle Leben verbraucht“, „Zum Menü“ lässt sie wieder laufen', async ({ page }) => {
+    const frame = await lumoLevelMitDebug(page);
+    await page.evaluate(() => { const j = document.getElementById('game-frame').contentWindow.__jnr; j.debugSet({ leben: 1 }); j.debugFall(); });
+    await expect(frame.locator('#msg-title')).toHaveText('Alle Leben verbraucht', { timeout: 5000 });
+    await stehtFuer(page, 1500);
+    await keinAblaufHier(page);
+    await frame.locator('#msg').getByRole('button', { name: 'Zum Menü' }).click();
+    await expect(frame.locator('#menu')).toBeVisible();
+    await laeuft(page);
+  });
+
   test('Knobelwerkstatt im iframe: "Zum Trainer"-Link ist nicht sichtbar/klickbar (würde den Trainer im iframe verschachteln)', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 0 });
     await page.locator('.game-card[data-game="knobel"] button').click();

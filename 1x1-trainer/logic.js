@@ -536,12 +536,14 @@ function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
   return !!sternZeit && !!sichtbar && (!z.meldet || !!z.zeit);
 }
 
-// Space Invader: die Zeit steht in der Pause (showPause), in den Einstellungen aus der Pause, solange
-// der Stern-Dialog offen ist und im Hintergrund. Menü, Spiel, Game Over und Bestenliste zählen.
+// Space Invader: die Zeit läuft im Spiel und im Menü (auch in den Einstellungen aus dem Menü). Sie steht
+// in der Pause, in Game Over, Namenseingabe und Bestenliste (Marco 31.10.2026, wie Lumos Dialoge), in
+// den Einstellungen aus Pause oder Bestenliste, solange der Stern-Dialog offen ist und im Hintergrund.
+const INVADER_ZEIT_STEHT = ['paused', 'dying', 'entering', 'scores'];
 function invaderTimerSollLaufen({ invState, settFrom, sichtbar, sternDialog }) {
   if (!sichtbar || sternDialog) return false;
-  if (invState === 'paused') return false;
-  if (invState === 'settings' && settFrom === 'pause') return false;
+  if (INVADER_ZEIT_STEHT.includes(invState)) return false;
+  if (invState === 'settings' && (settFrom === 'pause' || settFrom === 'scores')) return false;
   return true;
 }
 

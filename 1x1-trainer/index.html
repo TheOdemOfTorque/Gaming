@@ -1904,8 +1904,8 @@ function enterInvaderScreen() {
   startInvaderTimer();
 }
 
-// Spielzeit-Regel wie bei Lumo (invaderTimerSollLaufen in logic.js): die Zeit steht in der Pause,
-// in den Einstellungen aus der Pause und solange der Stern-Dialog offen ist; Menü und Spiel zählen.
+// Spielzeit-Regel wie bei Lumo (invaderTimerSollLaufen in logic.js): die Zeit steht in der Pause, in
+// Game Over, Namenseingabe und Bestenliste und solange der Stern-Dialog offen ist; Menü und Spiel zählen.
 function invaderZeitSollLaufen() {
   return invaderTimerSollLaufen({ invState, settFrom, sichtbar: !document.hidden, sternDialog: sternDialogFuer !== null });
 }
@@ -4121,6 +4121,7 @@ document.getElementById('hsSettings').addEventListener('click',()=>showSettings(
 // ── Game logic ────────────────────────────────────────────────
 function invStartGame(){
   if (sternDialogFuer !== null) return; // unter dem Stern-Dialog startet kein Spiel (Review B2)
+  starTimerZwischenstand(); // Bestenliste zählte nicht, Menü schon
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
@@ -4142,6 +4143,7 @@ function onHit(){
     explode(player.x,player.y,'#ff4400',55);
     playerDead=true; SFX.die();
     hiScore=Math.max(hiScore,score);
+    starTimerZwischenstand(); // bis hier war Spielzeit, Game Over zählt nicht
     invState='dying'; goDelay=2.0;
     document.getElementById('ui').style.display='none';
   }
