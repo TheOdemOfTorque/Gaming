@@ -10,8 +10,9 @@
 // Abschnitt, 'w' im Raster passt zu gen.gegner; (5) Start frei (nicht in Wand, Dornen, Federpilz oder
 // auf einer Wicht-Strecke).
 //
-// Der Bot mit 3 Leben ist nur Messwert (Leben, Energie, Schaden, Dauer) und laeuft nicht mehr in Jest,
-// sondern nur in scripts/jnr-messen.js. Ob er Leben verliert, ist nie ein Pass-Kriterium; Level-Inhalte
+// Der Bot mit 3 Leben ist nur Messwert (Leben, Energie, Schaden, Dauer, scripts/jnr-messen.js). In Jest
+// laeuft er nur als Absturztest (absturztest, jnr-absturz.test.js): keine Ausnahme, keine ungueltigen
+// Werte, jeder Lauf endet. Ob er gewinnt oder Leben verliert, ist nie ein Pass-Kriterium; Level-Inhalte
 // werden deswegen nie geaendert.
 //
 // Schon erzwungen und hier nicht doppelt geprueft: parseLevel wirft bei fehlendem/mehrfachem S oder
@@ -79,6 +80,46 @@ function laufeUnsterblich(level, opts, wo) {
   return frei;
 }
 
+// ---- Absturztest mit dem 3-Leben-Bot (Marco 31.10.2026) ----
+const SEEDS_ABSTURZ = 20;
+const SCHRITTLIMIT = 60 * 180; // 3 Spielminuten, wie der Standard von solver.solve
+const WERTE_SPIELER = ['x', 'y', 'vx', 'vy'];
+const WERTE_SPIEL = ['leben', 'energie', 'funken'];
+
+// Wirft, wenn ein Wert von Spieler oder Spiel keine endliche Zahl ist.
+function pruefeWerte(g, wo) {
+  WERTE_SPIELER.forEach((k) => {
+    if (!Number.isFinite(g.player[k])) throw new Error(wo + ': ungueltiges ' + k + ' = ' + g.player[k]);
+  });
+  WERTE_SPIEL.forEach((k) => {
+    if (!Number.isFinite(g[k])) throw new Error(wo + ': ungueltiges ' + k + ' = ' + g[k]);
+  });
+}
+
+// Ein Lauf mit 3 Leben. Gewonnen, verloren oder Softlock sind alle in Ordnung, das Ergebnis des Bots
+// zaehlt nicht. Fehler sind nur Ausnahmen, ungueltige Werte und ein Lauf, der am Limit noch nicht endete.
+function laufeMitLeben(level, opts, wo) {
+  const r = SOLVER.solve(level, opts, SCHRITTLIMIT, {
+    jeSchritt: (g, f) => pruefeWerte(g, wo + ', Schritt ' + (f + 1))
+  });
+  if (r.fehler) throw new Error(wo + ': ' + r.fehler);
+  if (!r.won && r.game.status !== 'lost' && !r.softlock) throw new Error(wo + ': kein Ende nach ' + SCHRITTLIMIT + ' Schritten');
+  return r;
+}
+
+function absturztest(id) {
+  const meta = D.byId(id);
+  if (!meta) throw new Error('Unbekanntes Level: ' + id);
+  test('Level ' + id + ' ' + meta.name + ': 3-Leben-Bot ueber ' + SEEDS_ABSTURZ + ' Seeds ohne Absturz', () => {
+    const options = R.defaultJnr().options;
+    for (let seed = 1; seed <= SEEDS_ABSTURZ; seed++) {
+      const gen = D.generateFor(id, seed);
+      const reihe = 2 + seed % 9; // alle Reihen kommen einmal dran
+      laufeMitLeben(parseLevel(gen.rows), D.gameOptions(meta, options, seed, reihe), 'Level ' + id + ', seed ' + seed);
+    }
+  }, 60000);
+}
+
 function spur(r) {
   return { won: r.won, softlock: r.softlock, frames: r.frames, schaden: r.schaden, verluste: r.verluste,
     x: r.game.player.x, y: r.game.player.y, funken: r.game.funken, t: r.game.t };
@@ -118,4 +159,4 @@ function spielbarkeit(id) {
 }
 
 module.exports = { SEEDS_PROPERTY, SEEDS_DETERMINISMUS, BLOECKE, D1_POOL, MASS, pruefeGeometrie, pruefeWichte,
-  laufeUnsterblich, spur, spielbarkeit };
+  laufeUnsterblich, spur, spielbarkeit, SEEDS_ABSTURZ, pruefeWerte, laufeMitLeben, absturztest };

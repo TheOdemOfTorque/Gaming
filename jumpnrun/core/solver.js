@@ -139,6 +139,7 @@
         if (ev.type === 'schaden') schaden[ev.quelle] = (schaden[ev.quelle] || 0) + 1;
         else if (ev.type === 'leben') verluste[ev.grund] = (verluste[ev.grund] || 0) + 1;
       }
+      if (botOpts.jeSchritt) botOpts.jeSchritt(game, f); // nur fuer Tests (Absturztest)
       var p = game.player;
       if (!isFinite(p.x) || !isFinite(p.y)) return ergebnis(false, f + 1, { fehler: 'ungueltige Spielerposition in Schritt ' + (f + 1) + ': x=' + p.x + ', y=' + p.y });
       if (game.status === 'won') return ergebnis(true, f + 1);

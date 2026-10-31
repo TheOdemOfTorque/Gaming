@@ -209,3 +209,16 @@ describe('Greedy-Bot unsterblich und Softlock', () => {
     expect(r.frames).toBeLessThanOrEqual(2);
   });
 });
+
+describe('solve: botOpts.jeSchritt', () => {
+  const D = require('../../jumpnrun/data/levels.js');
+  const { parseLevel } = require('../../jumpnrun/core/level.js');
+  test('wird nach jedem Schritt mit dem Spielstand aufgerufen', () => {
+    const gen = D.generateFor('1-2', 1);
+    const opts = D.gameOptions(D.byId('1-2'), { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true }, 1);
+    let n = 0, game = null;
+    const r = require('../../jumpnrun/core/solver.js').solve(parseLevel(gen.rows), opts, undefined, { jeSchritt: (g) => { n++; game = g; } });
+    expect(n).toBe(r.frames);
+    expect(game).toBe(r.game);
+  });
+});
