@@ -25,7 +25,9 @@
   }
 
   // opts: { mode: 'ziel' | 'aus', reihe, seed, crystals (überschreibt die Erzeugung, für Tests und das
-  //         Tutorial), uebung (true: Uebungsmodus des Tutorials, es gehen nie Leben verloren, siehe loseLife) }
+  //         Tutorial), uebung (true: Uebungsmodus des Tutorials, es gehen nie Leben verloren, siehe loseLife),
+  //         unsterblich (nur fuer Tests: Schaden und Sturz behalten alle Folgen, aber Energie und Leben
+  //         werden nicht abgezogen und der Lauf geht nie verloren, siehe loseLife und damage) }
   function createGame(level, opts) {
     opts = opts || {};
     var list = opts.crystals || M.assignCrystals(level.crystalSlots, {
@@ -43,6 +45,7 @@
       leben: LEBEN, energie: ENERGIE, unverwundbar: 0,
       checkpointIdx: -1, spawn: { x: level.start.x, y: level.start.y },
       uebung: !!opts.uebung,
+      unsterblich: !!opts.unsterblich, // nur fuer Tests (Erreichbarkeits-Nachweis des Bots)
       t: 0, status: 'play', events: []
     };
   }
@@ -57,8 +60,18 @@
   // ohne Leben endet der Lauf mit status 'lost'. Das Ereignis traegt den Unfallort.
   // Im Uebungsmodus (Tutorial) bleibt das Leben: Abgrund setzt an den letzten Startpunkt zurueck,
   // leere Energie fuellt sich wieder auf (ohne Respawn). Ereignis 'zurueck' statt 'leben'.
+  // Nur fuer Tests (unsterblich): das Leben bleibt, sonst passiert dasselbe wie im normalen Spiel
+  // (Ereignis 'leben', volle Energie, Unverwundbarkeit, Respawn am Checkpoint nach einem Sturz). Eine zu
+  // breite Grube wird so zur Endlosschleife aus Sturz und Respawn statt zu status 'lost'.
   function loseLife(g, grund) {
     var p = g.player;
+    if (g.unsterblich) {
+      g.events.push({ type: 'leben', grund: grund, leben: g.leben, x: p.x, y: p.y });
+      g.energie = ENERGIE;
+      g.unverwundbar = INVULN;
+      if (grund === 'abgrund') respawn(g);
+      return;
+    }
     if (g.uebung) {
       g.events.push({ type: 'zurueck', grund: grund, x: p.x, y: p.y });
       g.energie = ENERGIE;
@@ -84,7 +97,7 @@
     if (g.status !== 'play' || g.unverwundbar > 0) return false;
     var p = g.player;
     g.fehltreffer++;
-    g.energie = Math.max(0, g.energie - 1);
+    if (!g.unsterblich) g.energie = Math.max(0, g.energie - 1); // nur fuer Tests: unsterblich behaelt die Energie
     g.events.push({ type: 'schaden', quelle: quelle, energie: g.energie, x: p.x, y: p.y });
     if (g.energie === 0) { loseLife(g, 'energie'); if (!g.uebung) return true; }
     var dir = richtung < 0 ? -1 : 1;

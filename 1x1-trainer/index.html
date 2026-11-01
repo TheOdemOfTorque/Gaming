@@ -479,6 +479,10 @@
       border-radius: 10px; color: #fff; font-size: 1rem; font-weight: 800; padding: 6px 12px;
     }
     .game-overlay-timer.show { display: block; }
+    /* rot ab 2 Minuten, wie #invader-timer.warning (zeitAnzeige in logic.js) */
+    .game-overlay-timer.warning { color: #EF4444; border-color: rgba(239,68,68,0.5); animation: pulse 0.5s infinite alternate; }
+    /* Stern-Dialog auch über dem Lumo-Overlay (.game-overlay z-index 300) */
+    #star-expired-modal { z-index: 400; }
     .game-frame { flex: 1; width: 100%; height: 100%; border: 0; background: #0d0d2b; }
   </style>
 </head>
@@ -968,15 +972,15 @@
 </div>
 
 <div class="modal-overlay" id="star-expired-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet" id="star-expired-sheet" tabindex="-1" style="outline:none">
     <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
-    <div class="modal-title">10 Minuten sind um!</div>
+    <div class="modal-title">Deine Spielzeit ist um!</div>
     <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
       Du hast noch <strong id="star-count-in-modal">0 Sterne</strong> übrig.<br>
       Möchtest du einen einsetzen und weiterspielen?
     </div>
     <button class="btn btn-primary mt-8" onclick="continueWithStar()">⭐ Stern einsetzen &amp; weiterspielen</button>
-    <button class="btn btn-secondary mt-8" onclick="stopInvader()">🏠 Aufhören</button>
+    <button class="btn btn-secondary mt-8" onclick="sternDialogAufhoeren()">🏠 Aufhören</button>
   </div>
 </div>
 
@@ -1150,7 +1154,7 @@
 <!-- GAME OVERLAY: Lumo + Knobelwerkstatt (Same-Origin-iframe, ADR-0001) -->
 <div id="game-overlay" class="game-overlay">
   <div class="game-overlay-bar">
-    <button id="game-overlay-close" onclick="closeGame()">✕</button>
+    <button id="game-overlay-close" onclick="schliessKnopf()">✕</button>
     <div id="game-overlay-timer" class="game-overlay-timer"></div>
   </div>
   <iframe id="game-frame" class="game-frame" allow="autoplay" title="Spiel"></iframe>
@@ -1829,24 +1833,51 @@ function floatXP(txt, x, y) {
 // tickStarTime (logic.js) ist die reine Dekrementier-Logik; hier nur der
 // setInterval-Loop + das Verzweigen bei Ablauf, injiziert über onTimeUp.
 let starTimerInterval = null;
+// Gesammelte Spielzeit unter einer Sekunde, bleibt über Pausen und Neustarts erhalten (sammleSpielzeit).
+let starTimerSammelMs = 0;
+let starTimerLetzterMs = 0;
+let starTimerSoll = null, starTimerAnzeige = null, starTimerAblauf = null;
 
-function startStarTimer(displayFn, onTimeUp) {
-  if (starTimerInterval) clearInterval(starTimerInterval);
-  displayFn();
-  starTimerInterval = setInterval(() => {
-    const result = tickStarTime(state);
-    state.gameSecondsLeft = result.state.gameSecondsLeft;
+// Verbucht die Zeit seit dem letzten Schritt (zaehlt = sie war Spielzeit) und zieht je volle Sekunde ab.
+// Den Ablauf (onTimeUp) löst nur der laufende Takt aus (imTakt): beim Stoppen oder beim Wechsel in die
+// Pause bleibt die Zeit bei 0 stehen, und der nächste zählende Takt (Weiter, neuer Start) meldet den
+// Ablauf (Review Runde 2: sonst lag der Dialog auf dem Startbildschirm oder unter dem Pause-Overlay).
+function starTimerVerbuchen(zaehlt, imTakt) {
+  const jetzt = performance.now();
+  const dt = jetzt - starTimerLetzterMs;
+  starTimerLetzterMs = jetzt;
+  const r = sammleSpielzeit(starTimerSammelMs, zaehlt ? dt : 0);
+  starTimerSammelMs = r.gesammeltMs;
+  if (r.sekunden > 0) {
+    for (let i = 0; i < r.sekunden; i++) state.gameSecondsLeft = tickStarTime(state).state.gameSecondsLeft;
     saveState();
-    displayFn();
-    if (result.abgelaufen) {
-      clearInterval(starTimerInterval);
-      starTimerInterval = null;
-      onTimeUp();
-    }
-  }, 1000);
+    if (starTimerAnzeige) starTimerAnzeige();
+  }
+  if (imTakt && zaehlt && (state.gameSecondsLeft || 0) <= 0) {
+    clearInterval(starTimerInterval);
+    starTimerInterval = null;
+    starTimerSammelMs = 0;
+    const ablauf = starTimerAblauf;
+    if (ablauf) ablauf();
+  }
+}
+
+// Vor einem Wechsel Spiel <-> Pause aufrufen (Invader): verbucht die Zeit bis jetzt mit dem alten Zustand.
+function starTimerZwischenstand() {
+  if (starTimerInterval) starTimerVerbuchen(!starTimerSoll || starTimerSoll(), false);
+}
+
+// sollLaufen (optional): false lässt die Zeit nicht zählen (Invader-Pause).
+function startStarTimer(displayFn, onTimeUp, sollLaufen) {
+  if (starTimerInterval) clearInterval(starTimerInterval);
+  starTimerAnzeige = displayFn; starTimerAblauf = onTimeUp; starTimerSoll = sollLaufen || null;
+  displayFn();
+  starTimerLetzterMs = performance.now();
+  starTimerInterval = setInterval(() => starTimerVerbuchen(!starTimerSoll || starTimerSoll(), true), 200);
 }
 
 function stopStarTimer() {
+  starTimerZwischenstand(); // die angefangene Sekunde bleibt gesammelt
   if (starTimerInterval) {
     clearInterval(starTimerInterval);
     starTimerInterval = null;
@@ -1873,36 +1904,38 @@ function enterInvaderScreen() {
   startInvaderTimer();
 }
 
+// Spielzeit-Regel wie bei Lumo (invaderTimerSollLaufen in logic.js): die Zeit steht in der Pause, in
+// Game Over, Namenseingabe und Bestenliste und solange der Stern-Dialog offen ist; Menü und Spiel zählen.
+function invaderZeitSollLaufen() {
+  return invaderTimerSollLaufen({ invState, settFrom, sichtbar: !document.hidden, sternDialog: sternDialogFuer !== null });
+}
+
 function startInvaderTimer() {
   startStarTimer(updateInvaderTimerDisplay, () => {
-    if (state.stars > 0) {
-      // Spiel pausieren und Dialog zeigen
-      if (invState === 'playing') {
+    if (zeitAbgelaufenAktion(state) === 'stern_anbieten') {
+      // Spiel anhalten und Dialog zeigen
+      invVorSternDialogAmSpielen = invState === 'playing';
+      if (invVorSternDialogAmSpielen) {
         document.getElementById('ui').style.display = 'none';
         invState = 'paused';
       }
-      const n = state.stars;
-      document.getElementById('star-count-in-modal').textContent =
-        n === 1 ? '1 Stern' : n + ' Sterne';
-      document.getElementById('star-expired-modal').classList.add('active');
+      zeigeSternDialog('invader');
     } else {
       showToast('⏱ Zeit abgelaufen!');
       setTimeout(() => exitInvaderScreen(), 1500);
     }
-  });
+  }, invaderZeitSollLaufen);
+}
+
+function zeigeZeit(el) {
+  const z = zeitAnzeige(state.gameSecondsLeft);
+  el.textContent = z.text;
+  el.classList.toggle('warning', z.warnung);
 }
 
 function updateInvaderTimerDisplay() {
   const el = document.getElementById('invader-timer');
-  if (!el) return;
-  const m = Math.floor(state.gameSecondsLeft / 60);
-  const s = state.gameSecondsLeft % 60;
-  el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
-  if (state.gameSecondsLeft <= 120) {
-    el.classList.add('warning');
-  } else {
-    el.classList.remove('warning');
-  }
+  if (el) zeigeZeit(el);
 }
 
 function exitInvaderScreen() {
@@ -1913,23 +1946,61 @@ function exitInvaderScreen() {
   updateHomeUI();
 }
 
+// ── STERN-DIALOG bei 0:00 (Invader und Lumo gleich, zeitAbgelaufenAktion in logic.js) ──
+// Invader hält das Spiel selbst an, Lumo bekommt jnr:pause. „Stern einsetzen & weiterspielen“ zieht
+// den Stern ab (sternZeitEinloesen) und lässt das Spiel weiterlaufen (Lumo: jnr:weiter).
+let sternDialogFuer = null; // null | 'invader' | 'jnr'
+let invVorSternDialogAmSpielen = false;
+function zeigeSternDialog(spiel) {
+  sternDialogFuer = spiel;
+  const n = state.stars;
+  document.getElementById('star-count-in-modal').textContent = n === 1 ? '1 Stern' : n + ' Sterne';
+  document.getElementById('star-expired-modal').classList.add('active');
+  sternDialogFokus();
+}
+// Fokus aus dem Lumo-iframe holen, sonst erreichen Enter/Esc weiter Lumo (Review B1). Bewusst aufs
+// Blatt, nicht auf „Stern einsetzen“: bei Invader hält das Kind oft die Leertaste zum Schießen.
+// Lumos Pause-Dialog fokussiert seinen Knopf „Weiter“ erst nach jnr:pause, darum ruft auch der
+// jnr:aktiv-Handler das erneut auf, solange der Dialog offen ist.
+function sternDialogFokus() {
+  const frame = document.getElementById('game-frame');
+  if (frame && document.activeElement === frame) frame.blur();
+  try { document.getElementById('star-expired-sheet').focus({ preventScroll: true }); } catch (e) { /* egal */ }
+}
+function sternDialogSchliessen() {
+  sternDialogFuer = null;
+  document.getElementById('star-expired-modal').classList.remove('active');
+}
+
 // Stern-Dialog: weiterspielen (einen Stern einsetzen)
 function continueWithStar() {
-  document.getElementById('star-expired-modal').classList.remove('active');
-  state.stars--;
-  state.gameSecondsLeft = 600;
+  const spiel = sternDialogFuer;
+  sternDialogSchliessen();
+  Object.assign(state, sternZeitEinloesen(state, spiel === 'jnr' ? 'jnr' : 'invader').state);
   saveState();
   updateHomeUI();
-  // Spiel fortsetzen
-  document.getElementById('ui').style.display = 'flex';
-  invState = 'playing';
+  if (spiel === 'jnr') {
+    if (currentGame !== 'jnr') return;
+    updateLumoTimerDisplay();
+    sendToGameFrame({ type: 'jnr:weiter' }); // Lumo setzt die Pause fort, meldet dann zeit true
+    syncLumoTimer(); // läuft sofort, wenn Lumo im Menü stand (dort ändert jnr:pause nichts)
+    return;
+  }
+  // Spiel fortsetzen, falls es lief
+  if (invVorSternDialogAmSpielen) {
+    document.getElementById('ui').style.display = 'flex';
+    invState = 'playing';
+  }
+  invVorSternDialogAmSpielen = false;
   startInvaderTimer();
 }
 
-// Stern-Dialog: aufhören
-function stopInvader() {
-  document.getElementById('star-expired-modal').classList.remove('active');
-  exitInvaderScreen();
+// Stern-Dialog: aufhören (zurück zum Trainer)
+function sternDialogAufhoeren() {
+  const spiel = sternDialogFuer;
+  sternDialogSchliessen();
+  if (spiel === 'jnr') closeGame();
+  else exitInvaderScreen();
 }
 
 // ── SPIELE-LEISTE (3 Karten) + IFRAME-HOST (Lumo + Knobelwerkstatt) ──────
@@ -1986,27 +2057,51 @@ function updateLumoTimerDisplay() {
   const el = document.getElementById('game-overlay-timer');
   if (!el) return;
   el.classList.add('show');
-  const m = Math.floor(state.gameSecondsLeft / 60);
-  const s = state.gameSecondsLeft % 60;
-  el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
+  zeigeZeit(el);
 }
 
+// Stern-Zeit 0:00: Lumo zeigt „Deine Stern-Zeit ist vorbei“, bestätigt das sofort per jnr:zeitende und
+// meldet per jnr:beenden, wenn das Kind „Zurück zum Trainer“ tippt; erst dann closeGame() (Vertrag
+// jumpnrun/core/host.js). Ein altes Lumo aus dem Cache kennt beide Nachrichten nicht: kommt nach
+// LUMO_BEENDEN_FALLBACK_MS (logic.js) keine Bestätigung, schließt der Trainer selbst. jnr:zeitende und
+// closeGame() (auch über das ✕) löschen den Fallback.
+let lumoBeendenFallback = null;
+function lumoBeendenFallbackStoppen() {
+  if (lumoBeendenFallback) { clearTimeout(lumoBeendenFallback); lumoBeendenFallback = null; }
+}
+// Mit Sternen kommt bei 0:00 wie bei Invader „Stern einsetzen & weiterspielen“ (Lumo pausiert per
+// jnr:pause), ohne Sterne jnr:timeup und Lumos Dialog „Deine Stern-Zeit ist vorbei“.
 function startLumoTimer() {
   startStarTimer(updateLumoTimerDisplay, () => {
+    if (zeitAbgelaufenAktion(state) === 'stern_anbieten') {
+      sendToGameFrame({ type: 'jnr:pause' });
+      zeigeSternDialog('jnr');
+      return;
+    }
+    lumoZeitEnde = true;
     sendToGameFrame({ type: 'jnr:timeup' });
-    closeGame();
+    lumoBeendenFallbackStoppen();
+    lumoBeendenFallback = setTimeout(() => {
+      lumoBeendenFallback = null;
+      if (currentGame === 'jnr') closeGame();
+    }, LUMO_BEENDEN_FALLBACK_MS);
   });
 }
 
-// Stern-Zeit in Lumo läuft nur, solange aktiv gespielt wird: Lumo meldet jeden Wechsel per
-// jnr:aktiv (Vertrag jumpnrun/core/host.js). Menü, Reihenwahl, Pause, Hilfe, Game Over und der
-// Gewonnen-Dialog halten die Zeit an. lumoTimerSollLaufen (logic.js) entscheidet, syncLumoTimer
-// setzt es um; aufgerufen bei jnr:aktiv, nach dem Laden und bei visibilitychange.
+// Stern-Zeit in Lumo läuft wie bei Invader, solange Lumo offen ist: Lumo meldet jeden Wechsel per
+// jnr:aktiv mit dem Feld zeit (Vertrag jumpnrun/core/host.js). Menü und Reihenwahl zählen; Pause,
+// Hilfe aus der Pause, Game Over und der Gewonnen-Dialog halten die Zeit an, ebenso der Stern-Dialog.
+// lumoTimerSollLaufen (logic.js) entscheidet, syncLumoTimer setzt es um; aufgerufen bei jnr:aktiv,
+// nach dem Laden, nach dem Stern-Dialog und bei visibilitychange.
 let lumoAktiv = lumoAktivNeu();
 let lumoSternZeit = false; // Stern-Zeit für dieses Öffnen eingelöst (Spiel geladen)
+let lumoZeitEnde = false;  // jnr:timeup ist für dieses Öffnen gesendet (keine Sterne mehr)
 function syncLumoTimer() {
   if (currentGame !== 'jnr') return;
-  const soll = lumoTimerSollLaufen(lumoAktiv, { sichtbar: !document.hidden, sternZeit: lumoSternZeit });
+  // Bei 0 s startet der Timer trotzdem: sein erster Takt meldet den Ablauf (Dialog oder jnr:timeup),
+  // damit nach einer Pause in der letzten Sekunde nichts gratis läuft. Nach jnr:timeup nicht noch einmal.
+  const soll = lumoTimerSollLaufen(lumoAktiv, { sichtbar: !document.hidden, sternZeit: lumoSternZeit })
+    && sternDialogFuer === null && !lumoZeitEnde;
   if (soll && !starTimerInterval) startLumoTimer();
   else if (!soll) stopStarTimer();
 }
@@ -2024,6 +2119,7 @@ function openGame(gameId) {
   currentGame = gameId;
   lumoAktiv = lumoAktivNeu();
   lumoSternZeit = false;
+  lumoZeitEnde = false;
   const frame = document.getElementById('game-frame');
   document.getElementById('game-overlay-timer').classList.remove('show');
   frame.onload = () => {
@@ -2070,9 +2166,18 @@ function openGame(gameId) {
   }, SPIEL_LADE_TIMEOUT_MS);
 }
 
+// ✕ der Trainer-Leiste: im laufenden Lumo-Level zuerst pausieren (jnr:pause, Lumo zeigt den
+// Pause-Dialog; aus der Pause schließt das zweite ✕, oder „Zum Menü“ und dort „Zurück zum Trainer“),
+// sonst schließen (schliessKnopfAktion).
+function schliessKnopf() {
+  if (schliessKnopfAktion(currentGame, lumoAktiv) === 'pausieren') sendToGameFrame({ type: 'jnr:pause' });
+  else closeGame();
+}
 function closeGame() {
   stopStarTimer();
+  if (sternDialogFuer === 'jnr') sternDialogSchliessen();
   spielLadeTimerStoppen();
+  lumoBeendenFallbackStoppen();
   document.getElementById('game-overlay').classList.remove('active');
   const frame = document.getElementById('game-frame');
   frame.onload = null;
@@ -2080,6 +2185,7 @@ function closeGame() {
   currentGame = null;
   lumoAktiv = lumoAktivNeu();
   lumoSternZeit = false;
+  lumoZeitEnde = false;
   updateHomeUI();
 }
 
@@ -2096,18 +2202,30 @@ window.addEventListener('message', (e) => {
     saveState();
     updateHomeUI();
   } else if (e.data.type === 'jnr:result') {
-    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult, JNR.rewards.xpFor);
+    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult); // Lumo gibt keine XP
     Object.assign(state, next);
     saveState();
     updateHomeUI();
   } else if (e.data.type === 'jnr:aktiv') {
     if (currentGame !== 'jnr') return;
     lumoAktiv = applyJnrAktiv(lumoAktiv, e.data);
+    // Unter dem Stern-Dialog wird nicht gespielt (Review B1): läuft ein Level an (Weiter, Start aus
+    // Menü oder Reihenwahl), sofort wieder pausieren. jnr:weiter nach dem Einsetzen setzt es fort.
+    if (sternDialogFuer === 'jnr') {
+      if (lumoAktiv.aktiv) sendToGameFrame({ type: 'jnr:pause' });
+      sternDialogFokus();
+    }
     syncLumoTimer();
   } else if (e.data.type === 'jnr:tutorial') {
     // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
     Object.assign(state, applyJnrTutorial(state, e.data));
     saveState();
+  } else if (lumoZeitendeBestaetigt(currentGame, e.data)) {
+    // Lumo zeigt den Stern-Zeit-Dialog selbst: kein Fallback mehr, das Kind tippt „Zurück zum Trainer“
+    lumoBeendenFallbackStoppen();
+  } else if (lumoBeendenGewuenscht(currentGame, e.data)) {
+    // „Zurück zum Trainer“ aus Lumos Menü oder nach dem Stern-Zeit-Dialog (jnr:beenden)
+    closeGame();
   }
 });
 
@@ -3879,6 +3997,7 @@ function hideAll(){
   document.getElementById('ui').style.display='none';
 }
 function invShowMenu(){
+  starTimerZwischenstand();
   hideAll();
   document.getElementById('menuBtns').style.display='flex';
   invState='menu';
@@ -3886,11 +4005,13 @@ function invShowMenu(){
 
 // ── Pause ─────────────────────────────────────────────────────
 function showPause(){
+  starTimerZwischenstand(); // bis hier war Spielzeit (Review B3)
   document.getElementById('pauseOv').classList.add('show');
   document.getElementById('ui').style.display='none';
   invState='paused';
 }
 function resumeGame(){
+  starTimerZwischenstand(); // die Pause zählt nicht
   document.getElementById('pauseOv').classList.remove('show');
   document.getElementById('ui').style.display='flex';
   invState='playing';
@@ -3929,6 +4050,7 @@ function buildSettingsUI(){
   });
 }
 function showSettings(from){
+  starTimerZwischenstand();
   settFrom=from;
   buildSettingsUI();
   hideAll();
@@ -3936,6 +4058,7 @@ function showSettings(from){
   invState='settings';
 }
 document.getElementById('settBack').addEventListener('click',()=>{
+  starTimerZwischenstand();
   document.getElementById('settOv').classList.remove('show');
   if      (settFrom==='pause')  { document.getElementById('pauseOv').classList.add('show'); invState='paused'; }
   else if (settFrom==='scores') showHsOverlay(null);
@@ -3997,6 +4120,8 @@ document.getElementById('hsSettings').addEventListener('click',()=>showSettings(
 
 // ── Game logic ────────────────────────────────────────────────
 function invStartGame(){
+  if (sternDialogFuer !== null) return; // unter dem Stern-Dialog startet kein Spiel (Review B2)
+  starTimerZwischenstand(); // Bestenliste zählte nicht, Menü schon
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
@@ -4018,6 +4143,7 @@ function onHit(){
     explode(player.x,player.y,'#ff4400',55);
     playerDead=true; SFX.die();
     hiScore=Math.max(hiScore,score);
+    starTimerZwischenstand(); // bis hier war Spielzeit, Game Over zählt nicht
     invState='dying'; goDelay=2.0;
     document.getElementById('ui').style.display='none';
   }

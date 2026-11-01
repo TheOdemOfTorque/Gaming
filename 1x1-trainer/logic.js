@@ -479,7 +479,7 @@ function computeStreakProtection(state, todayStr) {
 }
 
 // ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
-// Defaults, Marco noch zu bestätigen (siehe Vault-Plan Spiele-Integration):
+// Von Marco bestätigt am 30.10.2026 (siehe Vault-Plan Spiele-Integration):
 // Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
 // bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sterne und
 // Streak-Mindestwert, im Trainer aber erst nach einer gezählten Runde am selben
@@ -514,17 +514,88 @@ function rundeSchaltetKnobelFrei(game, reason) {
   return (game.correct || 0) + (game.wrong || 0) > 0;
 }
 
-// Lumo meldet per jnr:aktiv, ob gerade aktiv gespielt wird (Vertrag jumpnrun/core/host.js).
-// Zustand { meldet, aktiv }: meldet = Lumo kennt die Nachricht. Ein Lumo ohne jnr:aktiv
-// (z.B. alter Cache) lässt den Timer wie früher durchlaufen. Tests: tests/unit/lumo-aktiv.test.js
-function lumoAktivNeu() { return { meldet: false, aktiv: false }; }
+// ── SPIELZEIT (gleiche Regel für Space Invader und Lumo, Marco 30.10.2026) ──
+// Die Stern-Zeit läuft, solange das Spiel offen und sichtbar ist, auch im Menü (Lumo: Levelauswahl
+// und Reihenwahl). Sie steht in der Pause, im Hintergrund und in Dialogen, die das Spiel anhalten.
+// Bei 0:00 mit Sternen: „Stern einsetzen & weiterspielen“, ohne Sterne: Hinweis, zurück zum Trainer.
+// Tests: tests/unit/spielzeit.test.js, tests/unit/lumo-aktiv.test.js
+
+// Lumo meldet per jnr:aktiv, ob ein Level läuft (aktiv) und ob die Stern-Zeit laufen soll (zeit),
+// Vertrag jumpnrun/core/host.js. Zustand { meldet, aktiv, zeit }: meldet = Lumo kennt die Nachricht.
+// Fallbacks: Ein Lumo ohne jnr:aktiv (alter Cache) lässt den Timer wie früher durchlaufen; ein Lumo
+// ohne Feld zeit meldet aktiv nur im Level, dann gilt zeit = aktiv.
+function lumoAktivNeu() { return { meldet: false, aktiv: false, zeit: false }; }
 function applyJnrAktiv(z, data) {
   if (!data || typeof data.aktiv !== 'boolean') return z;
-  return { meldet: true, aktiv: data.aktiv };
+  if (typeof data.zeit === 'boolean') return { meldet: true, aktiv: data.aktiv, zeit: data.zeit };
+  if ('zeit' in data) return { meldet: true, aktiv: data.aktiv, zeit: false };
+  return { meldet: true, aktiv: data.aktiv, zeit: data.aktiv };
 }
 // sichtbar: !document.hidden; sternZeit: Stern-Zeit ist für dieses Öffnen eingelöst (Spiel geladen).
 function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
-  return !!sternZeit && !!sichtbar && (!z.meldet || z.aktiv);
+  return !!sternZeit && !!sichtbar && (!z.meldet || !!z.zeit);
+}
+
+// Space Invader: die Zeit läuft im Spiel und im Menü (auch in den Einstellungen aus dem Menü). Sie steht
+// in der Pause, in Game Over, Namenseingabe und Bestenliste (Marco 31.10.2026, wie Lumos Dialoge), in
+// den Einstellungen aus Pause oder Bestenliste, solange der Stern-Dialog offen ist und im Hintergrund.
+const INVADER_ZEIT_STEHT = ['paused', 'dying', 'entering', 'scores'];
+function invaderTimerSollLaufen({ invState, settFrom, sichtbar, sternDialog }) {
+  if (!sichtbar || sternDialog) return false;
+  if (INVADER_ZEIT_STEHT.includes(invState)) return false;
+  if (invState === 'settings' && (settFrom === 'pause' || settFrom === 'scores')) return false;
+  return true;
+}
+
+// Gemeinsamer Stern-Timer (index.html startStarTimer): verbrauchte Millisekunden werden über Pausen
+// hinweg gesammelt, abgezogen wird je volle Sekunde (Review B3: viele kurze Pausen verschluckten sonst
+// die angefangenen Sekunden). dtMs < 0 oder kaputt zählt nicht; mehr als 5 s je Schritt (z.B. nach
+// einem eingefrorenen Tab) zählen höchstens 5 s. Tests: tests/unit/spielzeit.test.js
+const SPIELZEIT_MAX_SCHRITT_MS = 5000;
+function sammleSpielzeit(gesammeltMs, dtMs) {
+  const g = typeof gesammeltMs === 'number' && isFinite(gesammeltMs) && gesammeltMs > 0 ? gesammeltMs : 0;
+  const dt = typeof dtMs === 'number' && isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, SPIELZEIT_MAX_SCHRITT_MS) : 0;
+  const summe = g + dt;
+  const sekunden = Math.floor(summe / 1000);
+  return { gesammeltMs: summe - sekunden * 1000, sekunden };
+}
+
+// Stern-Zeit bei 0:00, für beide Spiele gleich: mit Sternen 'stern_anbieten', sonst 'ende'.
+// Der Stern selbst wird mit sternZeitEinloesen eingesetzt.
+function zeitAbgelaufenAktion(state) {
+  return (state.stars || 0) > 0 ? 'stern_anbieten' : 'ende';
+}
+
+// Zeitanzeige für Invader (#invader-timer) und Lumo (#game-overlay-timer): rot ab 2 Minuten.
+const ZEIT_WARNUNG_AB_SEK = 120;
+function zeitAnzeige(sekunden) {
+  const sek = typeof sekunden === 'number' && isFinite(sekunden) && sekunden > 0 ? Math.floor(sekunden) : 0;
+  const m = Math.floor(sek / 60);
+  const ss = sek % 60;
+  return { text: `⏱ ${m}:${String(ss).padStart(2, '0')}`, warnung: sek <= ZEIT_WARNUNG_AB_SEK };
+}
+
+// Lumo will verlassen werden (Knopf "Zurück zum Trainer" im Menü oder im Dialog "Deine Stern-Zeit
+// ist vorbei", Vertrag jumpnrun/core/host.js, jnr:beenden): nur, wenn Lumo gerade im Overlay läuft.
+// Nach jnr:timeup wartet der Trainer LUMO_BEENDEN_FALLBACK_MS auf jnr:zeitende (Bestätigung, siehe
+// lumoZeitendeBestaetigt) oder jnr:beenden und schließt sonst selbst (altes Lumo aus dem Cache kennt
+// beide Nachrichten nicht). Tests: tests/unit/lumo-beenden.test.js
+const LUMO_BEENDEN_FALLBACK_MS = 5000;
+function lumoBeendenGewuenscht(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
+}
+
+// Lumo bestätigt jnr:timeup mit jnr:zeitende: der Dialog „Deine Stern-Zeit ist vorbei“ steht, das Kind
+// schließt ihn selbst. Der Trainer löscht dann den Fallback und wartet beliebig lange auf jnr:beenden.
+function lumoZeitendeBestaetigt(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:zeitende';
+}
+
+// Das ✕ der Trainer-Leiste bleibt Notausgang, löst aber im laufenden Level zuerst die Pause aus
+// (Soll-Struktur im Review, B6): 'pausieren', wenn Lumo läuft und per jnr:aktiv aktiv meldet, sonst
+// 'schliessen' (Pause, Menü, Dialoge, anderes Spiel, altes Lumo ohne jnr:aktiv).
+function schliessKnopfAktion(currentGame, z) {
+  return currentGame === 'jnr' && !!z && z.meldet && z.aktiv ? 'pausieren' : 'schliessen';
 }
 
 // Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
@@ -565,8 +636,8 @@ function lokalesDatum(d) {
 }
 
 // ── SPIEL-ERGEBNISSE (Knobelwerkstatt + Lumo) ───────────────────────────────
-// Beide Funktionen bekommen die XP-Rechenfunktion des jeweiligen Spiels
-// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. xpFor/mergeResult
+// Beide Funktionen bekommen die Rechenfunktion des jeweiligen Spiels
+// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. mergeResult
 // aus jumpnrun/core/rewards.js), damit logic.js dependency-frei bleibt.
 // index.html lädt die echten Module zusätzlich per <script>; Jest requirt sie
 // direkt. Tests: tests/unit/spiele-ergebnisse.test.js
@@ -604,18 +675,13 @@ function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
 
 // msg: { type:'jnr:result', level, medaillen, funken, xp }
 // mergeResultFn: rewards.mergeResult(jnr, msg) -> neues jnr (idempotent)
-// xpForFn: rewards.xpFor(level, medaillen, bereitsErhalten) -> plausible Obergrenze
-function applyJnrResult(state, msg, mergeResultFn, xpForFn) {
-  const bereitsErhalten = !!(state.jnr.xpAwarded && state.jnr.xpAwarded[msg.level]);
-  const obergrenze = xpForFn(msg.level, msg.medaillen, bereitsErhalten);
-  // Nicht-numerische/absurde xp (gefälschte Nachricht) darf den Zähler nicht
-  // mit NaN zerstören — Math.min/-max geben bei nicht-numerischen Operanden NaN.
-  const gemeldeteXp = typeof msg.xp === 'number' && isFinite(msg.xp) ? msg.xp : 0;
-  const credit = Math.max(0, Math.min(gemeldeteXp, obergrenze));
+// Lumo gibt keine XP (Marco 30.10.2026): msg.xp wird ignoriert, auch wenn ein altes Lumo aus dem
+// Cache noch XP meldet. Medaillen, Funken und Fortschritt übernimmt mergeResult.
+function applyJnrResult(state, msg, mergeResultFn) {
   const jnr = mergeResultFn(state.jnr, msg);
   return {
-    state: Object.assign({}, state, { xp: (state.xp || 0) + credit, jnr: jnr }),
-    creditedXp: credit,
+    state: Object.assign({}, state, { jnr: jnr }),
+    creditedXp: 0,
   };
 }
 
@@ -808,7 +874,8 @@ if (typeof module !== 'undefined') {
                      DIAMOND_PRICE, DIAMOND_CAP,
                      GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
                      ordneOhneDirekteWiederholung, zieheOhneWiederholung,
-                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen,
+                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen, invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige, sammleSpielzeit,
+                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, lumoZeitendeBestaetigt, schliessKnopfAktion,
                      sternZeitEinloesen, spielGeladen, lokalesDatum,
                      applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,

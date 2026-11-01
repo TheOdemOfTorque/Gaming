@@ -153,9 +153,18 @@
   label.opt { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 15px; }
   label.opt input { width: 22px; height: 22px; accent-color: var(--violet); }
   #msg-title { margin: 0 0 6px; font-size: 26px; color: #fff; }
-  #msg-body { margin: 0 0 12px; line-height: 1.6; font-size: 16px; }
+  #msg-body { margin: 0 0 4px; line-height: 1.6; font-size: 16px; }
   #msg-body .got { color: var(--amber); }
   #msg-body .miss { opacity: .5; }
+  /* Knopfleiste unten angepinnt: die lange Hilfe scrollt, „Verstanden“ bleibt im Bild (K5). Der untere
+     Innenabstand der Karte wandert in die Leiste (Chrome klebt sticky erst oberhalb des Innenabstands),
+     ihr Hintergrund deckt den scrollenden Text ab. Abstände bleiben für kurze Dialoge gleich:
+     Body 4 px + Leiste 8 px = 12 px wie zuvor, Knopf-Rand 8 px + Leiste 14 px = 22 px wie zuvor. */
+  #msg .card { padding-bottom: 0; }
+  #msg-buttons {
+    position: sticky; bottom: 0; margin: 0 -18px; padding: 8px 18px 14px;
+    background: #13133b; /* --panel ist zu 92 % deckend; das ist die Panelfarbe über dem dunklen Overlay, deckend */
+  }
 
   /* Reihenwahl */
   #reihenwahl .card { max-width: 620px; }
@@ -238,7 +247,17 @@
   @keyframes drehen { 0%, 25% { transform: rotate(0deg); } 50%, 100% { transform: rotate(90deg); } }
   @media (prefers-reduced-motion: reduce) { #portrait-hint .phone { animation: none; } }
   body.quer-pflicht #portrait-hint { display: flex; }
-  @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } }
+  @media (max-height: 420px) { h1 { font-size: 20px; } .lvl, .big { min-height: 46px; margin-bottom: 6px; } label.opt { min-height: 36px; } }
+  /* Flaches Fenster (Trainer-iframe quer, 340 px): zwei Welt-Ueberschriften und drei Level-Knoepfe muessen
+     ohne Scrollen in die linke Spalte passen (Aufgabe 9). Knoepfe 50 statt 54 px, Ueberschriften enger. */
+  @media (max-height: 420px) { .lvl { padding-top: 6px; padding-bottom: 6px; } .lvl small { font-size: 11px; } h2 { margin-bottom: 4px; } }
+  /* Menü: Tastatur-Hinweis nur mit Maus/Trackpad; Hilfe und Tutorial nebeneinander (B8).
+     Bei flachem Fenster (Trainer-iframe quer, rund 340 px) bleibt er auch mit Maus weg, sonst
+     schiebt er „Zurück zum Trainer“ unter den Rand (K1). */
+  #tasten-hinweis { display: none; }
+  @media (pointer: fine) and (min-height: 421px) { #tasten-hinweis { display: block; } }
+  .menu-row { display: flex; gap: 8px; }
+  .menu-row .big { flex: 1 1 0; min-width: 0; padding-left: 8px; padding-right: 8px; }
 </style>
 </head>
 <body>
@@ -259,7 +278,7 @@
     <div id="vital-live" class="sr-only" aria-live="polite"></div>
     <div id="tipp" class="hidden"></div>
     <div id="tut-box" class="hidden" role="region" aria-label="Tutorial">
-      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Tutorial beenden</button></div>
+      <div id="tut-kopf"><span id="tut-schritt"></span><button id="tut-skip">Überspringen</button></div>
       <p id="tut-text" aria-live="polite"></p>
     </div>
     <div id="topbtns">
@@ -279,18 +298,18 @@
       <h1>Lumo <span>und die Zahlennacht</span></h1>
       <p class="sub">In der Zahlennacht sind die Leuchttürme der Zahlen-Insel ausgegangen. Lumo sammelt leuchtende Zahlenkristalle und entzündet am Ende jedes Levels einen Leuchtturm.</p>
       <div class="cols">
-        <div>
-          <h2>Welt 1 · Dämmerwiese</h2>
-          <div id="levellist"></div>
-        </div>
+        <div id="levellist"></div>
         <div>
           <h2>Einstellungen</h2>
           <label class="opt"><input type="checkbox" id="opt-einfach"> Einfach (Lumo läuft von selbst)</label>
           <label class="opt"><input type="checkbox" id="opt-mathe"> Zahlen-Modus (Zielzahl sammeln)</label>
           <label class="opt"><input type="checkbox" id="opt-farbhilfe"> Farbhilfe (goldene Kristalle sind richtig)</label>
-          <p class="sub" style="margin-top:8px">Tastatur: Pfeile oder A/D laufen, Leertaste springt, P pausiert.</p>
-          <button class="big" id="btn-hilfe">? So spielst du</button>
-          <button class="big" id="btn-tutorial">Tutorial nochmal spielen</button>
+          <p class="sub" id="tasten-hinweis" style="margin-top:8px">Tastatur: Pfeile oder A/D laufen, Leertaste springt, P pausiert.</p>
+          <div class="menu-row">
+            <button class="big" id="btn-hilfe">? So spielst du</button>
+            <button class="big" id="btn-tutorial">Tutorial</button>
+          </div>
+          <button class="big hidden" id="btn-trainer">Zurück zum Trainer</button>
         </div>
       </div>
     </div>
@@ -303,9 +322,9 @@
       <div id="rw-grid" role="group" aria-label="Zahlenreihe wählen"></div>
       <div id="rw-hilfe" class="hidden"></div>
       <div class="rw-buttons">
-        <button class="big" id="rw-zurueck">Zurück</button>
-        <button class="big main" id="rw-los"></button>
         <button class="big" id="rw-hilfe-btn" aria-label="Hilfe zur Reihenwahl" aria-expanded="false">?</button>
+        <button class="big" id="rw-zurueck">Zum Menü</button>
+        <button class="big main" id="rw-los"></button>
       </div>
     </div>
   </div>
@@ -417,7 +436,8 @@
   ctx.imageSmoothingEnabled = false;
   var mode = 'menu'; // menu | reihenwahl | play | pause | won | lost | ended
   // Jeder Moduswechsel geht über setMode: eingebettet meldet Lumo dem Trainer per jnr:aktiv, ob gerade
-  // aktiv gespielt wird (nur dann läuft die Stern-Zeit, Vertrag in core/host.js). Standalone: nichts.
+  // ein Level läuft und ob die Stern-Zeit laufen soll (Menü, Reihenwahl, Spiel; Vertrag in core/host.js).
+  // Standalone: nichts.
   var aktivMelder = H.createAktivMelder(function (msg) {
     if (!embedded) return;
     try { window.parent.postMessage(msg, location.origin); } catch (e) { /* kein Parent */ }
@@ -554,27 +574,42 @@
 
   // ---------- Menü ----------
   function medalStr(n) { return '★'.repeat(n) + '☆'.repeat(3 - n); }
+  // Levelauswahl: je Welt eine Ueberschrift (Welt-Nummer und Name), darunter ihre Level in ORDER-Reihenfolge;
+  // gesperrte Level bleiben sichtbar (Schloss statt Medaillen), frei wird Level n+1 nach einer Medaille in n.
   function buildMenu() {
     var box = $('levellist'); box.innerHTML = '';
-    LV.STAGES.forEach(function (l) {
-      var rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
-      var b = document.createElement('button');
-      b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
-      b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options) +
-        '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
-      b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
-      box.appendChild(b);
+    LV.welten().forEach(function (w) {
+      var h = document.createElement('h2');
+      h.setAttribute('data-welt', String(w.welt));
+      h.textContent = 'Welt ' + w.welt + ' · ' + w.name;
+      box.appendChild(h);
+      w.levels.forEach(function (id) {
+        var l = LV.byId(id), rec = jnr.levels[l.id], open = R.isUnlocked(jnr, l.id, LV.ORDER);
+        var b = document.createElement('button');
+        b.className = 'lvl'; b.disabled = !open; b.setAttribute('data-level', l.id);
+        b.innerHTML = '<span>' + l.name + '<small>' + LV.menuUntertitel(l, jnr.options, !open) +
+          '</small></span><span class="medals">' + (open ? medalStr(rec ? rec.medals : 0) : '🔒') + '</span>';
+        b.addEventListener('click', function () { ensureAudio(); b.blur(); levelWahl(l.id); });
+        box.appendChild(b);
+      });
     });
     $('opt-einfach').checked = einfach();
     $('opt-mathe').checked = jnr.options.mathe === 'ziel';
     $('opt-farbhilfe').checked = jnr.options.farbhilfe;
     document.body.classList.toggle('einfach', einfach());
-    $('btn-tutorial').textContent = jnr.tutorialGesehen ? 'Tutorial nochmal spielen' : 'Tutorial spielen';
   }
   function bindOpt(id, fn) { $(id).addEventListener('change', function (e) { fn(e.target.checked); save(); buildMenu(); }); }
   bindOpt('opt-einfach', function (v) { jnr.options.steuerung = v ? 'einfach' : 'standard'; });
   bindOpt('opt-mathe', function (v) { jnr.options.mathe = v ? 'ziel' : 'aus'; });
   bindOpt('opt-farbhilfe', function (v) { jnr.options.farbhilfe = v; });
+
+  // "Zurück zum Trainer": nur eingebettet (jnr:beenden, Vertrag core/host.js); der Trainer schließt das Overlay.
+  function zurueckZumTrainer() {
+    if (!embedded) return;
+    try { window.parent.postMessage(H.buildBeendenMessage(), location.origin); } catch (e) { /* kein Parent */ }
+  }
+  if (embedded) $('btn-trainer').classList.remove('hidden');
+  $('btn-trainer').addEventListener('click', function () { $('btn-trainer').blur(); zurueckZumTrainer(); });
 
   function showMenu() {
     stopTipp(); tutAus();
@@ -607,11 +642,13 @@
     $('rw-los').textContent = 'Los mit der ' + RW.chipReihe(reihe);
     $('rw-hilfe').innerHTML = rwHilfeHtml(reihe);
   }
-  // fest: Reihe, die vorgewählt sein soll (Nochmal / Level neu starten = gerade gespielte Reihe)
+  // fest: Reihe, die vorgewählt sein soll ("Nächstes Level" bringt die zuletzt gespielte Reihe mit, K4);
+  // sie geht der Empfehlung aus dem Lernstand vor (RW.vorauswahl). rwFest merkt sie fuer ein jnr:init.
+  var rwFest = null;
   function showReihenwahl(id, fest) {
     var m = LV.byId(id); if (!m) return showMenu();
     tutAus();
-    setMode('reihenwahl'); rwLevel = id; game = null;
+    setMode('reihenwahl'); rwLevel = id; rwFest = RW.istReihe(fest) ? fest : null; game = null;
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     $('hud').classList.add('hidden'); $('msg').classList.add('hidden'); $('menu').classList.add('hidden');
     $('ziel-intro').classList.add('hidden');
@@ -629,7 +666,7 @@
       grid.appendChild(b);
     });
     $('reihenwahl').classList.remove('hidden');
-    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, fest), true);
+    rwSelect(RW.vorauswahl(lernstand, letzteReihe, m.reihe, rwFest), true);
   }
   function rwStart(reihe) {
     if (mode !== 'reihenwahl' || !RW.istReihe(reihe)) return;
@@ -668,12 +705,13 @@
   }
 
   // ---------- Level starten ----------
-  // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl.
-  function startLevel(id, reihe) {
+  // reihe: gewählte Reihe 2..10. Fehlt sie bei einer Mathe-Stufe, kommt zuerst die Reihenwahl, dort mit
+  // vorwahl vorgewählt (optional, "Nächstes Level" gibt die zuletzt gespielte Reihe mit).
+  function startLevel(id, reihe, vorwahl) {
     meta = LV.byId(id); if (!meta) return showMenu();
     tutAus();
     if (!RW.istReihe(reihe) && RW.istReihe(dbgReihe)) reihe = dbgReihe;
-    if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id);
+    if (LV.brauchtReihenwahl(meta, jnr.options) && !RW.istReihe(reihe)) return showReihenwahl(id, vorwahl);
     if (RW.istReihe(reihe)) letzteReihe = reihe;
     // Jeder Start bekommt einen neuen Seed (auch "Nochmal"/"Level neu starten"); ?jnrSeed= erzwingt einen festen.
     var seed = (dbgSeed != null && !isNaN(dbgSeed)) ? dbgSeed : (Date.now() >>> 0);
@@ -737,27 +775,29 @@
   // ---------- Hilfe ----------
   var HILFE = '<div class="help">' +
     '<p><b>Laufen und Springen:</b> Links/rechts laufen, ▲ oder Leertaste springt. Lange drücken springt höher.</p>' +
-    '<p><b>Zahlen sammeln:</b> Vor jeder Zahlen-Stufe wählst du eine Reihe. Sammle nur ihre Ergebnisse, jede richtige Zahl gibt einen Funken ✦. Oben in der Mitte steht, wie viele du schon hast.</p>' +
+    '<p><b>Zahlen sammeln:</b> Vor jedem Zahlen-Level wählst du eine Reihe. Sammle nur ihre Ergebnisse, jede richtige Zahl gibt einen Funken ✦. Oben in der Mitte steht, wie viele du schon hast.</p>' +
     '<p><b>Energie <span style="color:#fde68a">●●●</span>:</b> Lumo hat 3 Lichtpunkte. Eine falsche Zahl, Dornen oder ein Rechenwicht von der Seite kosten einen Lichtpunkt und schubsen Lumo zurück. Danach blinkt Lumo kurz und kann nicht getroffen werden. Deine gesammelten Funken ✦ behältst du.</p>' +
     '<p><b>Rechenwicht:</b> Der kleine türkise Wicht trägt eine Tafel mit einer falschen Rechnung. Spring von oben auf ihn: Die Tafel dreht sich um, zeigt die richtige Rechnung und du bekommst einen Funken ✦. Läufst du von der Seite in ihn hinein, kostet das einen Lichtpunkt. Du kannst auch einfach über ihn springen.</p>' +
     '<p><b>Leben <span style="color:#fb7185">♥♥♥</span>:</b> Sind alle Lichtpunkte aus, ist ein Leben weg. Lumo startet dann an der letzten Laterne mit voller Energie. Ein Sturz in die Schlucht kostet sofort ein Leben.</p>' +
     '<p><b>Laternen:</b> Lauf an einer Laterne vorbei, dann leuchtet sie und du startest dort neu.</p>' +
-    '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du die Stufe in einer neuen Landschaft.</p>' +
+    '<p><b>Neue Level:</b> Hol dir in einem Level eine Medaille ★, dann geht das nächste Level auf.</p>' +
+    '<p><b>Alle Leben weg?</b> Dann ist der Lauf vorbei. Mit „Nochmal“ probierst du das Level in einer neuen Landschaft.</p>' +
     '</div>';
-  function showHilfe(back) {
-    showMsg('So spielst du', HILFE, [
-      { text: 'Verstanden', main: true, esc: true, fn: back },
-      { text: 'Tutorial nochmal spielen', fn: function () { startTutorial(tut ? tutWeiter : null); } }
-    ]);
+  // ausMenue: aus dem Menü gibt es zusätzlich "Tutorial". Aus der Level-Pause nur "Verstanden":
+  // ein Hilfeknopf darf das laufende Level nicht verwerfen (B3), das Tutorial steht im Menü.
+  function showHilfe(back, ausMenue) {
+    var btns = [{ text: 'Verstanden', main: true, fn: back }];
+    if (ausMenue) btns.push({ text: 'Tutorial', fn: function () { startTutorial(null); } });
+    showMsg('So spielst du', HILFE, btns);
   }
   $('btn-hilfe').addEventListener('click', function () {
     ensureAudio(); $('btn-hilfe').blur();
-    showHilfe(function () { $('msg').classList.add('hidden'); });
+    showHilfe(function () { $('msg').classList.add('hidden'); }, true);
   });
 
   // ---------- Mitmach-Tutorial (core/tutorial.js) ----------
   // Startet automatisch vor dem ersten Level, das das Kind im Menü wählt (TU.sollAutomatischStarten),
-  // sonst über "Tutorial nochmal spielen" in Menü und Hilfe oder ?jnrTutorial=1. Es läuft im
+  // sonst über "Tutorial" in Menü und Hilfe oder ?jnrTutorial=1. Es läuft im
   // Übungsmodus: keine Leben weg, kein XP, kein jnr:result, kein Levelfortschritt. Fertig oder
   // übersprungen setzt jnr.tutorialGesehen (standalone in henry_jnr, eingebettet per jnr:tutorial an
   // den Trainer und als Fallback in sessionStorage, siehe Vertrag in core/host.js).
@@ -828,18 +868,20 @@
     if (w) w(); else showMenu();
   }
   function tutorialUeberspringen() { markTutorialGesehen(); tutorialWeiter(); }
+  // Zwei Knöpfe (B2): vom Level gestartet "Weiter" (zur Reihenwahl dieses Levels), aus dem Menü
+  // "Zum Menü"; dazu "Nochmal". Enter und Esc lösen den Hauptknopf aus.
   function tutorialFertig() {
     setMode('won'); sfx.ziel(); markTutorialGesehen();
     keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual();
+    if (tut) tut.fertig = true;
     renderTut();
     var weiter = tutWeiter;
     setTimeout(function () {
       if (mode !== 'won' || !tut) return;
       showMsg('Tutorial geschafft!', '<p style="margin:0">' + TU.text(tut, {}) + '</p>' +
-        '<p style="margin:8px 0 0;font-size:14px;opacity:.85">Das Tutorial findest du jederzeit wieder unter „? So spielst du“.</p>', [
-        { text: weiter ? 'Jetzt richtig spielen' : 'Zur Levelauswahl', main: true, fn: tutorialWeiter },
-        { text: 'Tutorial nochmal', fn: function () { startTutorial(weiter); } },
-        { text: 'Levelauswahl', esc: true, fn: showMenu }
+        '<p style="margin:8px 0 0;font-size:14px;opacity:.85">Das Tutorial findest du jederzeit wieder im Menü unter „Tutorial“.</p>', [
+        weiter ? { text: 'Weiter', main: true, fn: tutorialWeiter } : { text: 'Zum Menü', main: true, fn: showMenu },
+        { text: 'Nochmal', fn: function () { startTutorial(weiter); } }
       ]);
     }, 900);
   }
@@ -847,7 +889,8 @@
   $('btn-tutorial').addEventListener('click', function () { ensureAudio(); $('btn-tutorial').blur(); startTutorial(null); });
 
   // ---------- Pause / Ende ----------
-  // Tastatur in Dialogen: Enter loest den Hauptknopf aus (er hat den Fokus), Esc den Knopf mit esc: true.
+  // Tastatur in Dialogen: Enter und Esc loesen den Hauptknopf aus (main, er hat den Fokus und steht
+  // zuerst); esc: true an einem anderen Knopf waere eine bewusste Ausnahme (derzeit keine).
   var msgKeys = { enter: null, esc: null };
   function showMsg(title, bodyHtml, buttons) {
     $('msg-title').textContent = title; $('msg-body').innerHTML = bodyHtml;
@@ -857,7 +900,7 @@
       var el = document.createElement('button'); el.className = 'big' + (b.main ? ' main' : ''); el.textContent = b.text;
       el.addEventListener('click', function () { ensureAudio(); el.blur(); b.fn(); });
       bb.appendChild(el);
-      if (b.main) { mainEl = el; msgKeys.enter = b.fn; }
+      if (b.main) { mainEl = el; msgKeys.enter = b.fn; if (!msgKeys.esc) msgKeys.esc = b.fn; }
       if (b.esc) msgKeys.esc = b.fn;
     });
     $('msg').classList.remove('hidden');
@@ -878,21 +921,21 @@
     setMode('pause'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {}; setBtnVisual(); stopTipp();
     showPauseMsg();
   }
+  // Tutorial-Pause ohne Hilfe (das Tutorial erklärt selbst, B10); Level-Pause mit vier Knöpfen.
   function showPauseMsg() {
     if (tut) {
       showMsg('Pause', 'Lumo wartet auf dich. Das ist das Tutorial: hier verlierst du nichts.', [
-        { text: 'Weiter', main: true, esc: true, fn: resume },
-        { text: 'Tutorial beenden', fn: tutorialUeberspringen },
-        { text: 'Tutorial neu starten', fn: function () { startTutorial(tutWeiter); } },
-        { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } }
+        { text: 'Weiter', main: true, fn: resume },
+        { text: 'Nochmal', fn: function () { startTutorial(tutWeiter); } },
+        { text: 'Überspringen', fn: tutorialUeberspringen }
       ]);
       return;
     }
     showMsg('Pause', 'Lumo wartet auf dich.', [
-      { text: 'Weiter', main: true, esc: true, fn: resume },
-      { text: 'Level neu starten', fn: nochmal },
-      { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg); } },
-      { text: 'Levelauswahl', fn: showMenu }
+      { text: 'Weiter', main: true, fn: resume },
+      { text: 'Nochmal', fn: nochmal },
+      { text: '? So spielst du', fn: function () { showHilfe(showPauseMsg, false); } },
+      { text: 'Zum Menü', fn: showMenu }
     ]);
   }
   function resume() {
@@ -901,18 +944,22 @@
     if (tut) return;
     if (!tippFertig) showTipp(0);
   }
-  // Nochmal und "Level neu starten" verhalten sich gleich: bei Mathe-Stufen über die Reihenwahl,
-  // vorgewählt ist die gerade gespielte Reihe (ein Tipp oder Enter genügt).
-  function nochmal() {
-    if (LV.brauchtReihenwahl(meta, jnr.options)) showReihenwahl(meta.id, aktReihe);
-    else startLevel(meta.id);
-  }
+  // "Nochmal" (Pause, Game Over, Geschafft) startet sofort dasselbe Level mit derselben Reihe in
+  // neuer Landschaft (neuer Seed, B5). Die Reihe wechselt das Kind über "Zum Menü" und das Level.
+  // Ohne Zahlen-Modus ist aktReihe null, dann startet das Level wie bisher ohne Reihe.
+  function nochmal() { startLevel(meta.id, aktReihe); }
+  // Stern-Zeit abgelaufen (jnr:timeup): Spiel steht, ein Knopf "Zurück zum Trainer" sendet jnr:beenden,
+  // erst dann schließt der Trainer das Overlay (B1, Vertrag core/host.js).
   function endByTime() {
     stopTipp(); tutAus();
     setMode('ended'); keys.l = keys.r = keys.j = false; padL = {}; padJ = {};
     if (actx && actx.state === 'running') actx.suspend();
     $('hud').classList.add('hidden'); $('reihenwahl').classList.add('hidden'); $('ziel-intro').classList.add('hidden');
-    showMsg('Spielzeit vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', []);
+    showMsg('Deine Stern-Zeit ist vorbei', 'Lumo macht Feierabend. Bis zum nächsten Mal!', [
+      { text: 'Zurück zum Trainer', main: true, fn: zurueckZumTrainer }
+    ]);
+    // Dialog steht: dem Trainer melden, damit er auf den Knopf wartet statt nach dem Fallback zu schließen
+    if (embedded) { try { window.parent.postMessage(H.buildZeitendeMessage(), location.origin); } catch (e) { /* kein Parent */ } }
   }
 
   // Alle Leben weg: kein XP, kein jnr:result, kein Fortschritt (vgl. rewards.shouldReport).
@@ -923,14 +970,14 @@
     var st = GM.stats(game);
     sfx.verloren();
     var cps = level.checkpoints.length, cp = game.checkpointIdx + 1;
-    var body = '<div>Lumo braucht eine Pause. So weit bist du gekommen:</div>' +
+    var body = '<div>Lumo ist ganz erschöpft. So weit bist du gekommen:</div>' +
       '<div style="margin-top:8px" class="got">✦ ' + st.funken + ' Funken</div>' +
       '<div class="got">◆ ' + st.richtig + ' von ' + st.totalGood + ' Kristallen gesammelt</div>' +
       '<div class="got">✧ ' + cp + ' von ' + cps + ' Laternen erreicht</div>' +
       '<div style="margin-top:6px;font-size:14px;opacity:.8">Mit „Nochmal“ wartet eine neue Landschaft.</div>';
     var btns = [
       { text: 'Nochmal', main: true, fn: nochmal },
-      { text: 'Zum Menü', esc: true, fn: showMenu }
+      { text: 'Zum Menü', fn: showMenu }
     ];
     setTimeout(function () { if (mode === 'lost') { $('hud').classList.add('hidden'); showMsg('Alle Leben verbraucht', body, btns); } }, 900);
   }
@@ -953,12 +1000,13 @@
       [d.fehlerfrei, 'Ohne Fehltreffer']
     ].map(function (r) { return '<div class="' + (r[0] ? 'got' : 'miss') + '">' + (r[0] ? '★' : '☆') + ' ' + r[1] + '</div>'; }).join('');
     var sek = Math.round(st.timeMs / 100) / 10;
-    rows += '<div style="margin-top:6px;font-size:14px;opacity:.8">Zeit: ' + sek + ' s · Funken: ✦ ' + st.funken +
-      (res.xp > 0 ? ' · +' + res.xp + ' XP' : '') + '</div>';
+    // Keine XP-Zeile: Lumo gibt keine XP (Marco 30.10.2026), nur Medaillen und Funken.
+    rows += '<div style="margin-top:6px;font-size:14px;opacity:.8">Zeit: ' + sek + ' s · Funken: ✦ ' + st.funken + '</div>';
     var btns = [];
-    if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next); } });
+    var gespielt = aktReihe; // zuletzt gespielte Reihe als Vorwahl der naechsten Reihenwahl (K4)
+    if (next) btns.push({ text: 'Nächstes Level', main: true, fn: function () { startLevel(next, undefined, gespielt); } });
     btns.push({ text: 'Nochmal', main: !next, fn: nochmal });
-    btns.push({ text: 'Levelauswahl', esc: true, fn: showMenu });
+    btns.push({ text: 'Zum Menü', fn: showMenu });
     setTimeout(function () { if (mode === 'won') showMsg('Geschafft!', rows, btns); }, 900);
   }
 
@@ -970,11 +1018,12 @@
       if (!m) return;
       if (m.kind === 'pause') pause();
       else if (m.kind === 'timeup') endByTime();
+      else if (m.kind === 'weiter') resume(); // Stern im Trainer eingesetzt: die Pause vom Ablauf endet
       else if (m.kind === 'init') {
         jnr = m.jnr;
         if (sitzungGesehen()) jnr.tutorialGesehen = true; // Fallback, falls der Trainer jnr:tutorial nicht kennt
         lernstand = m.lernstand;
-        if (mode === 'reihenwahl') showReihenwahl(rwLevel); // Empfehlung nachziehen
+        if (mode === 'reihenwahl') showReihenwahl(rwLevel, rwFest); // Empfehlung nachziehen
         if (mode === 'menu') { buildMenu(); if (m.level) startLevel(m.level); }
         else if (mode === 'ended' || mode === 'won' || mode === 'lost') {
           // Reset-Pfad aus einem beendeten Lauf heraus: ohne ihn bliebe das Spiel nach

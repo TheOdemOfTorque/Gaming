@@ -2,8 +2,8 @@ const H = require('../../jumpnrun/core/host.js');
 
 describe('buildResultMessage', () => {
   test('hat genau die Vertragsfelder', () => {
-    const m = H.buildResultMessage({ level: '1-2', medaillen: 3, funken: 9, xp: 70, timeMs: 1234 });
-    expect(m).toEqual({ type: 'jnr:result', level: '1-2', medaillen: 3, funken: 9, xp: 70 });
+    const m = H.buildResultMessage({ level: '1-2', medaillen: 3, funken: 9, xp: 0, timeMs: 1234 });
+    expect(m).toEqual({ type: 'jnr:result', level: '1-2', medaillen: 3, funken: 9, xp: 0 });
   });
 });
 
@@ -104,40 +104,61 @@ describe('Tutorial-Vertrag', () => {
   });
 });
 
-describe('jnr:aktiv (Stern-Zeit laeuft nur im aktiven Spiel)', () => {
+// jnr:aktiv meldet zwei Dinge (Vertrag core/host.js): aktiv = ein Level oder das Tutorial laeuft
+// (fuer das X der Trainer-Leiste), zeit = die Stern-Zeit soll laufen. Gleiche Regel wie Space Invader
+// (Marco 30.10.2026): Zeit laeuft, solange Lumo offen ist, auch im Menue und in der Reihenwahl; sie
+// steht in der Pause und in Dialogen, die das Spiel anhalten.
+describe('jnr:aktiv (aktiv im Level, zeit fuer die Stern-Zeit)', () => {
   test('buildAktivMessage hat genau die Vertragsfelder', () => {
-    expect(H.buildAktivMessage(true)).toEqual({ type: 'jnr:aktiv', aktiv: true });
-    expect(H.buildAktivMessage(false)).toEqual({ type: 'jnr:aktiv', aktiv: false });
-    expect(H.buildAktivMessage(1)).toEqual({ type: 'jnr:aktiv', aktiv: true });
+    expect(H.buildAktivMessage(true, true)).toEqual({ type: 'jnr:aktiv', aktiv: true, zeit: true });
+    expect(H.buildAktivMessage(false, true)).toEqual({ type: 'jnr:aktiv', aktiv: false, zeit: true });
+    expect(H.buildAktivMessage(false, false)).toEqual({ type: 'jnr:aktiv', aktiv: false, zeit: false });
+    expect(H.buildAktivMessage(1, 0)).toEqual({ type: 'jnr:aktiv', aktiv: true, zeit: false });
   });
 
-  test('nur mode play (Level oder Tutorial) ist aktiv', () => {
+  test('aktiv ist nur mode play (Level oder Tutorial)', () => {
     expect(H.istAktiv('play')).toBe(true);
     ['menu', 'reihenwahl', 'pause', 'won', 'lost', 'ended', undefined].forEach((m) => {
       expect(H.istAktiv(m)).toBe(false);
     });
   });
 
-  test('Melder sendet nur bei einem Wechsel, auf Wunsch den aktuellen Stand erneut', () => {
+  test('Stern-Zeit laeuft in Menue, Reihenwahl und Spiel, steht in Pause und Dialogen', () => {
+    ['menu', 'reihenwahl', 'play'].forEach((m) => expect(H.zeitLaeuft(m)).toBe(true));
+    ['pause', 'won', 'lost', 'ended', undefined].forEach((m) => expect(H.zeitLaeuft(m)).toBe(false));
+  });
+
+  test('Melder sendet bei jedem Wechsel von aktiv oder zeit, auf Wunsch den aktuellen Stand erneut', () => {
     const sent = [];
     const m = H.createAktivMelder((msg) => sent.push(msg));
     m.melde('menu');               // erster Stand wird immer gemeldet
     m.melde('menu');
-    m.melde('reihenwahl');         // weiter nicht aktiv: nichts
+    m.melde('reihenwahl');         // gleicher Stand wie im Menue: nichts
+    m.melde('play');               // aktiv wechselt
     m.melde('play');
-    m.melde('play');
-    m.melde('pause');
-    m.melde('pause', true);        // z.B. als Antwort auf jnr:init
+    m.melde('pause');              // aktiv und zeit wechseln
+    m.melde('won');                // gleicher Stand wie in der Pause: nichts
+    m.melde('won', true);          // z.B. als Antwort auf jnr:init
+    m.melde('menu');               // zeit wechselt
     expect(sent).toEqual([
-      { type: 'jnr:aktiv', aktiv: false },
-      { type: 'jnr:aktiv', aktiv: true },
-      { type: 'jnr:aktiv', aktiv: false },
-      { type: 'jnr:aktiv', aktiv: false },
+      { type: 'jnr:aktiv', aktiv: false, zeit: true },
+      { type: 'jnr:aktiv', aktiv: true, zeit: true },
+      { type: 'jnr:aktiv', aktiv: false, zeit: false },
+      { type: 'jnr:aktiv', aktiv: false, zeit: false },
+      { type: 'jnr:aktiv', aktiv: false, zeit: true },
     ]);
   });
 
   test('das Spiel versteht jnr:aktiv nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
     expect(H.parseHostMessage({ type: 'jnr:aktiv', aktiv: true })).toBeNull();
+  });
+});
+
+// Neue Stern-Zeit nach Ablauf (Stern eingesetzt im Trainer): der Trainer schickt jnr:weiter, Lumo
+// setzt eine Pause fort, die der Trainer beim Ablauf ausgeloest hat.
+describe('jnr:weiter (nach "Stern einsetzen & weiterspielen")', () => {
+  test('wird als Host-Nachricht erkannt', () => {
+    expect(H.parseHostMessage({ type: 'jnr:weiter' })).toEqual({ kind: 'weiter' });
   });
 });
 
@@ -153,5 +174,18 @@ describe('debugErlaubt (window.__jnr nur mit Debug-Parameter)', () => {
     ['?jnrDebug=1', '?jnrLevel=1-2', '?jnrSeed=3', '?jnrReihe=7', '?jnrTutorial=1', 'jnrDebug=1', '?a=1&jnrSeed=1'].forEach((q) => {
       expect(H.debugErlaubt(q)).toBe(true);
     });
+  });
+});
+
+describe('jnr:beenden (Lumo verlassen, Zurueck zum Trainer)', () => {
+  test('buildBeendenMessage hat genau die Vertragsfelder', () => {
+    expect(H.buildBeendenMessage()).toEqual({ type: 'jnr:beenden' });
+  });
+  test('das Spiel versteht jnr:beenden nicht als Host-Nachricht (Richtung Spiel -> Trainer)', () => {
+    expect(H.parseHostMessage({ type: 'jnr:beenden' })).toBeNull();
+  });
+  test('buildZeitendeMessage bestaetigt jnr:timeup (Dialog steht), ebenfalls nur Richtung Trainer', () => {
+    expect(H.buildZeitendeMessage()).toEqual({ type: 'jnr:zeitende' });
+    expect(H.parseHostMessage({ type: 'jnr:zeitende' })).toBeNull();
   });
 });

@@ -634,8 +634,10 @@
   }
 
   // ===== XP, Stufen, Seeds =====
-  var BASIS_XP = { 1: 80, 2: 120, 3: 170, 4: 230, 5: 300 };
-  var TAGES_CAP = 600;
+  // Marco 30.10.2026: hoechstens ein Drittel einer Trainingsreihe pro Tag (eine Reihe mit 20 richtigen
+  // bringt 328 XP), pro Raetsel 30 bis 100 je Stufe. Tipps und Tagesraetsel wirken wie bisher.
+  var BASIS_XP = { 1: 30, 2: 40, 3: 55, 4: 75, 5: 100 };
+  var TAGES_CAP = 110;
   function computeKnobelXP(opt, tagesXpBisher) {
     var basis = BASIS_XP[opt.stufe] || 0;
     var f = Math.max(0.4, 1 - 0.2 * (opt.tipps || 0));

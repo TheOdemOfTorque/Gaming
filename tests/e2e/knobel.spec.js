@@ -27,7 +27,7 @@ test.describe('Knobelwerkstatt', () => {
     page.on('pageerror', e => fehler.push(e.message));
     await page.goto('/knobel/index.html');
     await expect(page.locator('h1')).toHaveText('Knobelwerkstatt');
-    await expect(page.locator('#xpinfo')).toContainText('600');
+    await expect(page.locator('#xpinfo')).toContainText('110');
     await page.locator('#start-mauer').click();
     // Erster Start dieses Modus: Mitmach-Tutorial geht dem Raetsel voraus.
     await expect(page.locator('#tutorial')).toBeVisible();
@@ -43,10 +43,10 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#board.mauer')).toBeVisible();
     await loeseAktuelles(page);
     await expect(page.locator('#solved')).toBeVisible();
-    await expect(page.locator('#s-xp')).toHaveText('+80 XP');
+    await expect(page.locator('#s-xp')).toHaveText('+30 XP');
     const s = await page.evaluate(() => JSON.parse(localStorage.getItem('henry_knobel')));
     expect(s.geloest.mauer).toBe(1);
-    expect(s.tagesXp.xp).toBe(80);
+    expect(s.tagesXp.xp).toBe(30);
     expect(s.laufend).toBeNull();
     // der Trainer-Speicher bleibt unberuehrt
     expect(await page.evaluate(() => localStorage.getItem('henry_einmaleins'))).toBeNull();
@@ -59,7 +59,7 @@ test.describe('Knobelwerkstatt', () => {
     await expect(page.locator('#t-hint')).toContainText('(1)');
     await loeseAktuelles(page);
     await expect(page.locator('#solved')).toBeVisible();
-    await expect(page.locator('#s-xp')).toHaveText('+96 XP');
+    await expect(page.locator('#s-xp')).toHaveText('+32 XP');
   });
 
   test('Fortschritt ueberlebt Neuladen', async ({ page }) => {
@@ -104,7 +104,7 @@ test.describe('Knobelwerkstatt', () => {
     await expect.poll(() => page.evaluate(() => window.__msgs.length)).toBe(1);
     const msgs = await page.evaluate(() => window.__msgs);
     expect(msgs).toHaveLength(1);
-    expect(msgs[0]).toMatchObject({ type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 80, seed: 1 });
+    expect(msgs[0]).toMatchObject({ type: 'knobel:result', mode: 'mauer', stufe: 1, tipps: 0, xp: 30, seed: 1 });
   });
 
   test('Weiter nach dem Loesen bleibt auf der gespielten Stufe, nicht der Empfehlung', async ({ page }) => {

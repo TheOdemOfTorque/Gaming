@@ -133,5 +133,44 @@
     return { von: von, bis: bis };
   }
 
-  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos, strecke: strecke, LANDUNG: LANDUNG, MIN_STRECKE: MIN_STRECKE };
+  // Statische Geometrie fuer die Spielbarkeits-Tests (tests/unit/jnr-sections.test.js, jnr-levels.test.js)
+  // und scripts/jnr-messen.js. Das sind notwendige Bedingungen gegen die vermessene Sprungweite und
+  // -hoehe des Bots (core/solver.js sprungmass); hinreichend ist erst der unsterbliche Bot-Lauf.
+  // Profil = oberste feste Kachel je Spalte (null: Abgrund-Spalte). Ergebnis:
+  //   luecken: Breiten der zusammenhaengenden Abgrund-Spalten in Kacheln
+  //   stufen: Hoehenwechsel in Laufrichtung zwischen aufeinanderfolgenden Standflaechen, auch ueber eine
+  //           Luecke hinweg (positiv = Anstieg in Kacheln, negativ = Abstieg, 0 entfaellt)
+  //   kristallHoehen: je Kristallplatz (Reihenfolge wie crystalSlots) die Kacheln Luft zwischen Kristall
+  //           und dem festen Boden darunter in seiner Spalte (0 = liegt auf), Infinity ohne Boden
+  //   startFrei: die Figur steht am Start weder in einer festen Kachel noch auf Dornen, Federpilz oder
+  //           der Laufstrecke eines Wichts
+  function geometrie(level) {
+    var w = level.w, h = level.h;
+    function solidAt(x, y) { return x >= 0 && x < w && y >= 0 && y < h && level.solid[y * w + x] === 1; }
+    var profil = [], x, y;
+    for (x = 0; x < w; x++) {
+      var t = null;
+      for (y = 0; y < h; y++) if (solidAt(x, y)) { t = y; break; }
+      profil.push(t);
+    }
+    var luecken = [], stufen = [], prev = null, lauf = 0;
+    for (x = 0; x < w; x++) {
+      if (profil[x] === null) { lauf++; continue; }
+      if (lauf) { luecken.push(lauf); lauf = 0; }
+      if (prev !== null && profil[x] !== prev) stufen.push(prev - profil[x]);
+      prev = profil[x];
+    }
+    if (lauf) luecken.push(lauf);
+    var kristallHoehen = level.crystalSlots.map(function (s) {
+      for (var yy = s.ty + 1; yy < h; yy++) if (solidAt(s.tx, yy)) return yy - s.ty - 1;
+      return Infinity;
+    });
+    var st = level.start;
+    function on(list) { for (var i = 0; i < list.length; i++) if (list[i].tx === st.tx && list[i].ty === st.ty) return true; return false; }
+    var aufStrecke = (level.enemies || []).some(function (e) { return e.ty === st.ty && st.tx >= e.von && st.tx <= e.bis; });
+    var startFrei = !C.overlapsSolid(level, st.x, st.y, P.W, P.H) && !on(level.spikes) && !on(level.springs) && !aufStrecke;
+    return { profil: profil, luecken: luecken, stufen: stufen, kristallHoehen: kristallHoehen, startFrei: startFrei };
+  }
+
+  return { CHARS: CHARS, parseLevel: parseLevel, standPos: standPos, strecke: strecke, geometrie: geometrie, LANDUNG: LANDUNG, MIN_STRECKE: MIN_STRECKE };
 });
