@@ -176,7 +176,12 @@
     /* TRAINING MODAL */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-end; justify-content: center; }
     .modal-overlay.active { display: flex; }
-    .modal-sheet { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px 24px 0 0; padding: 20px 16px 40px; width: 100%; max-width: 480px; animation: slideUp 0.3s ease; }
+    /* Querformat (z.B. 844x390): Sheet darf nie höher als der Viewport sein, sonst läuft es
+       über die fixe Overlay hinaus und Titel bzw. Startknopf sind unerreichbar. Deshalb Höhenkappe
+       plus eigenes Scrollen. Das Padding unten (40px) deckt den Home-Indikator (safe-area-inset-bottom,
+       max. 34px) bereits ab; es wird bewusst nicht addiert, damit sich das Hochformat nicht verschiebt. */
+    .modal-sheet { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px 24px 0 0; padding: 20px 16px 40px; width: 100%; max-width: 480px; animation: slideUp 0.3s ease;
+      max-height: 100vh; max-height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .modal-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 16px; text-align: center; }
     .reihe-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
@@ -444,13 +449,14 @@
       opacity: 0.55;
     }
     .game-card-icon { font-size: 1.4rem; }
-    .game-card-title { font-size: 0.7rem; font-weight: 800; }
-    .game-card-sub { font-size: 0.58rem; color: rgba(255,255,255,0.45); line-height: 1.2; }
+    .game-card-title { font-size: 0.8rem; font-weight: 800; hyphens: auto; } /* 320px: "Knobelwerkstatt" lief sonst aus der Karte */
+    .game-card-sub { font-size: 0.75rem; color: rgba(255,255,255,0.7); line-height: 1.3; }
     .game-card-btn {
       background: linear-gradient(135deg, #F59E0B, #EF4444);
       border: none; border-radius: 8px; color: #fff;
       font-weight: 800; font-size: 0.66rem;
-      padding: 6px 10px; cursor: pointer; -webkit-appearance: none; margin-top: 2px;
+      padding: 6px 10px; cursor: pointer; -webkit-appearance: none; margin-top: auto;
+      /* margin-top:auto: Knöpfe bleiben bei unterschiedlich langen Untertiteln auf einer Linie */
     }
     .game-card-btn:active { transform: scale(0.95); }
     .game-card-btn:disabled { opacity: 0.35; cursor: default; }
