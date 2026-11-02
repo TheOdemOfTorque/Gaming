@@ -1,5 +1,11 @@
 const { test, expect } = require('@playwright/test');
 
+// Diese Datei prüft die App samt Service Worker. Die globale Einstellung serviceWorkers: 'block'
+// (nötig für page.route() in den gemockten Multiplayer-Tests) lässt navigator.serviceWorker.register()
+// mit undefined auflösen: index.html ruft dann reg.update() auf undefined auf, und der „Service Worker
+// registriert“-Test kann nie grün werden. Hier läuft der echte Service Worker (nur localhost).
+test.use({ serviceWorkers: 'allow' });
+
 // Top-level: no beforeEach — listeners are attached before any navigation.
 test('App lädt ohne Console-Errors', async ({ page }) => {
   const errors = [];
