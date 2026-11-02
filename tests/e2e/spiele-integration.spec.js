@@ -509,12 +509,25 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   const tr = (page) => page.evaluate(() => ({ sek: state.gameSecondsLeft, stars: state.stars, dialog: sternDialogFuer,
     timer: !!starTimerInterval, modal: document.getElementById('star-expired-modal').classList.contains('active') }));
 
+  // Letzte Sekunde ohne Timing-Rennen: Der Stern-Timer tickt alle 200 ms und würde die Sekunde
+  // schon zwischen zwei Playwright-Aufrufen verbuchen (Dialog fängt dann den Klick ab). Deshalb wartet
+  // dies auf einen frischen Takt (der nächste ist 200 ms weg), setzt die Werte und löst die Aktion im
+  // selben Task aus. starTimerLetzterMs liegt 100 ms zurück, damit das Verbuchen der Aktion die
+  // Sekunde sicher vollmacht. Beim Wechsel/Stopp (Aktion) kommt der Ablauf also nur von ihr, nie vom Takt.
+  const inDerLetztenSekunde = (page, sammelMs, aktion) => page.evaluate(async ({ sammelMs, src }) => {
+    const vorher = starTimerLetzterMs;
+    await new Promise((fertig) => {
+      const t = setInterval(() => { if (starTimerLetzterMs !== vorher) { clearInterval(t); fertig(); } }, 2);
+    });
+    state.gameSecondsLeft = 1; starTimerSammelMs = sammelMs; starTimerLetzterMs = performance.now() - 100;
+    new Function('return (' + src + ')()')();
+  }, { sammelMs, src: String(aktion) });
+
   test('Space Invader in der letzten Sekunde verlassen: kein Stern-Dialog auf dem Startbildschirm', async ({ page }) => {
     await seedState(page, { gameSecondsLeft: 600, stars: 1 });
     await page.locator('.game-card[data-game="invader"] button').click();
     await page.waitForTimeout(500);
-    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 990; });
-    await page.evaluate(() => exitInvaderScreen());
+    await inDerLetztenSekunde(page, 990, () => exitInvaderScreen());
     await page.waitForTimeout(1500);
     await expect(page.locator('#screen-home')).toHaveClass(/active/);
     expect(await tr(page)).toEqual({ sek: 0, stars: 1, dialog: null, timer: false, modal: false });
@@ -528,8 +541,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await seedState(page, { gameSecondsLeft: 600, stars: 1 });
     await page.locator('.game-card[data-game="invader"] button').click();
     await page.waitForTimeout(500);
-    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 990; });
-    await page.evaluate(() => showPause());
+    await inDerLetztenSekunde(page, 990, () => showPause());
     await page.waitForTimeout(600);
     expect(await tr(page)).toMatchObject({ sek: 0, stars: 1, dialog: null, modal: false });
     expect(await page.evaluate(() => invState)).toBe('paused');
@@ -550,8 +562,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await page.locator('.game-card[data-game="jnr"] button').click();
     await expect(page.frameLocator('#game-frame').locator('#menu')).toBeVisible();
     await page.waitForTimeout(500);
-    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 990; });
-    await page.evaluate(() => closeGame());
+    await inDerLetztenSekunde(page, 990, () => closeGame());
     await page.waitForTimeout(1500);
     expect(await tr(page)).toEqual({ sek: 0, stars: 1, dialog: null, timer: false, modal: false });
     expect(await page.evaluate(() => currentGame)).toBeNull();
@@ -567,8 +578,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await frame.locator('#rw-los').click();
     await expect(frame.locator('#hud')).toBeVisible();
     await expect.poll(() => page.evaluate(() => lumoAktiv.aktiv)).toBe(true);
-    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 990; });
-    await frame.locator('#btn-pause').click();
+    await inDerLetztenSekunde(page, 990, () => document.getElementById('game-frame').contentDocument.getElementById('btn-pause').click());
     await expect(frame.locator('#msg-title')).toHaveText('Pause');
     await page.waitForTimeout(600);
     expect(await tr(page)).toMatchObject({ sek: 0, stars: 1, dialog: null, timer: false, modal: false });
@@ -631,9 +641,7 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
     await seedState(page, { gameSecondsLeft: 600, stars: 1 });
     await page.locator('.game-card[data-game="invader"] button').click();
     await page.waitForTimeout(500);
-    await page.evaluate(() => { state.gameSecondsLeft = 1; starTimerSammelMs = 999; lives = 1; puShield = 0; });
-    await page.waitForTimeout(30);
-    await page.evaluate(() => onHit());
+    await inDerLetztenSekunde(page, 999, () => { lives = 1; puShield = 0; onHit(); });
     await expect(page.locator('#goOv')).toHaveClass(/show/, { timeout: 4000 });
     expect(await tr(page)).toMatchObject({ sek: 0, stars: 1, dialog: null, modal: false });
     await page.locator('#goSkip').click();
