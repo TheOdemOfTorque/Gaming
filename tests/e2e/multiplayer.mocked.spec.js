@@ -79,11 +79,21 @@ async function loginMocked(page, stateOverride = {}) {
 
 // Netz-Sicherung: Playwright wertet die zuletzt registrierte Route zuerst aus. beforeEach läuft vor
 // den Routen der Tests, deshalb fängt dieses Fallback nur Aufrufe ab, die kein Test und kein
-// Base-Mock beantwortet. Sie scheitern laut (501) statt den echten Worker zu erreichen.
+// Base-Mock beantwortet. Sie erreichen nie den echten Worker (501). Weil die App fehlgeschlagene
+// Fetches still abfängt, sammelt das Fallback sie, und afterEach lässt den Test daran scheitern.
+// Ein Test, der einen Fehlerfall braucht, mockt ihn ausdrücklich.
+let unmocked = [];
 test.beforeEach(async ({ page }) => {
-  await page.route(`${API_HOST}/**`, route =>
-    route.fulfill({ status: 501, contentType: 'application/json',
-      body: JSON.stringify({ error: 'nicht gemockt: ' + route.request().method() + ' ' + new URL(route.request().url()).pathname }) }));
+  unmocked = [];
+  await page.route(`${API_HOST}/**`, route => {
+    const u = new URL(route.request().url());
+    unmocked.push(route.request().method() + ' ' + u.pathname);
+    return route.fulfill({ status: 501, contentType: 'application/json',
+      body: JSON.stringify({ error: 'nicht gemockt' }) });
+  });
+});
+test.afterEach(() => {
+  expect(unmocked, 'Worker-Aufrufe ohne Mock').toEqual([]);
 });
 
 test.describe('Issue #20 — Rangliste-Race', () => {

@@ -4,6 +4,8 @@ const { test, expect } = require('@playwright/test');
 // (nötig für page.route() in den gemockten Multiplayer-Tests) lässt navigator.serviceWorker.register()
 // mit undefined auflösen: index.html ruft dann reg.update() auf undefined auf, und der „Service Worker
 // registriert“-Test kann nie grün werden. Hier läuft der echte Service Worker (nur localhost).
+// Achtung: Unter 'allow' greift page.route() nicht für Requests, die der Service Worker selbst stellt.
+// Tests mit Netz-Mocks gehören deshalb nicht in diese Datei.
 test.use({ serviceWorkers: 'allow' });
 
 // Top-level: no beforeEach — listeners are attached before any navigation.

@@ -514,6 +514,8 @@ test.describe('Spiele-Integration (Knobelwerkstatt + Lumo)', () => {
   // dies auf einen frischen Takt (der nächste ist 200 ms weg), setzt die Werte und löst die Aktion im
   // selben Task aus. starTimerLetzterMs liegt 100 ms zurück, damit das Verbuchen der Aktion die
   // Sekunde sicher vollmacht. Beim Wechsel/Stopp (Aktion) kommt der Ablauf also nur von ihr, nie vom Takt.
+  // Die Aktion läuft als Quelltext im Browser (new Function): sie darf keine Variablen aus dem Test
+  // (Closures) nutzen, nur Globals der Seite und feste Werte.
   const inDerLetztenSekunde = (page, sammelMs, aktion) => page.evaluate(async ({ sammelMs, src }) => {
     const vorher = starTimerLetzterMs;
     await new Promise((fertig) => {
