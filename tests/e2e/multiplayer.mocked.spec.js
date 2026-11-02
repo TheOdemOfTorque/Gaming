@@ -50,6 +50,11 @@ function loggedInMpState(over = {}) {
 // ist optional und wird NUR aufgerufen wenn der Test keine eigenen Routen
 // registriert hat (sessions / fallback-Endpoints).
 async function setupBaseMocks(page) {
+  // mpCheckPendingChallenges holt eingehend UND ausgehend per Promise.all. Ohne Mock für
+  // /outgoing ging der Aufruf an den echten Worker (oder scheiterte bei gesperrtem Netz, dann
+  // fehlte das ganze Ergebnis). Tests mit eigenem /pending-Mock brauchen hier nichts zu tun.
+  await page.route(/\/api\/challenges\/outgoing$/, route =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ challenges: [] }) }));
   await page.route(`${API_HOST}/api/sessions`, route =>
     route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
   await page.route(`${API_HOST}/api/progress`, route =>
@@ -71,6 +76,15 @@ async function loginMocked(page, stateOverride = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Netz-Sicherung: Playwright wertet die zuletzt registrierte Route zuerst aus. beforeEach läuft vor
+// den Routen der Tests, deshalb fängt dieses Fallback nur Aufrufe ab, die kein Test und kein
+// Base-Mock beantwortet. Sie scheitern laut (501) statt den echten Worker zu erreichen.
+test.beforeEach(async ({ page }) => {
+  await page.route(`${API_HOST}/**`, route =>
+    route.fulfill({ status: 501, contentType: 'application/json',
+      body: JSON.stringify({ error: 'nicht gemockt: ' + route.request().method() + ' ' + new URL(route.request().url()).pathname }) }));
+});
 
 test.describe('Issue #20 — Rangliste-Race', () => {
   // Hinweis: endGame() ist nicht direkt aus page.evaluate aufrufbar, weil
