@@ -89,6 +89,6 @@ All games are designed for both desktop and iOS:
 ## Working rules for agents
 
 - Never commit credentials, PINs or tokens. The repository is public.
-- Do not merge or push to `origin`; Marco validates and merges himself.
+- Never push to `main` without Marco's approval. Feature and work branches may go to `origin` after a scan for secrets, private paths, hostnames and IPs. Merge only after Marco has validated and given the signal.
 - Develop on feature branches in worktrees under `.worktrees/` (ignored by Jest).
 - A branch is reviewed by a second agent before Marco merges it; the review result goes into the night report.
