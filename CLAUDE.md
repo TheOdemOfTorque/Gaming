@@ -23,11 +23,12 @@ The trainer embeds Knobelwerkstatt and Lumo via iframe, so serve from the repo r
 npm install                                  # once; installs Jest and Playwright
 npx playwright install chromium firefox      # once; browsers for the E2E projects
 npm run test:unit      # Jest, tests/unit/*.test.js (pure logic, no browser)
-npx playwright test --grep-invert multiplayer.spec   # E2E without the production backend (own http.server on port 8080)
+npm run test:e2e       # Playwright, localhost only (own http.server on port 8080)
 ```
 
 - Jest ignores `tests/e2e/` and `.worktrees/` via the `jest` block in `package.json`.
-- `npm run test:e2e` runs every spec, including `tests/e2e/multiplayer.spec.js`, which writes to the real multiplayer backend. Use the `--grep-invert` form above by default; `multiplayer.mocked.spec.js` uses `page.route` mocks instead.
+- The default E2E run reaches only localhost: `playwright.config.js` sends every other host to a closed proxy port, and `tests/e2e/netz-sperre.spec.js` checks that. `multiplayer.mocked.spec.js` uses `page.route` mocks.
+- `tests/e2e/multiplayer.spec.js` writes to the real multiplayer backend and is skipped by default. Run it only on purpose with `PW_PROD=1 npx playwright test multiplayer.spec`.
 - New features and bug fixes are developed test-first (red test, then the fix).
 
 ## Projects
