@@ -28,7 +28,7 @@ npm run test:e2e       # Playwright, localhost only (own http.server on port 808
 
 - Jest ignores `tests/e2e/` and `.worktrees/` via the `jest` block in `package.json`.
 - The default E2E run reaches only localhost: `playwright.config.js` sends every other host to a closed proxy port, and `tests/e2e/netz-sperre.spec.js` checks that. `multiplayer.mocked.spec.js` uses `page.route` mocks.
-- `tests/e2e/multiplayer.spec.js` writes to the real multiplayer backend and is skipped by default. Run it only on purpose with `PW_PROD=1 npx playwright test multiplayer.spec`.
+- `tests/e2e/multiplayer.spec.js` writes to the real multiplayer backend and is skipped by default. Run it only on purpose and always with the file filter: `PW_PROD=1 npx playwright test multiplayer.spec` (without the filter the whole suite runs without the host lock).
 - New features and bug fixes are developed test-first (red test, then the fix).
 
 ## Projects
