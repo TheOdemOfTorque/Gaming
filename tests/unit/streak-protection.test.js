@@ -131,3 +131,14 @@ describe('computeStreakProtection — Reinheit', () => {
     expect(s).toEqual(snapshot);
   });
 });
+
+describe('computeStreakProtection — Zeitumstellung', () => {
+  test('gestern wird als Kalendertag bestimmt, auch am 25-Stunden-Tag der Winterzeit', () => {
+    const today = new Date(2026, 9, 25).toDateString();      // So 25.10.2026, Umstellung um 3 Uhr
+    const yesterday = new Date(2026, 9, 24).toDateString();
+    const s = makeState({ lastPlayDate: yesterday });
+    const r = computeStreakProtection(s, today);
+    expect(r.broken).toBe(false);
+    expect(r.state.streak).toBe(5);
+  });
+});

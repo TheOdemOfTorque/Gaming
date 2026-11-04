@@ -18,7 +18,7 @@ function mulberry32(seed) {
 function initSeededRNG(seed) { _rng = mulberry32(seed); }
 function resetRNG()           { _rng = function () { return Math.random(); }; }
 
-var STATE_VERSION = 11;
+var STATE_VERSION = 13;
 // Recalibrated 2026-05-16: 3× alte Werte, damit ein Stern ~25-30 min Spielzeit kostet.
 var STAR_COSTS = [2400, 4200, 6000, 8400];
 
@@ -59,7 +59,7 @@ function defaultQS() { return { correct: 0, wrong: 0, consecutiveCorrect: 0 }; }
 
 function defaultState() {
   return { _version: STATE_VERSION, name: '', xp: 0, achievements: [], totalCorrect: 0, totalGames: 0,
-           streak: 0, lastPlayDate: null,
+           streak: 0, lastPlayDate: null, lastRoundDate: null,
            highScores: { blitz: 0, turnier: 0, blitzListe: [],
                          blitzDiv: 0, blitzGemischt: 0,
                          turnierDiv: 0, turnierGemischt: 0 },
@@ -73,7 +73,14 @@ function defaultState() {
            mp: { enabled: false, groupCode: null, nickname: null,
                  pinHash: null, token: null, pendingUploads: [],
                  lastSeedDate: null, lastSeed: null, lastChallengeId: null },
-           changelogSeenVersion: null };
+           changelogSeenVersion: null,
+           // v12: knobel/jnr müssen hier mit rein — defaultState() setzt _version
+           // direkt auf STATE_VERSION, migrateState() würde die v11→v12-Migration
+           // für einen Neuinstall also nie laufen lassen.
+           knobel: { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } },
+           jnr: { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
+                  options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+                  tutorialGesehen: false } };
 }
 
 var STATE_MIGRATIONS = [
@@ -186,6 +193,28 @@ var STATE_MIGRATIONS = [
     }
     return s;
   },
+  // v11 → v12: state.knobel (Tagescap-Spiegel + empfohlene Stufen) und
+  // state.jnr (Spiegel von JNR.rewards.defaultJnr() — literal statt Laufzeit-
+  // Abhängigkeit, damit logic.js dependency-frei bleibt).
+  (s) => {
+    if (!s.knobel) s.knobel = { tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } };
+    if (!s.jnr) {
+      // tutorialGesehen: Lumos Mitmach-Tutorial (jnr:tutorial). Nur fuer neu angelegte jnr; ein bestehendes
+      // jnr ohne das Feld (v12/v13-Staende) bleibt unangetastet. Den Default false liefert dann
+      // JNR.rewards.sanitizeJnr beim Lesen von jnr:init im Spiel.
+      s.jnr = { v: 1, levels: {}, lastLevel: null, funkenTotal: 0, xpAwarded: {},
+                options: { steuerung: 'standard', mathe: 'ziel', farbhilfe: true, musik: true },
+                tutorialGesehen: false };
+    }
+    return s;
+  },
+  // v12 → v13: lastRoundDate (nur endGame() bei gezählter Runde). Fehlt es,
+  // bleibt die Knobelwerkstatt bis zur nächsten Runde gesperrt; lastPlayDate
+  // wird bewusst nicht übernommen (Streak-Schutz setzt es ohne Runde).
+  (s) => {
+    if (s.lastRoundDate === undefined) s.lastRoundDate = null;
+    return s;
+  },
 ];
 
 function migrateState(s) {
@@ -194,6 +223,9 @@ function migrateState(s) {
     s = STATE_MIGRATIONS[v](s) || s;
   }
   s._version = STATE_VERSION;
+  // achievements gab es schon vor STATE_MIGRATIONS[0] — ein kaputter/unvollständiger
+  // Spielstand ohne dieses Feld lässt sonst updateHomeUI() crashen (state.achievements.length).
+  if (!Array.isArray(s.achievements)) s.achievements = [];
   return s;
 }
 
@@ -259,12 +291,73 @@ function generateTrainingSequence(questionStats, settings, reihen) {
     const maxF = getMaxFactor(settings, r);
     const requiredCount = Math.min(maxF, share);
     const required = shuffle(Array.from({ length: maxF }, (_, i) => i + 1)).slice(0, requiredCount);
-    const extras = Array.from({ length: Math.max(0, share - requiredCount) },
-                              () => pickWeightedFactor(questionStats, r, maxF));
+    // Kein Faktor öfter als ⌈share/2⌉-mal, sonst lässt er sich nicht ohne direkte Wiederholung anordnen
+    const maxJeFaktor = Math.ceil(share / 2);
+    const anzahl = {};
+    required.forEach(b => { anzahl[b] = 1; });
+    const extras = [];
+    for (let i = 0; i < share - requiredCount; i++) {
+      let b = pickWeightedFactor(questionStats, r, maxF);
+      if ((anzahl[b] || 0) >= maxJeFaktor) b = required.find(f => anzahl[f] < maxJeFaktor) ?? b;
+      anzahl[b] = (anzahl[b] || 0) + 1;
+      extras.push(b);
+    }
     [...required, ...extras].forEach(b => pairs.push({ a: r, b }));
   });
 
-  return shuffle(pairs);
+  return ordneOhneDirekteWiederholung(shuffle(pairs));
+}
+
+// Ordnet {a,b}-Paare so an, dass nie dasselbe Paar direkt hintereinander kommt (Marco, 26.10.2026).
+// Jede Position wird zufällig gezogen, gewichtet nach Restanzahl (wie ein shuffle), aber nur unter
+// Paaren, nach denen der Rest noch lösbar bleibt: Bei Rest m und zuletzt gesetztem Paar k darf kein
+// Paar öfter als ⌈m/2⌉-mal übrig sein, k selbst höchstens ⌊m/2⌋-mal. Unlösbare Eingaben (ein Paar
+// öfter als ⌈n/2⌉-mal) werden bestmöglich angeordnet. Tests: tests/unit/training-sequence.test.js
+function ordneOhneDirekteWiederholung(pairs) {
+  const gruppen = new Map();
+  pairs.forEach(p => {
+    const k = p.a + 'x' + p.b;
+    if (!gruppen.has(k)) gruppen.set(k, []);
+    gruppen.get(k).push(p);
+  });
+  const loesbar = (k, rest) => {
+    for (const [j, g] of gruppen) {
+      const n = g.length - (j === k ? 1 : 0);
+      if (n > (j === k ? Math.floor(rest / 2) : Math.ceil(rest / 2))) return false;
+    }
+    return true;
+  };
+  const out = [];
+  let letzte = null;
+  while (out.length < pairs.length) {
+    const rest = pairs.length - out.length - 1;
+    const offen = [...gruppen.entries()].filter(([, g]) => g.length > 0);
+    const erlaubt = offen.filter(([k]) => k !== letzte);
+    const sicher = erlaubt.filter(([k]) => loesbar(k, rest));
+    let kandidaten = sicher;
+    if (!kandidaten.length) {
+      // Unlösbar: das häufigste erlaubte Paar zuerst abbauen, notfalls eine Wiederholung
+      const pool = erlaubt.length ? erlaubt : offen;
+      const max = Math.max(...pool.map(([, g]) => g.length));
+      kandidaten = pool.filter(([, g]) => g.length === max);
+    }
+    const summe = kandidaten.reduce((t, [, g]) => t + g.length, 0);
+    let r = _rng() * summe, wahl = kandidaten[kandidaten.length - 1];
+    for (const e of kandidaten) { r -= e[1].length; if (r < 0) { wahl = e; break; } }
+    out.push(wahl[1].pop());
+    letzte = wahl[0];
+  }
+  return out;
+}
+
+// Zieht eine Blitz- oder Marathon-Aufgabe neu, solange sie der letzten gleicht (gleiches a und b).
+// Nach maxVersuche wird das zuletzt gezogene Paar genommen (nur bei einem Pool aus einem Paar
+// denkbar). Tests: tests/unit/random-helpers.test.js
+function zieheOhneWiederholung(ziehen, letzte, maxVersuche = 20) {
+  let q = ziehen();
+  if (!letzte) return q;
+  for (let i = 1; i < maxVersuche && q.a === letzte.a && q.b === letzte.b; i++) q = ziehen();
+  return q;
 }
 
 function pickBlitzReihe(blitzConfig, maxReihe) {
@@ -363,8 +456,10 @@ function computeStreakProtection(state, todayStr) {
   if ((state.streak || 0) < 1) return noop;
   if (state.lastPlayDate === todayStr) return noop;
 
-  const dayMs = 86400000;
-  const yesterdayStr = new Date(Date.now() - dayMs).toDateString();
+  // Kalendertag statt "jetzt minus 24 h": an Zeitumstellungstagen (25 h) laege das sonst noch auf heute.
+  const y = new Date(todayStr);
+  y.setDate(y.getDate() - 1);
+  const yesterdayStr = y.toDateString();
   if (state.lastPlayDate === yesterdayStr) return noop;
 
   // Lücke: heute ≠ gestern relativ zum lastPlayDate.
@@ -381,6 +476,247 @@ function computeStreakProtection(state, todayStr) {
   // 0 Diamanten — Streak bricht.
   const next = Object.assign({}, state, { streak: 0 });
   return { state: next, saved: false, broken: true };
+}
+
+// ── SPIELE-ZUGANG ──────────────────────────────────────────────────────────
+// Von Marco bestätigt am 30.10.2026 (siehe Vault-Plan Spiele-Integration):
+// Space Invader und Lumo kosten Stern-Zeit und brauchen 3 Tage Streak (wie
+// bisher nur Invader); die Knobelwerkstatt ist ein Lernspiel ohne Sterne und
+// Streak-Mindestwert, im Trainer aber erst nach einer gezählten Runde am selben
+// Kalendertag spielbar (nachRundeHeute). Die Adresse /knobel/ bleibt offen.
+const GAME_RULES = {
+  invader: { kostetSternZeit: true,  minStreak: 3 },
+  jnr:      { kostetSternZeit: true,  minStreak: 3 },
+  knobel:   { kostetSternZeit: false, minStreak: 0, nachRundeHeute: true },
+};
+
+// Tests: tests/unit/spiele-zugang.test.js
+// heute: new Date().toDateString(); lastRoundDate setzt nur endGame() bei einer Runde. Kalendertag-Vergleich, keine 24-h-Rechnung.
+function getGameAccess(state, gameId, heute) {
+  const rule = GAME_RULES[gameId];
+  if (!rule) return { spielbar: false, grund: 'unbekannt' };
+  if (rule.nachRundeHeute && state.lastRoundDate !== (heute || new Date().toDateString())) {
+    return { spielbar: false, grund: 'keine_runde' };
+  }
+  if ((state.streak || 0) < rule.minStreak) return { spielbar: false, grund: 'streak' };
+  if (rule.kostetSternZeit && (state.stars || 0) === 0 && (state.gameSecondsLeft || 0) <= 0) {
+    return { spielbar: false, grund: 'keine_sterne' };
+  }
+  return { spielbar: true, grund: null };
+}
+
+// Zählt die Runde für die Knobel-Freischaltung (state.lastRoundDate)? Nur ein durchgespieltes
+// Training (endGame('complete')) mit mindestens einer beantworteten Aufgabe; Blitz und Marathon
+// schalten nichts frei (Marco, 26.10.2026). Die Streak-Logik in endGame() ist davon unabhängig.
+// Tests: tests/unit/spiele-zugang.test.js
+function rundeSchaltetKnobelFrei(game, reason) {
+  if (!game || game.mode !== 'training' || reason !== 'complete') return false;
+  return (game.correct || 0) + (game.wrong || 0) > 0;
+}
+
+// ── SPIELZEIT (gleiche Regel für Space Invader und Lumo, Marco 30.10.2026) ──
+// Die Stern-Zeit läuft, solange das Spiel offen und sichtbar ist, auch im Menü (Lumo: Levelauswahl
+// und Reihenwahl). Sie steht in der Pause, im Hintergrund und in Dialogen, die das Spiel anhalten.
+// Bei 0:00 mit Sternen: „Stern einsetzen & weiterspielen“, ohne Sterne: Hinweis, zurück zum Trainer.
+// Tests: tests/unit/spielzeit.test.js, tests/unit/lumo-aktiv.test.js
+
+// Lumo meldet per jnr:aktiv, ob ein Level läuft (aktiv) und ob die Stern-Zeit laufen soll (zeit),
+// Vertrag jumpnrun/core/host.js. Zustand { meldet, aktiv, zeit }: meldet = Lumo kennt die Nachricht.
+// Fallbacks: Ein Lumo ohne jnr:aktiv (alter Cache) lässt den Timer wie früher durchlaufen; ein Lumo
+// ohne Feld zeit meldet aktiv nur im Level, dann gilt zeit = aktiv.
+function lumoAktivNeu() { return { meldet: false, aktiv: false, zeit: false }; }
+function applyJnrAktiv(z, data) {
+  if (!data || typeof data.aktiv !== 'boolean') return z;
+  if (typeof data.zeit === 'boolean') return { meldet: true, aktiv: data.aktiv, zeit: data.zeit };
+  if ('zeit' in data) return { meldet: true, aktiv: data.aktiv, zeit: false };
+  return { meldet: true, aktiv: data.aktiv, zeit: data.aktiv };
+}
+// sichtbar: !document.hidden; sternZeit: Stern-Zeit ist für dieses Öffnen eingelöst (Spiel geladen).
+function lumoTimerSollLaufen(z, { sichtbar, sternZeit }) {
+  return !!sternZeit && !!sichtbar && (!z.meldet || !!z.zeit);
+}
+
+// Space Invader: die Zeit läuft im Spiel und im Menü (auch in den Einstellungen aus dem Menü). Sie steht
+// in der Pause, in Game Over, Namenseingabe und Bestenliste (Marco 31.10.2026, wie Lumos Dialoge), in
+// den Einstellungen aus Pause oder Bestenliste, solange der Stern-Dialog offen ist und im Hintergrund.
+const INVADER_ZEIT_STEHT = ['paused', 'dying', 'entering', 'scores'];
+function invaderTimerSollLaufen({ invState, settFrom, sichtbar, sternDialog }) {
+  if (!sichtbar || sternDialog) return false;
+  if (INVADER_ZEIT_STEHT.includes(invState)) return false;
+  if (invState === 'settings' && (settFrom === 'pause' || settFrom === 'scores')) return false;
+  return true;
+}
+
+// Gemeinsamer Stern-Timer (index.html startStarTimer): verbrauchte Millisekunden werden über Pausen
+// hinweg gesammelt, abgezogen wird je volle Sekunde (Review B3: viele kurze Pausen verschluckten sonst
+// die angefangenen Sekunden). dtMs < 0 oder kaputt zählt nicht; mehr als 5 s je Schritt (z.B. nach
+// einem eingefrorenen Tab) zählen höchstens 5 s. Tests: tests/unit/spielzeit.test.js
+const SPIELZEIT_MAX_SCHRITT_MS = 5000;
+function sammleSpielzeit(gesammeltMs, dtMs) {
+  const g = typeof gesammeltMs === 'number' && isFinite(gesammeltMs) && gesammeltMs > 0 ? gesammeltMs : 0;
+  const dt = typeof dtMs === 'number' && isFinite(dtMs) && dtMs > 0 ? Math.min(dtMs, SPIELZEIT_MAX_SCHRITT_MS) : 0;
+  const summe = g + dt;
+  const sekunden = Math.floor(summe / 1000);
+  return { gesammeltMs: summe - sekunden * 1000, sekunden };
+}
+
+// Stern-Zeit bei 0:00, für beide Spiele gleich: mit Sternen 'stern_anbieten', sonst 'ende'.
+// Der Stern selbst wird mit sternZeitEinloesen eingesetzt.
+function zeitAbgelaufenAktion(state) {
+  return (state.stars || 0) > 0 ? 'stern_anbieten' : 'ende';
+}
+
+// Zeitanzeige für Invader (#invader-timer) und Lumo (#game-overlay-timer): rot ab 2 Minuten.
+const ZEIT_WARNUNG_AB_SEK = 120;
+function zeitAnzeige(sekunden) {
+  const sek = typeof sekunden === 'number' && isFinite(sekunden) && sekunden > 0 ? Math.floor(sekunden) : 0;
+  const m = Math.floor(sek / 60);
+  const ss = sek % 60;
+  return { text: `⏱ ${m}:${String(ss).padStart(2, '0')}`, warnung: sek <= ZEIT_WARNUNG_AB_SEK };
+}
+
+// Lumo will verlassen werden (Knopf "Zurück zum Trainer" im Menü oder im Dialog "Deine Stern-Zeit
+// ist vorbei", Vertrag jumpnrun/core/host.js, jnr:beenden): nur, wenn Lumo gerade im Overlay läuft.
+// Nach jnr:timeup wartet der Trainer LUMO_BEENDEN_FALLBACK_MS auf jnr:zeitende (Bestätigung, siehe
+// lumoZeitendeBestaetigt) oder jnr:beenden und schließt sonst selbst (altes Lumo aus dem Cache kennt
+// beide Nachrichten nicht). Tests: tests/unit/lumo-beenden.test.js
+const LUMO_BEENDEN_FALLBACK_MS = 5000;
+function lumoBeendenGewuenscht(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:beenden';
+}
+
+// Lumo bestätigt jnr:timeup mit jnr:zeitende: der Dialog „Deine Stern-Zeit ist vorbei“ steht, das Kind
+// schließt ihn selbst. Der Trainer löscht dann den Fallback und wartet beliebig lange auf jnr:beenden.
+function lumoZeitendeBestaetigt(currentGame, data) {
+  return currentGame === 'jnr' && !!data && typeof data === 'object' && data.type === 'jnr:zeitende';
+}
+
+// Das ✕ der Trainer-Leiste bleibt Notausgang, löst aber im laufenden Level zuerst die Pause aus
+// (Soll-Struktur im Review, B6): 'pausieren', wenn Lumo läuft und per jnr:aktiv aktiv meldet, sonst
+// 'schliessen' (Pause, Menü, Dialoge, anderes Spiel, altes Lumo ohne jnr:aktiv).
+function schliessKnopfAktion(currentGame, z) {
+  return currentGame === 'jnr' && !!z && z.meldet && z.aktiv ? 'pausieren' : 'schliessen';
+}
+
+// Eine Sekunde geteilte Stern-Zeit verbrauchen. Pure — der setInterval-Loop
+// und das Verzweigen bei Ablauf (Invader: Pause-Dialog/Toast, Lumo: jnr:timeup)
+// bleiben in index.html. Tests: tests/unit/spiele-zugang.test.js
+function tickStarTime(state) {
+  if ((state.gameSecondsLeft || 0) <= 0) return { state, abgelaufen: false };
+  const left = state.gameSecondsLeft - 1;
+  return { state: Object.assign({}, state, { gameSecondsLeft: left }), abgelaufen: left === 0 };
+}
+
+// Stern-Zeit beim Spielstart: ohne laufenden Block wird ein Stern zu 10 Minuten.
+// index.html ruft das erst auf, wenn das Spiel im iframe wirklich geladen ist
+// (spielGeladen), damit ein offline kaputtes Spiel keinen Stern kostet.
+// Tests: tests/unit/spiel-start.test.js
+function sternZeitEinloesen(state, gameId) {
+  const rule = GAME_RULES[gameId];
+  if (!rule || !rule.kostetSternZeit) return { state, abgezogen: false };
+  if ((state.gameSecondsLeft || 0) > 0 || (state.stars || 0) <= 0) return { state, abgezogen: false };
+  return { state: Object.assign({}, state, { stars: state.stars - 1, gameSecondsLeft: 600 }), abgezogen: true };
+}
+
+// Hat das Spiel im (Same-Origin-)iframe seine Skripte geladen? win = frame.contentWindow
+// nach dem load-Event. Eine Netz-Fehlerseite ist fremder Origin: der Zugriff wirft.
+const SPIEL_MERKMAL = { jnr: (w) => !!(w.JNR && w.JNR.host), knobel: (w) => !!w.KnobelLogic };
+function spielGeladen(gameId, win) {
+  const merkmal = SPIEL_MERKMAL[gameId];
+  if (!merkmal || !win) return false;
+  try { return merkmal(win); } catch (e) { return false; }
+}
+
+// Lokales Kalenderdatum 'YYYY-MM-DD' (Knobel rechnet seinen Tages-XP-Deckel genauso,
+// knobel/index.html heute()). toISOString wäre UTC und kippt in DE um 0-2 Uhr falsch.
+function lokalesDatum(d) {
+  const t = d || new Date();
+  const p = (x) => (x < 10 ? '0' : '') + x;
+  return t.getFullYear() + '-' + p(t.getMonth() + 1) + '-' + p(t.getDate());
+}
+
+// ── SPIEL-ERGEBNISSE (Knobelwerkstatt + Lumo) ───────────────────────────────
+// Beide Funktionen bekommen die Rechenfunktion des jeweiligen Spiels
+// injiziert (computeKnobelXP aus knobel/knobel-logic.js bzw. mergeResult
+// aus jumpnrun/core/rewards.js), damit logic.js dependency-frei bleibt.
+// index.html lädt die echten Module zusätzlich per <script>; Jest requirt sie
+// direkt. Tests: tests/unit/spiele-ergebnisse.test.js
+
+// msg: { type:'knobel:result', mode:'mauer'|'kaefige', stufe, tipps, xp, seed }
+// heute: 'YYYY-MM-DD' (oder jedes andere Tagesformat, solange konsistent).
+// computeKnobelXPFn: computeKnobelXP(opt, tagesXpBisher) -> { xp, gedeckelt, basis }
+function applyKnobelResult(state, msg, heute, computeKnobelXPFn) {
+  // Dieselbe Nachricht (z.B. durch doppeltes postMessage) nicht zweimal
+  // gutschreiben — Signatur des zuletzt verarbeiteten Ergebnisses merken.
+  const signatur = JSON.stringify([msg.mode, msg.stufe, msg.tipps, msg.xp, msg.seed]);
+  const letzte = state.knobel.letzteNachricht;
+  if (letzte && letzte.datum === heute && letzte.signatur === signatur) {
+    return { state: Object.assign({}, state), creditedXp: 0 };
+  }
+
+  const bisher = state.knobel.tagesXp.datum === heute ? state.knobel.tagesXp.xp : 0;
+  // tagesraetsel ist im Ergebnis nicht bekannt -> Obergrenze mit dem
+  // großzügigsten Fall (Tagesrätsel-Bonus) berechnen und darauf kappen.
+  const obergrenze = computeKnobelXPFn({ stufe: msg.stufe, tipps: msg.tipps, tagesraetsel: true }, bisher).xp;
+  // Nicht-numerische/absurde xp (gefälschte Nachricht) darf den Zähler nicht
+  // mit NaN zerstören — Math.min/-max geben bei nicht-numerischen Operanden NaN.
+  const gemeldeteXp = typeof msg.xp === 'number' && isFinite(msg.xp) ? msg.xp : 0;
+  const credit = Math.max(0, Math.min(gemeldeteXp, obergrenze));
+  const stufe = Object.assign({}, state.knobel.stufe);
+  if (msg.mode) stufe[msg.mode] = msg.stufe;
+  return {
+    state: Object.assign({}, state, {
+      xp: (state.xp || 0) + credit,
+      knobel: { tagesXp: { datum: heute, xp: bisher + credit }, stufe: stufe, letzteNachricht: { datum: heute, signatur: signatur } },
+    }),
+    creditedXp: credit,
+  };
+}
+
+// msg: { type:'jnr:result', level, medaillen, funken, xp }
+// mergeResultFn: rewards.mergeResult(jnr, msg) -> neues jnr (idempotent)
+// Lumo gibt keine XP (Marco 30.10.2026): msg.xp wird ignoriert, auch wenn ein altes Lumo aus dem
+// Cache noch XP meldet. Medaillen, Funken und Fortschritt übernimmt mergeResult.
+function applyJnrResult(state, msg, mergeResultFn) {
+  const jnr = mergeResultFn(state.jnr, msg);
+  return {
+    state: Object.assign({}, state, { jnr: jnr }),
+    creditedXp: 0,
+  };
+}
+
+// msg: { type:'jnr:tutorial', gesehen:true } (Vertrag jumpnrun/core/host.js): Lumos Mitmach-Tutorial
+// ist durch oder uebersprungen. Setzt state.jnr.tutorialGesehen, keine XP. Gibt ohne gesehen:true
+// denselben State zurueck, mutiert nichts.
+function applyJnrTutorial(state, msg) {
+  if (!msg || msg.gesehen !== true) return state;
+  return Object.assign({}, state, { jnr: Object.assign({}, state.jnr, { tutorialGesehen: true }) });
+}
+
+// Lernstand je Reihe fuer Lumo (Feld `lernstand` in jnr:init, Vertrag jumpnrun/core/host.js).
+// Wert je Reihe 2..10 = Mittel ueber die Faktoren 1..10 von min(consecutiveCorrect, 6) / 6,
+// also derselbe Leitner-Massstab wie im Statistik-Screen (6 richtige in Folge = gemeistert).
+// Ungesehene Faktoren zaehlen 0. Nur Reihen mit mindestens 3 verschiedenen beantworteten Aufgaben
+// kommen ins Ergebnis. Gerundet auf 2 Stellen, mutiert nichts.
+const LERNSTAND_MASTERY = 6;
+const LERNSTAND_MIN_FAKTOREN = 3; // erst ab 3 verschiedenen beantworteten Aufgaben gilt eine Reihe als geuebt
+function computeLernstand(questionStats) {
+  const out = {};
+  if (!questionStats || typeof questionStats !== 'object') return out;
+  for (let r = 2; r <= 10; r++) {
+    const row = questionStats[r];
+    if (!row || typeof row !== 'object') continue;
+    let sum = 0, seen = 0;
+    for (let f = 1; f <= 10; f++) {
+      const q = row[f];
+      if (!q || typeof q !== 'object') continue;
+      if ((q.correct || 0) > 0 || (q.wrong || 0) > 0) seen++;
+      const cc = typeof q.consecutiveCorrect === 'number' && isFinite(q.consecutiveCorrect) ? q.consecutiveCorrect : 0;
+      sum += Math.max(0, Math.min(cc, LERNSTAND_MASTERY)) / LERNSTAND_MASTERY;
+    }
+    if (seen >= LERNSTAND_MIN_FAKTOREN) out[r] = Math.round((sum / 10) * 100) / 100;
+  }
+  return out;
 }
 
 // Marathon-Modus Schwierigkeit pro Frage: sublineare sqrt-Kurve.
@@ -536,6 +872,12 @@ if (typeof module !== 'undefined') {
                      nextDiamondCost, canBuyDiamond, applyDiamondPurchase,
                      computeStreakProtection,
                      DIAMOND_PRICE, DIAMOND_CAP,
+                     GAME_RULES, getGameAccess, tickStarTime, rundeSchaltetKnobelFrei,
+                     ordneOhneDirekteWiederholung, zieheOhneWiederholung,
+                     lumoAktivNeu, applyJnrAktiv, lumoTimerSollLaufen, invaderTimerSollLaufen, zeitAbgelaufenAktion, zeitAnzeige, sammleSpielzeit,
+                     lumoBeendenGewuenscht, LUMO_BEENDEN_FALLBACK_MS, lumoZeitendeBestaetigt, schliessKnopfAktion,
+                     sternZeitEinloesen, spielGeladen, lokalesDatum,
+                     applyKnobelResult, applyJnrResult, applyJnrTutorial, computeLernstand,
                      marathonDifficulty,
                      mulberry32, initSeededRNG, resetRNG,
                      buildScorePayload, buildChallengePayload, mpStateAfterLogout };

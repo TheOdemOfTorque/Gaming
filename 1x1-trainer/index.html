@@ -176,7 +176,12 @@
     /* TRAINING MODAL */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-end; justify-content: center; }
     .modal-overlay.active { display: flex; }
-    .modal-sheet { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px 24px 0 0; padding: 20px 16px 40px; width: 100%; max-width: 480px; animation: slideUp 0.3s ease; }
+    /* Querformat (z.B. 844x390): Sheet darf nie höher als der Viewport sein, sonst läuft es
+       über die fixe Overlay hinaus und Titel bzw. Startknopf sind unerreichbar. Deshalb Höhenkappe
+       plus eigenes Scrollen. Das Padding unten (40px) deckt den Home-Indikator (safe-area-inset-bottom,
+       max. 34px) bereits ab; es wird bewusst nicht addiert, damit sich das Hochformat nicht verschiebt. */
+    .modal-sheet { background: #1a1a3e; border: 1px solid rgba(255,255,255,0.1); border-radius: 24px 24px 0 0; padding: 20px 16px 40px; width: 100%; max-width: 480px; animation: slideUp 0.3s ease;
+      max-height: 100vh; max-height: 100dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain; }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .modal-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 16px; text-align: center; }
     .reihe-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
@@ -422,6 +427,69 @@
       padding: 8px 14px; cursor: pointer; -webkit-appearance: none;
     }
     .games-bar-btn:active { transform: scale(0.95); }
+
+    /* SPIELE-LEISTE — 3 Karten (Invader, Lumo, Knobelwerkstatt, #9/#10) */
+    .games-bar-cards { display: flex; gap: 8px; }
+    .game-card {
+      flex: 1; border-radius: 14px; padding: 10px 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+      min-width: 0;
+    }
+    .game-card.ready {
+      background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(239,68,68,0.1));
+      border: 1px solid rgba(245,158,11,0.4);
+    }
+    .game-card.free {
+      background: linear-gradient(135deg, rgba(108,99,255,0.18), rgba(157,151,255,0.08));
+      border: 1px solid rgba(108,99,255,0.4);
+    }
+    .game-card.locked {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.1);
+      opacity: 0.55;
+    }
+    .game-card-icon { font-size: 1.4rem; }
+    .game-card-title { font-size: 0.8rem; font-weight: 800; hyphens: auto; } /* 320px: "Knobelwerkstatt" lief sonst aus der Karte */
+    .game-card-sub { font-size: 0.75rem; color: rgba(255,255,255,0.7); line-height: 1.3; }
+    .game-card-btn {
+      background: linear-gradient(135deg, #F59E0B, #EF4444);
+      border: none; border-radius: 8px; color: #fff;
+      font-weight: 800; font-size: 0.66rem;
+      padding: 6px 10px; cursor: pointer; -webkit-appearance: none; margin-top: auto;
+      /* margin-top:auto: Knöpfe bleiben bei unterschiedlich langen Untertiteln auf einer Linie */
+    }
+    .game-card-btn:active { transform: scale(0.95); }
+    .game-card-btn:disabled { opacity: 0.35; cursor: default; }
+
+    /* GAME OVERLAY — iframe-Host für Lumo + Knobelwerkstatt (ADR-0001) */
+    .game-overlay { display: none; position: fixed; inset: 0; z-index: 300; background: #0d0d2b; }
+    .game-overlay.active { display: flex; flex-direction: column; }
+    .game-overlay-bar {
+      /* Eigene Flex-Reihe statt position:fixed über dem iframe — sonst
+         überlappt der Button das HUD der Spiele selbst (z.B. Lumos
+         Missionstext oben links im Querformat auf dem iPhone). */
+      flex: 0 0 auto; z-index: 310;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+               10px calc(14px + env(safe-area-inset-left));
+    }
+    .game-overlay-bar > * { pointer-events: all; }
+    #game-overlay-close {
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 10px; color: #fff; font-size: 1rem; font-weight: 700;
+      padding: 6px 12px; cursor: pointer;
+    }
+    .game-overlay-timer {
+      display: none;
+      background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px; color: #fff; font-size: 1rem; font-weight: 800; padding: 6px 12px;
+    }
+    .game-overlay-timer.show { display: block; }
+    /* rot ab 2 Minuten, wie #invader-timer.warning (zeitAnzeige in logic.js) */
+    .game-overlay-timer.warning { color: #EF4444; border-color: rgba(239,68,68,0.5); animation: pulse 0.5s infinite alternate; }
+    /* Stern-Dialog auch über dem Lumo-Overlay (.game-overlay z-index 300) */
+    #star-expired-modal { z-index: 400; }
+    .game-frame { flex: 1; width: 100%; height: 100%; border: 0; background: #0d0d2b; }
   </style>
 </head>
 <body>
@@ -910,15 +978,15 @@
 </div>
 
 <div class="modal-overlay" id="star-expired-modal">
-  <div class="modal-sheet">
+  <div class="modal-sheet" id="star-expired-sheet" tabindex="-1" style="outline:none">
     <div style="text-align:center;font-size:3rem;margin-bottom:8px">⭐</div>
-    <div class="modal-title">10 Minuten sind um!</div>
+    <div class="modal-title">Deine Spielzeit ist um!</div>
     <div style="text-align:center;font-size:0.9rem;color:rgba(255,255,255,0.6);margin:8px 0 16px">
       Du hast noch <strong id="star-count-in-modal">0 Sterne</strong> übrig.<br>
       Möchtest du einen einsetzen und weiterspielen?
     </div>
     <button class="btn btn-primary mt-8" onclick="continueWithStar()">⭐ Stern einsetzen &amp; weiterspielen</button>
-    <button class="btn btn-secondary mt-8" onclick="stopInvader()">🏠 Aufhören</button>
+    <button class="btn btn-secondary mt-8" onclick="sternDialogAufhoeren()">🏠 Aufhören</button>
   </div>
 </div>
 
@@ -1089,7 +1157,18 @@
 
 </div>
 
+<!-- GAME OVERLAY: Lumo + Knobelwerkstatt (Same-Origin-iframe, ADR-0001) -->
+<div id="game-overlay" class="game-overlay">
+  <div class="game-overlay-bar">
+    <button id="game-overlay-close" onclick="schliessKnopf()">✕</button>
+    <div id="game-overlay-timer" class="game-overlay-timer"></div>
+  </div>
+  <iframe id="game-frame" class="game-frame" allow="autoplay" title="Spiel"></iframe>
+</div>
+
 <script src="logic.js"></script>
+<script src="../knobel/knobel-logic.js"></script>
+<script src="../jumpnrun/core/rewards.js"></script>
 <script>
 
 const ACHIEVEMENTS = [
@@ -1140,7 +1219,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.10'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.11'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
 // CHANGELOG: bei jedem APP_VERSION-Bump einen Eintrag hinzu, oben einsortiert.
 // Konvention (siehe memory/project_release_notes_convention.md): max 5 Bullets
@@ -1148,6 +1227,13 @@ const APP_VERSION = '2.10'; // Anzeigeversion in Einstellungen — bei Releases 
 // emoji-Präfix nach Typ: 🆕 neues Feature · ⚡ UX-Verbesserung · 🔧 Bug-Fix
 // · 🐛 Sammel-Bugfixes ("kleine Verbesserungen unter der Haube").
 const CHANGELOG = [
+  { version: '2.11', date: '2026-11-04', entries: [
+    '🆕 Knobelwerkstatt: neues Mathe-Knobelspiel',
+    '🆕 Lumo: kleines Spring-Spiel mit Zahlen',
+    '⚡ Knobeln nach einem durchgespielten Training am Tag',
+    '🐛 Keine gleiche Aufgabe mehr direkt hintereinander',
+    '⚡ Spielzeit hält in Pause und Bestenliste an',
+  ]},
   { version: '2.10', date: '2026-05-22', entries: [
     '🆕 Mehrere Reihen gleichzeitig im Training üben',
     '🆕 💎 Diamanten schützen deine Tage-Serie',
@@ -1749,12 +1835,64 @@ function floatXP(txt, x, y) {
   setTimeout(()=>el.remove(), 1100);
 }
 
-// ── INVADER SCREEN ──────────────────────────────────────
-let invaderTimerInterval = null;
+// ── GETEILTER STERN-TIMER (Invader + Lumo, ADR-0001) ────────────────────
+// tickStarTime (logic.js) ist die reine Dekrementier-Logik; hier nur der
+// setInterval-Loop + das Verzweigen bei Ablauf, injiziert über onTimeUp.
+let starTimerInterval = null;
+// Gesammelte Spielzeit unter einer Sekunde, bleibt über Pausen und Neustarts erhalten (sammleSpielzeit).
+let starTimerSammelMs = 0;
+let starTimerLetzterMs = 0;
+let starTimerSoll = null, starTimerAnzeige = null, starTimerAblauf = null;
 
+// Verbucht die Zeit seit dem letzten Schritt (zaehlt = sie war Spielzeit) und zieht je volle Sekunde ab.
+// Den Ablauf (onTimeUp) löst nur der laufende Takt aus (imTakt): beim Stoppen oder beim Wechsel in die
+// Pause bleibt die Zeit bei 0 stehen, und der nächste zählende Takt (Weiter, neuer Start) meldet den
+// Ablauf (Review Runde 2: sonst lag der Dialog auf dem Startbildschirm oder unter dem Pause-Overlay).
+function starTimerVerbuchen(zaehlt, imTakt) {
+  const jetzt = performance.now();
+  const dt = jetzt - starTimerLetzterMs;
+  starTimerLetzterMs = jetzt;
+  const r = sammleSpielzeit(starTimerSammelMs, zaehlt ? dt : 0);
+  starTimerSammelMs = r.gesammeltMs;
+  if (r.sekunden > 0) {
+    for (let i = 0; i < r.sekunden; i++) state.gameSecondsLeft = tickStarTime(state).state.gameSecondsLeft;
+    saveState();
+    if (starTimerAnzeige) starTimerAnzeige();
+  }
+  if (imTakt && zaehlt && (state.gameSecondsLeft || 0) <= 0) {
+    clearInterval(starTimerInterval);
+    starTimerInterval = null;
+    starTimerSammelMs = 0;
+    const ablauf = starTimerAblauf;
+    if (ablauf) ablauf();
+  }
+}
+
+// Vor einem Wechsel Spiel <-> Pause aufrufen (Invader): verbucht die Zeit bis jetzt mit dem alten Zustand.
+function starTimerZwischenstand() {
+  if (starTimerInterval) starTimerVerbuchen(!starTimerSoll || starTimerSoll(), false);
+}
+
+// sollLaufen (optional): false lässt die Zeit nicht zählen (Invader-Pause).
+function startStarTimer(displayFn, onTimeUp, sollLaufen) {
+  if (starTimerInterval) clearInterval(starTimerInterval);
+  starTimerAnzeige = displayFn; starTimerAblauf = onTimeUp; starTimerSoll = sollLaufen || null;
+  displayFn();
+  starTimerLetzterMs = performance.now();
+  starTimerInterval = setInterval(() => starTimerVerbuchen(!starTimerSoll || starTimerSoll(), true), 200);
+}
+
+function stopStarTimer() {
+  starTimerZwischenstand(); // die angefangene Sekunde bleibt gesammelt
+  if (starTimerInterval) {
+    clearInterval(starTimerInterval);
+    starTimerInterval = null;
+  }
+}
+
+// ── INVADER SCREEN ──────────────────────────────────────
 function enterInvaderScreen() {
-  if (state.streak < 3) return;
-  if (state.stars <= 0 && state.gameSecondsLeft <= 0) return;
+  if (!getGameAccess(state, 'invader').spielbar) return;
 
   // Stern nur abziehen wenn kein aktiver Block mehr läuft
   if (state.gameSecondsLeft <= 0) {
@@ -1772,78 +1910,330 @@ function enterInvaderScreen() {
   startInvaderTimer();
 }
 
+// Spielzeit-Regel wie bei Lumo (invaderTimerSollLaufen in logic.js): die Zeit steht in der Pause, in
+// Game Over, Namenseingabe und Bestenliste und solange der Stern-Dialog offen ist; Menü und Spiel zählen.
+function invaderZeitSollLaufen() {
+  return invaderTimerSollLaufen({ invState, settFrom, sichtbar: !document.hidden, sternDialog: sternDialogFuer !== null });
+}
+
 function startInvaderTimer() {
-  if (invaderTimerInterval) clearInterval(invaderTimerInterval);
-  updateInvaderTimerDisplay();
-  invaderTimerInterval = setInterval(() => {
-    if (state.gameSecondsLeft > 0) {
-      state.gameSecondsLeft--;
-      saveState();
-      updateInvaderTimerDisplay();
-      if (state.gameSecondsLeft === 0) {
-        clearInterval(invaderTimerInterval);
-        invaderTimerInterval = null;
-        if (state.stars > 0) {
-          // Spiel pausieren und Dialog zeigen
-          if (invState === 'playing') {
-            document.getElementById('ui').style.display = 'none';
-            invState = 'paused';
-          }
-          const n = state.stars;
-          document.getElementById('star-count-in-modal').textContent =
-            n === 1 ? '1 Stern' : n + ' Sterne';
-          document.getElementById('star-expired-modal').classList.add('active');
-        } else {
-          showToast('⏱ Zeit abgelaufen!');
-          setTimeout(() => exitInvaderScreen(), 1500);
-        }
+  startStarTimer(updateInvaderTimerDisplay, () => {
+    if (zeitAbgelaufenAktion(state) === 'stern_anbieten') {
+      // Spiel anhalten und Dialog zeigen
+      invVorSternDialogAmSpielen = invState === 'playing';
+      if (invVorSternDialogAmSpielen) {
+        document.getElementById('ui').style.display = 'none';
+        invState = 'paused';
       }
+      zeigeSternDialog('invader');
+    } else {
+      showToast('⏱ Zeit abgelaufen!');
+      setTimeout(() => exitInvaderScreen(), 1500);
     }
-  }, 1000);
+  }, invaderZeitSollLaufen);
+}
+
+function zeigeZeit(el) {
+  const z = zeitAnzeige(state.gameSecondsLeft);
+  el.textContent = z.text;
+  el.classList.toggle('warning', z.warnung);
 }
 
 function updateInvaderTimerDisplay() {
   const el = document.getElementById('invader-timer');
-  if (!el) return;
-  const m = Math.floor(state.gameSecondsLeft / 60);
-  const s = state.gameSecondsLeft % 60;
-  el.textContent = `⏱ ${m}:${String(s).padStart(2, '0')}`;
-  if (state.gameSecondsLeft <= 120) {
-    el.classList.add('warning');
-  } else {
-    el.classList.remove('warning');
-  }
+  if (el) zeigeZeit(el);
 }
 
 function exitInvaderScreen() {
-  if (invaderTimerInterval) {
-    clearInterval(invaderTimerInterval);
-    invaderTimerInterval = null;
-  }
+  stopStarTimer();
   invShowMenu();
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-home').classList.add('active');
   updateHomeUI();
 }
 
+// ── STERN-DIALOG bei 0:00 (Invader und Lumo gleich, zeitAbgelaufenAktion in logic.js) ──
+// Invader hält das Spiel selbst an, Lumo bekommt jnr:pause. „Stern einsetzen & weiterspielen“ zieht
+// den Stern ab (sternZeitEinloesen) und lässt das Spiel weiterlaufen (Lumo: jnr:weiter).
+let sternDialogFuer = null; // null | 'invader' | 'jnr'
+let invVorSternDialogAmSpielen = false;
+function zeigeSternDialog(spiel) {
+  sternDialogFuer = spiel;
+  const n = state.stars;
+  document.getElementById('star-count-in-modal').textContent = n === 1 ? '1 Stern' : n + ' Sterne';
+  document.getElementById('star-expired-modal').classList.add('active');
+  sternDialogFokus();
+}
+// Fokus aus dem Lumo-iframe holen, sonst erreichen Enter/Esc weiter Lumo (Review B1). Bewusst aufs
+// Blatt, nicht auf „Stern einsetzen“: bei Invader hält das Kind oft die Leertaste zum Schießen.
+// Lumos Pause-Dialog fokussiert seinen Knopf „Weiter“ erst nach jnr:pause, darum ruft auch der
+// jnr:aktiv-Handler das erneut auf, solange der Dialog offen ist.
+function sternDialogFokus() {
+  const frame = document.getElementById('game-frame');
+  if (frame && document.activeElement === frame) frame.blur();
+  try { document.getElementById('star-expired-sheet').focus({ preventScroll: true }); } catch (e) { /* egal */ }
+}
+function sternDialogSchliessen() {
+  sternDialogFuer = null;
+  document.getElementById('star-expired-modal').classList.remove('active');
+}
+
 // Stern-Dialog: weiterspielen (einen Stern einsetzen)
 function continueWithStar() {
-  document.getElementById('star-expired-modal').classList.remove('active');
-  state.stars--;
-  state.gameSecondsLeft = 600;
+  const spiel = sternDialogFuer;
+  sternDialogSchliessen();
+  Object.assign(state, sternZeitEinloesen(state, spiel === 'jnr' ? 'jnr' : 'invader').state);
   saveState();
   updateHomeUI();
-  // Spiel fortsetzen
-  document.getElementById('ui').style.display = 'flex';
-  invState = 'playing';
+  if (spiel === 'jnr') {
+    if (currentGame !== 'jnr') return;
+    updateLumoTimerDisplay();
+    sendToGameFrame({ type: 'jnr:weiter' }); // Lumo setzt die Pause fort, meldet dann zeit true
+    syncLumoTimer(); // läuft sofort, wenn Lumo im Menü stand (dort ändert jnr:pause nichts)
+    return;
+  }
+  // Spiel fortsetzen, falls es lief
+  if (invVorSternDialogAmSpielen) {
+    document.getElementById('ui').style.display = 'flex';
+    invState = 'playing';
+  }
+  invVorSternDialogAmSpielen = false;
   startInvaderTimer();
 }
 
-// Stern-Dialog: aufhören
-function stopInvader() {
-  document.getElementById('star-expired-modal').classList.remove('active');
-  exitInvaderScreen();
+// Stern-Dialog: aufhören (zurück zum Trainer)
+function sternDialogAufhoeren() {
+  const spiel = sternDialogFuer;
+  sternDialogSchliessen();
+  if (spiel === 'jnr') closeGame();
+  else exitInvaderScreen();
 }
+
+// ── SPIELE-LEISTE (3 Karten) + IFRAME-HOST (Lumo + Knobelwerkstatt) ──────
+// ADR-0001: Same-Origin-iframe, Trainer bleibt einziger Schreiber von
+// henry_einmaleins. GAME_SRC ist relativ zu 1x1-trainer/index.html.
+const GAME_SRC = { jnr: '../jumpnrun/index.html', knobel: '../knobel/index.html' };
+let currentGame = null; // 'jnr' | 'knobel' | null — welches Spiel im Overlay läuft
+// Lädt das Spiel so lange nicht (hängendes Netz), schließt der Trainer das Overlay ohne Stern.
+let SPIEL_LADE_TIMEOUT_MS = 8000;
+let spielLadeTimer = null;
+const SPIEL_LADEFEHLER = '📡 Das Spiel konnte nicht laden. Bist du online?';
+function spielLadeTimerStoppen() {
+  if (spielLadeTimer) { clearTimeout(spielLadeTimer); spielLadeTimer = null; }
+}
+
+function gameCardHtml(gameId, icon, title, onClick) {
+  const access = getGameAccess(state, gameId);
+  const rule = GAME_RULES[gameId];
+  const cls = !access.spielbar ? 'locked' : (rule.kostetSternZeit ? 'ready' : 'free');
+  let sub;
+  if (!access.spielbar && access.grund === 'streak') {
+    sub = `🔒 ab 3 Tagen Streak (${state.streak})`;
+  } else if (!access.spielbar && access.grund === 'keine_sterne') {
+    sub = '🔒 keine Sterne übrig';
+  } else if (!access.spielbar && access.grund === 'keine_runde') {
+    sub = '🔒 Erst ein Training durchspielen';
+  } else if (rule.kostetSternZeit) {
+    const totalMin = state.gameSecondsLeft > 0
+      ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
+      : state.stars * 10;
+    const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
+    sub = `${starsDisplay} · ${totalMin} min`;
+  } else {
+    sub = 'heute frei';
+  }
+  return `<div class="game-card ${cls}" data-game="${gameId}">
+    <div class="game-card-icon">${icon}</div>
+    <div class="game-card-title">${title}</div>
+    <div class="game-card-sub">${sub}</div>
+    <button class="game-card-btn" ${access.spielbar ? `onclick="${onClick}"` : 'disabled'}>Los! →</button>
+  </div>`;
+}
+
+function renderGamesBar() {
+  const gBar = document.getElementById('games-bar-content');
+  gBar.innerHTML = `<div class="games-bar-cards">
+    ${gameCardHtml('invader', '👾', 'Space Invader', 'enterInvaderScreen()')}
+    ${gameCardHtml('jnr', '🌙', 'Lumo', "openGame('jnr')")}
+    ${gameCardHtml('knobel', '🧩', 'Knobelwerkstatt', "openGame('knobel')")}
+  </div>`;
+}
+
+function updateLumoTimerDisplay() {
+  const el = document.getElementById('game-overlay-timer');
+  if (!el) return;
+  el.classList.add('show');
+  zeigeZeit(el);
+}
+
+// Stern-Zeit 0:00: Lumo zeigt „Deine Stern-Zeit ist vorbei“, bestätigt das sofort per jnr:zeitende und
+// meldet per jnr:beenden, wenn das Kind „Zurück zum Trainer“ tippt; erst dann closeGame() (Vertrag
+// jumpnrun/core/host.js). Ein altes Lumo aus dem Cache kennt beide Nachrichten nicht: kommt nach
+// LUMO_BEENDEN_FALLBACK_MS (logic.js) keine Bestätigung, schließt der Trainer selbst. jnr:zeitende und
+// closeGame() (auch über das ✕) löschen den Fallback.
+let lumoBeendenFallback = null;
+function lumoBeendenFallbackStoppen() {
+  if (lumoBeendenFallback) { clearTimeout(lumoBeendenFallback); lumoBeendenFallback = null; }
+}
+// Mit Sternen kommt bei 0:00 wie bei Invader „Stern einsetzen & weiterspielen“ (Lumo pausiert per
+// jnr:pause), ohne Sterne jnr:timeup und Lumos Dialog „Deine Stern-Zeit ist vorbei“.
+function startLumoTimer() {
+  startStarTimer(updateLumoTimerDisplay, () => {
+    if (zeitAbgelaufenAktion(state) === 'stern_anbieten') {
+      sendToGameFrame({ type: 'jnr:pause' });
+      zeigeSternDialog('jnr');
+      return;
+    }
+    lumoZeitEnde = true;
+    sendToGameFrame({ type: 'jnr:timeup' });
+    lumoBeendenFallbackStoppen();
+    lumoBeendenFallback = setTimeout(() => {
+      lumoBeendenFallback = null;
+      if (currentGame === 'jnr') closeGame();
+    }, LUMO_BEENDEN_FALLBACK_MS);
+  });
+}
+
+// Stern-Zeit in Lumo läuft wie bei Invader, solange Lumo offen ist: Lumo meldet jeden Wechsel per
+// jnr:aktiv mit dem Feld zeit (Vertrag jumpnrun/core/host.js). Menü und Reihenwahl zählen; Pause,
+// Hilfe aus der Pause, Game Over und der Gewonnen-Dialog halten die Zeit an, ebenso der Stern-Dialog.
+// lumoTimerSollLaufen (logic.js) entscheidet, syncLumoTimer setzt es um; aufgerufen bei jnr:aktiv,
+// nach dem Laden, nach dem Stern-Dialog und bei visibilitychange.
+let lumoAktiv = lumoAktivNeu();
+let lumoSternZeit = false; // Stern-Zeit für dieses Öffnen eingelöst (Spiel geladen)
+let lumoZeitEnde = false;  // jnr:timeup ist für dieses Öffnen gesendet (keine Sterne mehr)
+function syncLumoTimer() {
+  if (currentGame !== 'jnr') return;
+  // Bei 0 s startet der Timer trotzdem: sein erster Takt meldet den Ablauf (Dialog oder jnr:timeup),
+  // damit nach einer Pause in der letzten Sekunde nichts gratis läuft. Nach jnr:timeup nicht noch einmal.
+  const soll = lumoTimerSollLaufen(lumoAktiv, { sichtbar: !document.hidden, sternZeit: lumoSternZeit })
+    && sternDialogFuer === null && !lumoZeitEnde;
+  if (soll && !starTimerInterval) startLumoTimer();
+  else if (!soll) stopStarTimer();
+}
+
+function sendToGameFrame(msg) {
+  const frame = document.getElementById('game-frame');
+  if (frame && frame.contentWindow) frame.contentWindow.postMessage(msg, location.origin);
+}
+
+function openGame(gameId) {
+  const access = getGameAccess(state, gameId);
+  if (!access.spielbar) return;
+
+  const rule = GAME_RULES[gameId];
+  currentGame = gameId;
+  lumoAktiv = lumoAktivNeu();
+  lumoSternZeit = false;
+  lumoZeitEnde = false;
+  const frame = document.getElementById('game-frame');
+  document.getElementById('game-overlay-timer').classList.remove('show');
+  frame.onload = () => {
+    // Ein verspätetes load des about:blank aus closeGame() überspringen.
+    try { if (frame.contentWindow.location.href === 'about:blank') return; } catch (e) { /* Fehlerseite */ }
+    frame.onload = null; // nur der erste echte load zählt (Stern höchstens einmal)
+    spielLadeTimerStoppen();
+    // Stern und Timer erst, wenn das Spiel wirklich geladen ist: offline ohne
+    // gecachte Spieldateien (oder Netz-Fehlerseite) kostet das Öffnen nichts.
+    if (!spielGeladen(gameId, frame.contentWindow)) {
+      showToast(SPIEL_LADEFEHLER);
+      closeGame();
+      return;
+    }
+    if (rule.kostetSternZeit) {
+      Object.assign(state, sternZeitEinloesen(state, gameId).state);
+      saveState();
+      updateHomeUI();
+      if (gameId === 'jnr') {
+        lumoSternZeit = true;
+        updateLumoTimerDisplay();
+        syncLumoTimer(); // läuft erst, wenn Lumo jnr:aktiv true meldet (oder nie meldet: alter Cache)
+      }
+    }
+    if (gameId === 'knobel') {
+      frame.contentWindow.postMessage({
+        type: 'knobel:init', tagesXp: state.knobel.tagesXp, stufe: state.knobel.stufe, stumm: false,
+      }, location.origin);
+    } else if (gameId === 'jnr') {
+      // lernstand (logic.js) lässt Lumo die schwächsten geübten Reihen empfehlen.
+      frame.contentWindow.postMessage({
+        type: 'jnr:init', jnr: state.jnr, lernstand: computeLernstand(state.questionStats),
+      }, location.origin);
+    }
+  };
+  frame.src = GAME_SRC[gameId];
+  document.getElementById('game-overlay').classList.add('active');
+  spielLadeTimerStoppen();
+  spielLadeTimer = setTimeout(() => {
+    spielLadeTimer = null;
+    if (currentGame !== gameId) return;
+    showToast(SPIEL_LADEFEHLER);
+    closeGame();
+  }, SPIEL_LADE_TIMEOUT_MS);
+}
+
+// ✕ der Trainer-Leiste: im laufenden Lumo-Level zuerst pausieren (jnr:pause, Lumo zeigt den
+// Pause-Dialog; aus der Pause schließt das zweite ✕, oder „Zum Menü“ und dort „Zurück zum Trainer“),
+// sonst schließen (schliessKnopfAktion).
+function schliessKnopf() {
+  if (schliessKnopfAktion(currentGame, lumoAktiv) === 'pausieren') sendToGameFrame({ type: 'jnr:pause' });
+  else closeGame();
+}
+function closeGame() {
+  stopStarTimer();
+  if (sternDialogFuer === 'jnr') sternDialogSchliessen();
+  spielLadeTimerStoppen();
+  lumoBeendenFallbackStoppen();
+  document.getElementById('game-overlay').classList.remove('active');
+  const frame = document.getElementById('game-frame');
+  frame.onload = null;
+  frame.src = 'about:blank'; // stoppt Loop/Audio im iframe sauber
+  currentGame = null;
+  lumoAktiv = lumoAktivNeu();
+  lumoSternZeit = false;
+  lumoZeitEnde = false;
+  updateHomeUI();
+}
+
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin) return;
+  const frame = document.getElementById('game-frame');
+  if (!frame || e.source !== frame.contentWindow) return;
+  if (!e.data || typeof e.data !== 'object') return;
+
+  if (e.data.type === 'knobel:result') {
+    const heute = lokalesDatum(); // wie Knobels eigener Tages-XP-Deckel (lokaler Kalendertag)
+    const { state: next } = applyKnobelResult(state, e.data, heute, KnobelLogic.computeKnobelXP);
+    Object.assign(state, next);
+    saveState();
+    updateHomeUI();
+  } else if (e.data.type === 'jnr:result') {
+    const { state: next } = applyJnrResult(state, e.data, JNR.rewards.mergeResult); // Lumo gibt keine XP
+    Object.assign(state, next);
+    saveState();
+    updateHomeUI();
+  } else if (e.data.type === 'jnr:aktiv') {
+    if (currentGame !== 'jnr') return;
+    lumoAktiv = applyJnrAktiv(lumoAktiv, e.data);
+    // Unter dem Stern-Dialog wird nicht gespielt (Review B1): läuft ein Level an (Weiter, Start aus
+    // Menü oder Reihenwahl), sofort wieder pausieren. jnr:weiter nach dem Einsetzen setzt es fort.
+    if (sternDialogFuer === 'jnr') {
+      if (lumoAktiv.aktiv) sendToGameFrame({ type: 'jnr:pause' });
+      sternDialogFokus();
+    }
+    syncLumoTimer();
+  } else if (e.data.type === 'jnr:tutorial') {
+    // Lumos Mitmach-Tutorial ist durch oder übersprungen (Vertrag jumpnrun/core/host.js)
+    Object.assign(state, applyJnrTutorial(state, e.data));
+    saveState();
+  } else if (lumoZeitendeBestaetigt(currentGame, e.data)) {
+    // Lumo zeigt den Stern-Zeit-Dialog selbst: kein Fallback mehr, das Kind tippt „Zurück zum Trainer“
+    lumoBeendenFallbackStoppen();
+  } else if (lumoBeendenGewuenscht(currentGame, e.data)) {
+    // „Zurück zum Trainer“ aus Lumos Menü oder nach dem Stern-Zeit-Dialog (jnr:beenden)
+    closeGame();
+  }
+});
 
 // ── NAVIGATION ─────────────────────────────────────────
 function showScreen(name) {
@@ -2064,34 +2454,7 @@ function updateHomeUI() {
   document.getElementById('home-subtitle').textContent  = sub;
 
   // ── Spiele-Leiste ───────────────────────────────────
-  const gBar = document.getElementById('games-bar-content');
-  if (state.streak < 3) {
-    gBar.innerHTML = `<div class="games-bar-inner locked">
-      <div>
-        <div class="games-bar-title">🔒 Spiele</div>
-        <div class="games-bar-sub">Erst ab 3 Tagen Streak verfügbar (aktuell: ${state.streak})</div>
-      </div>
-    </div>`;
-  } else if (state.stars === 0 && state.gameSecondsLeft <= 0) {
-    gBar.innerHTML = `<div class="games-bar-inner locked">
-      <div>
-        <div class="games-bar-title">🔒 Spiele</div>
-        <div class="games-bar-sub">Du hast gerade keine Sterne! Übe mehr, um Sterne zu verdienen.</div>
-      </div>
-    </div>`;
-  } else {
-    const totalMin = state.gameSecondsLeft > 0
-      ? Math.ceil(state.gameSecondsLeft / 60) + state.stars * 10
-      : state.stars * 10;
-    const starsDisplay = '⭐'.repeat(Math.min(state.stars, 5)) + (state.stars > 5 ? ` ×${state.stars}` : '');
-    gBar.innerHTML = `<div class="games-bar-inner ready">
-      <div>
-        <div class="games-bar-title">🎮 Spiele</div>
-        <div class="games-bar-sub">${starsDisplay} · ${totalMin} min verfügbar</div>
-      </div>
-      <button class="games-bar-btn" onclick="enterInvaderScreen()">Los! →</button>
-    </div>`;
-  }
+  renderGamesBar();
 
   // Streak-Schutz via Diamanten-Auto-Spend (#18). Pure Logik lebt in
   // computeStreakProtection (getestet in tests/unit/streak-protection.test.js);
@@ -2520,11 +2883,18 @@ function makeQuestion() {
     const pair = game.sequence[game.qCount];
     a = pair.a; b = pair.b;
   } else if (game.mode === 'blitz') {
+    // Nie dieselbe Aufgabe direkt hintereinander (game.q ist noch die vorige Frage)
     const blitzCfg = _challengeConfig ?? state.blitzConfig;
-    a = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings)); b = rnd(1, getMaxFactor(state.settings, a));
+    ({ a, b } = zieheOhneWiederholung(() => {
+      const r = pickBlitzReihe(blitzCfg, getMaxReihe(state.settings)) ?? rnd(1, getMaxReihe(state.settings));
+      return { a: r, b: rnd(1, getMaxFactor(state.settings, r)) };
+    }, game.q));
   } else { // turnier (Marathon-Modus): unbegrenzte Fragen, sublineare Schwierigkeitskurve
     const max = marathonDifficulty(game.qCount, getMaxReihe(state.settings));
-    a = rnd(2, max); b = rnd(2, Math.max(getMaxFactor(state.settings, a), max));
+    ({ a, b } = zieheOhneWiederholung(() => {
+      const r = rnd(2, max);
+      return { a: r, b: rnd(2, Math.max(getMaxFactor(state.settings, r), max)) };
+    }, game.q));
   }
 
   const rechenart = resolveRechenart(getActiveRechenartCfg());
@@ -2818,6 +3188,8 @@ function endGame(reason) {
     state.streak = state.lastPlayDate === yesterday.toDateString() ? state.streak+1 : 1;
     state.lastPlayDate = today;
   }
+  // Schaltet die Knobelwerkstatt für heute frei, aber nur nach einem durchgespielten Training
+  if (rundeSchaltetKnobelFrei(game, reason)) state.lastRoundDate = today;
 
   state.totalCorrect += game.correct;
   state.totalGames++;
@@ -3631,6 +4003,7 @@ function hideAll(){
   document.getElementById('ui').style.display='none';
 }
 function invShowMenu(){
+  starTimerZwischenstand();
   hideAll();
   document.getElementById('menuBtns').style.display='flex';
   invState='menu';
@@ -3638,11 +4011,13 @@ function invShowMenu(){
 
 // ── Pause ─────────────────────────────────────────────────────
 function showPause(){
+  starTimerZwischenstand(); // bis hier war Spielzeit (Review B3)
   document.getElementById('pauseOv').classList.add('show');
   document.getElementById('ui').style.display='none';
   invState='paused';
 }
 function resumeGame(){
+  starTimerZwischenstand(); // die Pause zählt nicht
   document.getElementById('pauseOv').classList.remove('show');
   document.getElementById('ui').style.display='flex';
   invState='playing';
@@ -3681,6 +4056,7 @@ function buildSettingsUI(){
   });
 }
 function showSettings(from){
+  starTimerZwischenstand();
   settFrom=from;
   buildSettingsUI();
   hideAll();
@@ -3688,6 +4064,7 @@ function showSettings(from){
   invState='settings';
 }
 document.getElementById('settBack').addEventListener('click',()=>{
+  starTimerZwischenstand();
   document.getElementById('settOv').classList.remove('show');
   if      (settFrom==='pause')  { document.getElementById('pauseOv').classList.add('show'); invState='paused'; }
   else if (settFrom==='scores') showHsOverlay(null);
@@ -3749,6 +4126,8 @@ document.getElementById('hsSettings').addEventListener('click',()=>showSettings(
 
 // ── Game logic ────────────────────────────────────────────────
 function invStartGame(){
+  if (sternDialogFuer !== null) return; // unter dem Stern-Dialog startet kein Spiel (Review B2)
+  starTimerZwischenstand(); // Bestenliste zählte nicht, Menü schon
   score=0;lives=3;level=1;tick=0;shake=0;clearTimer=0;goDelay=0;
   nextLife=8000;playerDead=false;
   puShield=0;puRapid=0;puMulti=0;
@@ -3770,6 +4149,7 @@ function onHit(){
     explode(player.x,player.y,'#ff4400',55);
     playerDead=true; SFX.die();
     hiScore=Math.max(hiScore,score);
+    starTimerZwischenstand(); // bis hier war Spielzeit, Game Over zählt nicht
     invState='dying'; goDelay=2.0;
     document.getElementById('ui').style.display='none';
   }
@@ -4060,12 +4440,18 @@ document.getElementById('c').addEventListener('touchstart',e=>{
 // buildSettingsUI() und invShowMenu() werden von enterInvaderScreen() aufgerufen
 
 // Timer pausiert wenn Tab/App in den Hintergrund geht; SW-Update-Check beim Aufwachen (max. 1×/h)
+// Lumo bekommt zusätzlich jnr:pause (Vertrag jumpnrun/core/host.js), damit der
+// Spiel-Loop beim App-Wechsel nicht im Hintergrund weiterläuft.
 let _lastSwCheck = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    if (invaderTimerInterval) { clearInterval(invaderTimerInterval); invaderTimerInterval = null; }
+    stopStarTimer();
+    if (currentGame === 'jnr') sendToGameFrame({ type: 'jnr:pause' });
   } else {
     if (document.getElementById('space-invader').classList.contains('active')) startInvaderTimer();
+    else if (currentGame === 'jnr') syncLumoTimer(); // startet nur, wenn Lumo gerade aktiv ist
+    // Nach Mitternacht ist die Knobel-Freischaltung von gestern abgelaufen: Karten neu berechnen.
+    if (!currentGame) renderGamesBar();
     if (_swReg && Date.now() - _lastSwCheck > 3_600_000) { _swReg.update(); _lastSwCheck = Date.now(); }
   }
 });
@@ -4224,6 +4610,11 @@ window.addEventListener('load', () => {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; reg.update(); });
+    // Die eingebetteten Spiele haben eigene SWs (eigene Scopes). Hier mit registrieren,
+    // damit sie schon offline gehen, bevor das Kind sie einmal online geöffnet hat.
+    ['../knobel/sw.js', '../jumpnrun/sw.js'].forEach(src => {
+      navigator.serviceWorker.register(src).catch(() => {});
+    });
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       const banner = document.createElement('div');
       banner.id = 'update-banner';

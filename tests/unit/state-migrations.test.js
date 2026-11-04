@@ -1,4 +1,5 @@
 const { migrateState, STATE_MIGRATIONS, STATE_VERSION } = require('../../1x1-trainer/logic.js');
+const { defaultJnr } = require('../../jumpnrun/core/rewards.js');
 
 describe('migrateState', () => {
   test('leerer State {} bekommt komplettes v11-Schema', () => {
@@ -31,6 +32,9 @@ describe('migrateState', () => {
     expect(result.changelogSeenVersion).toBe('2.9');
     // v11: diamonds — leerer State bekommt 0 (kein streakFreezeTotal in {})
     expect(result.diamonds).toBe(0);
+    // v12: state.knobel + state.jnr für die neuen Spiele
+    expect(result.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(result.jnr).toEqual(defaultJnr());
   });
 
   test('v1-State mit inputMode=tap wird auf both migriert', () => {
@@ -114,6 +118,53 @@ describe('migrateState', () => {
     // migrateState always sets _version = STATE_VERSION at the end (Iron Rule: byte-identical body)
     expect(result._version).toBe(STATE_VERSION);
     expect(result.foo).toBe('bar');
+  });
+
+  test('realistischer v11-Spielstand (Leitner-Boxen, Diamanten, Multiplayer) wandert ohne Datenverlust zu v12', () => {
+    const v11 = {
+      _version: 11,
+      name: 'Henry',
+      xp: 3450,
+      achievements: ['erste_zehn', 'streak_7'],
+      totalCorrect: 812,
+      totalGames: 54,
+      streak: 12,
+      lastPlayDate: '2026-10-20',
+      diamonds: 3,
+      streakFreezeUsedDate: '2026-09-01',
+      streakFreezeTotal: 5,
+      stars: 2,
+      gameSecondsLeft: 340,
+      questionStats: {
+        '3x7': { correct: 9, wrong: 1, consecutiveCorrect: 4 }, // Leitner-Box-Fortschritt
+        '6x8': { correct: 2, wrong: 3, consecutiveCorrect: 0 },
+      },
+      reiheStats: { 3: { sessions: 10, totalCorrect: 90, totalQuestions: 100, consecutivePerfect: 2,
+                          divConsecutivePerfect: 1, divCorrect: 20, divWrong: 2, lastAccuracy: 92 } },
+      mp: { enabled: true, groupCode: 'KLASSE3', nickname: 'Henry', pinHash: 'abc123',
+            token: 'tok-xyz', pendingUploads: [{ id: 1 }], lastSeedDate: '2026-10-20',
+            lastSeed: 42, lastChallengeId: 'chall-9' },
+      changelogSeenVersion: '2.9',
+      settings: { grosses1x1: true, reiheMax: { 3: 20 }, inputMode: 'both', rechenart: 'both' },
+    };
+    const snapshot = JSON.parse(JSON.stringify(v11));
+    const result = migrateState(v11);
+
+    expect(result._version).toBe(STATE_VERSION);
+    // v12 ergänzt knobel/jnr, lässt alle v11-Felder unangetastet
+    expect(result.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(result.jnr).toEqual(defaultJnr());
+    for (const key of Object.keys(snapshot)) {
+      if (key === '_version') continue; // wird bewusst auf STATE_VERSION angehoben
+      expect(result[key]).toEqual(snapshot[key]);
+    }
+  });
+
+  test('kaputter Spielstand ohne achievements-Feld crasht nicht und bekommt ein leeres Array', () => {
+    const kaputt = { _version: 11, name: 'Henry', xp: 500 }; // achievements fehlt komplett
+    const result = migrateState(kaputt);
+    expect(Array.isArray(result.achievements)).toBe(true);
+    expect(result.achievements).toEqual([]);
   });
 });
 
@@ -268,5 +319,38 @@ describe('STATE_MIGRATIONS', () => {
     const v10 = { _version: 10, streakFreezeTotal: 5, diamonds: 1 };
     const result = STATE_MIGRATIONS[10](v10);
     expect(result.diamonds).toBe(1);
+  });
+
+  test('Migration 11 (v11->v12) legt state.knobel und state.jnr an', () => {
+    const v11 = { _version: 11 };
+    const result = STATE_MIGRATIONS[11](v11);
+    expect(result.knobel).toEqual({ tagesXp: { datum: null, xp: 0 }, stufe: { mauer: 1, kaefige: 1 } });
+    expect(result.jnr).toEqual(defaultJnr());
+  });
+
+  test('Migration 11 (v11->v12) lässt existierende knobel/jnr-Felder unangetastet', () => {
+    const v11 = {
+      _version: 11,
+      knobel: { tagesXp: { datum: '2026-10-20', xp: 400 }, stufe: { mauer: 3, kaefige: 2 } },
+      jnr: Object.assign(defaultJnr(), { funkenTotal: 77, lastLevel: '1-2' }),
+    };
+    const result = STATE_MIGRATIONS[11](v11);
+    expect(result.knobel.tagesXp.xp).toBe(400);
+    expect(result.knobel.stufe.mauer).toBe(3);
+    expect(result.jnr.funkenTotal).toBe(77);
+    expect(result.jnr.lastLevel).toBe('1-2');
+  });
+});
+
+describe('v12 → v13: lastRoundDate', () => {
+  test('alter State bekommt lastRoundDate = null (gesperrt bis zur naechsten Runde), auch bei gesetztem lastPlayDate', () => {
+    const r = migrateState({ _version: 12, lastPlayDate: new Date().toDateString(), streak: 4 });
+    expect(r.lastRoundDate).toBeNull();
+  });
+  test('vorhandenes lastRoundDate bleibt erhalten', () => {
+    expect(migrateState({ _version: 12, lastRoundDate: 'Sun Oct 25 2026' }).lastRoundDate).toBe('Sun Oct 25 2026');
+  });
+  test('defaultState hat lastRoundDate null', () => {
+    expect(require('../../1x1-trainer/logic.js').defaultState().lastRoundDate).toBeNull();
   });
 });

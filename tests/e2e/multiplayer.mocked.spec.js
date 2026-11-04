@@ -50,6 +50,11 @@ function loggedInMpState(over = {}) {
 // ist optional und wird NUR aufgerufen wenn der Test keine eigenen Routen
 // registriert hat (sessions / fallback-Endpoints).
 async function setupBaseMocks(page) {
+  // mpCheckPendingChallenges holt eingehend UND ausgehend per Promise.all. Ohne Mock für
+  // /outgoing ging der Aufruf an den echten Worker (oder scheiterte bei gesperrtem Netz, dann
+  // fehlte das ganze Ergebnis). Tests mit eigenem /pending-Mock brauchen hier nichts zu tun.
+  await page.route(/\/api\/challenges\/outgoing$/, route =>
+    route.fulfill({ contentType: 'application/json', body: JSON.stringify({ challenges: [] }) }));
   await page.route(`${API_HOST}/api/sessions`, route =>
     route.fulfill({ contentType: 'application/json', body: '{"ok":true}' }));
   await page.route(`${API_HOST}/api/progress`, route =>
@@ -71,6 +76,25 @@ async function loginMocked(page, stateOverride = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Netz-Sicherung: Playwright wertet die zuletzt registrierte Route zuerst aus. beforeEach läuft vor
+// den Routen der Tests, deshalb fängt dieses Fallback nur Aufrufe ab, die kein Test und kein
+// Base-Mock beantwortet. Sie erreichen nie den echten Worker (501). Weil die App fehlgeschlagene
+// Fetches still abfängt, sammelt das Fallback sie, und afterEach lässt den Test daran scheitern.
+// Ein Test, der einen Fehlerfall braucht, mockt ihn ausdrücklich.
+let unmocked = [];
+test.beforeEach(async ({ page }) => {
+  unmocked = [];
+  await page.route(`${API_HOST}/**`, route => {
+    const u = new URL(route.request().url());
+    unmocked.push(route.request().method() + ' ' + u.pathname);
+    return route.fulfill({ status: 501, contentType: 'application/json',
+      body: JSON.stringify({ error: 'nicht gemockt' }) });
+  });
+});
+test.afterEach(() => {
+  expect(unmocked, 'Worker-Aufrufe ohne Mock').toEqual([]);
+});
 
 test.describe('Issue #20 — Rangliste-Race', () => {
   // Hinweis: endGame() ist nicht direkt aus page.evaluate aufrufbar, weil

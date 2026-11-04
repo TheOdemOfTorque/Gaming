@@ -35,3 +35,30 @@ describe('rnd', () => {
     expect(rnd(5, 5)).toBe(5);
   });
 });
+
+describe('zieheOhneWiederholung', () => {
+  const { zieheOhneWiederholung, initSeededRNG, resetRNG } = require('../../1x1-trainer/logic.js');
+  afterEach(() => resetRNG());
+
+  test('liefert nie dasselbe Paar wie die letzte Aufgabe (eine Reihe, 2000 Ziehungen)', () => {
+    initSeededRNG(7);
+    let letzte = null;
+    for (let i = 0; i < 2000; i++) {
+      const q = zieheOhneWiederholung(() => ({ a: 6, b: rnd(1, 10) }), letzte);
+      if (letzte) expect(q.a === letzte.a && q.b === letzte.b).toBe(false);
+      letzte = q;
+    }
+  });
+
+  test('ohne letzte Aufgabe wird genau einmal gezogen', () => {
+    const ziehen = jest.fn(() => ({ a: 2, b: 3 }));
+    expect(zieheOhneWiederholung(ziehen, null)).toEqual({ a: 2, b: 3 });
+    expect(ziehen).toHaveBeenCalledTimes(1);
+  });
+
+  test('Pool mit nur einem Paar: keine Endlosschleife, liefert das Paar', () => {
+    const ziehen = jest.fn(() => ({ a: 2, b: 2 }));
+    expect(zieheOhneWiederholung(ziehen, { a: 2, b: 2 }, 20)).toEqual({ a: 2, b: 2 });
+    expect(ziehen).toHaveBeenCalledTimes(20);
+  });
+});
