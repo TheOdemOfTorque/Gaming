@@ -12,7 +12,7 @@ async function seedState(page, over) {
   const seeded = Object.assign({}, base, {
     name: 'TestKind', streak: 5, stars: 0, gameSecondsLeft: 3,
     lastRoundDate: new Date().toDateString(), // Runde heute gespielt -> Knobelwerkstatt frei
-    changelogSeenVersion: '2.11',
+    changelogSeenVersion: '9.9',
   }, over);
   await page.evaluate((state) => {
     localStorage.setItem('henry_einmaleins', JSON.stringify(state));

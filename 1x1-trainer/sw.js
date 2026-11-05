@@ -1,4 +1,4 @@
-const CACHE = '1x1-trainer-v33'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
+const CACHE = '1x1-trainer-v34'; // bei jedem Release hochzählen — löst Update auf bestehenden PWAs aus (APP_VERSION in index.html mitpflegen)
 // Alle SWs des Origins teilen sich den CacheStorage: nur eigene alte Versionen löschen.
 const PRAEFIX = CACHE.replace(/v\d+$/, '');
 const ASSETS = [

@@ -24,7 +24,7 @@ async function seedState(page, over) {
   await page.goto('/1x1-trainer/');
   const base = migrateState(defaultState());
   const seeded = Object.assign({}, base, {
-    name: 'TestKind', lastPlayDate: HEUTE, changelogSeenVersion: '2.11',
+    name: 'TestKind', lastPlayDate: HEUTE, changelogSeenVersion: '9.9',
   }, over);
   if (seeded.mp.enabled) throw new Error('mp.enabled muss im Test false bleiben');
   await page.evaluate((state) => {

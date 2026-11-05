@@ -1219,7 +1219,7 @@ const ACHIEVEMENTS = [
 // Migrations-Funktion an STATE_MIGRATIONS anhängen. Alte Saves
 // werden automatisch Schritt für Schritt auf die aktuelle Version
 // gebracht (v0→v1→v2→…), sodass kein Fortschritt verloren geht.
-const APP_VERSION = '2.11'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
+const APP_VERSION = '2.11.1'; // Anzeigeversion in Einstellungen — bei Releases auch sw.js CACHE hochzählen
 
 // CHANGELOG: bei jedem APP_VERSION-Bump einen Eintrag hinzu, oben einsortiert.
 // Konvention (siehe memory/project_release_notes_convention.md): max 5 Bullets
@@ -1227,6 +1227,10 @@ const APP_VERSION = '2.11'; // Anzeigeversion in Einstellungen — bei Releases 
 // emoji-Präfix nach Typ: 🆕 neues Feature · ⚡ UX-Verbesserung · 🔧 Bug-Fix
 // · 🐛 Sammel-Bugfixes ("kleine Verbesserungen unter der Haube").
 const CHANGELOG = [
+  { version: '2.11.1', date: '2026-11-05', entries: [
+    '🐛 In Firefox passen die Sterne wieder auf die Spielkarte',
+    '🐛 Safari: kein Fehler mehr beim schnellen Neuladen',
+  ]},
   { version: '2.11', date: '2026-11-04', entries: [
     '🆕 Knobelwerkstatt: neues Mathe-Knobelspiel',
     '🆕 Lumo: kleines Spring-Spiel mit Zahlen',
