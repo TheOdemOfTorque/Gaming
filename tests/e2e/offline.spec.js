@@ -5,6 +5,9 @@ const { test, expect } = require('@playwright/test');
 const { defaultState, migrateState } = require('../../1x1-trainer/logic.js');
 
 test.use({ serviceWorkers: 'allow' });
+// Nur Chromium: Firefox hängt mit aktivem SW (siehe refactoring-smoke.spec.js), WebKit
+// blieb beim ersten Installieren mit context.route und sofortigem Abfragen in 'installing'
+// stehen (05.11., nicht eingegrenzt). Offline auf dem iPhone prüft die Geräte-Checkliste.
 test.skip(({ browserName }) => browserName !== 'chromium', 'Service-Worker-Offline-Tests nur in Chromium');
 
 // Cache-Namen direkt aus den Service Workern lesen: ein Release-Bump bricht den Test nicht.

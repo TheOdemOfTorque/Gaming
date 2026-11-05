@@ -18,7 +18,11 @@ module.exports = defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    // Playwright-Firefox hängt gelegentlich 30 s in evaluate/click, unter Last häufiger
+    // (05.11.: 6 von 219 im Lauf mit drei Engines, einzeln 1 von 78). Wiederholte Tests
+    // meldet Playwright als „flaky“.
+    { name: 'firefox', retries: 2, use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
     command: `python3 -m http.server ${PORT} --directory .`,
