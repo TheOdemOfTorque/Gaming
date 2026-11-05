@@ -39,11 +39,12 @@ We test by engine, not by browser brand. Three engines cover practically all bro
 |---|---|---|
 | Blink | Chrome, Edge, Opera, Brave, Samsung Internet | `chromium` |
 | Gecko | Firefox on desktop and Android | `firefox` |
-| WebKit | Safari and every browser on iPhone and iPad (Apple requires WebKit; no other engine has shipped in the EU yet) | `webkit` |
+| WebKit | Safari and every browser on iPhone and iPad (Apple requires WebKit; as of 2026 no other engine has shipped, not even in the EU) | `webkit` |
 
-- Every E2E spec runs in all three projects. Skip a test in one engine only for a tool limit, never for an app bug, and name the reason in `test.skip`. Known limits: Firefox cannot emulate `isMobile`; Playwright-Firefox sometimes hangs for 30 s in `evaluate` or `click`, more often under load and while a service worker controls the page (the Firefox project retries twice, so such tests show up as flaky; service worker specs skip Firefox); CDP (`newCDPSession`) exists only in Chromium; Safari reaches buttons with Option+Tab instead of Tab. Open: `offline.spec.js` runs only in Chromium until the WebKit stall during the first service worker install under Playwright is understood; the device check covers offline on the iPhone meanwhile.
+- Every E2E spec runs in all three projects unless a `test.skip` names a tool limit. Skip a test in one engine only for a tool limit, never for an app bug, and name the reason in `test.skip`. Known limits: Firefox cannot emulate `isMobile`; Playwright-Firefox sometimes hangs for 30 s in `evaluate` or `click`, more often under load and while a service worker controls the page (the Firefox project retries twice, so such tests show up as flaky; service worker specs skip Firefox); Chromium and Firefox latch the mouse wheel to the previous target for a moment, so scroll tests use several small wheel steps; CDP (`newCDPSession`) exists only in Chromium; Safari reaches buttons with Option+Tab instead of Tab. Open: `offline.spec.js` runs only in Chromium until the WebKit stall during the first service worker install under Playwright is understood; the device check covers offline on the iPhone meanwhile.
 - Use only web features that are Baseline "widely available" (supported in all three engines for a while). Anything newer needs feature detection and a fallback, like `100dvh` with `100vh`.
 - A bug that shows up in one browser first gets a failing test in that engine, then the fix.
+- Flaky tests are findings, not noise: list every flaky test of a run in the night report or the release notes for Marco, and look into any test that is flaky twice in a row.
 
 ### Device check before a release
 

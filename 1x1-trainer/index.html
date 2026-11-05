@@ -4610,8 +4610,10 @@ window.addEventListener('load', () => {
 
   if ('serviceWorker' in navigator) {
     // Safari bricht die Registrierung ab, wenn die Seite währenddessen neu lädt; beim
-    // nächsten Laden klappt sie. reg fehlt, wenn ein Test Service Worker blockiert.
-    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; if (reg) reg.update(); }).catch(() => {});
+    // nächsten Laden klappt sie. reg fehlt, wenn ein Test Service Worker blockiert. Als Warnung
+    // loggen, damit eine kaputte sw.js sichtbar bleibt.
+    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; if (reg) reg.update(); })
+      .catch(e => console.warn('SW-Registrierung', e));
     // Die eingebetteten Spiele haben eigene SWs (eigene Scopes). Hier mit registrieren,
     // damit sie schon offline gehen, bevor das Kind sie einmal online geöffnet hat.
     ['../knobel/sw.js', '../jumpnrun/sw.js'].forEach(src => {
