@@ -7,6 +7,9 @@ test.use({
   isMobile: true,
   hasTouch: true,
 });
+// Firefox kann isMobile nicht emulieren. Diese Tests laufen in Chromium und WebKit,
+// WebKit ist die Engine aller iPhone-Browser. Blöcke mit isMobile: false laufen auch in Firefox.
+test.skip(({ browserName, isMobile }) => browserName === 'firefox' && isMobile, 'isMobile wird in Firefox nicht unterstützt');
 
 // Seit Stufe 1-1 "Erste Schritte" gestrichen ist, ist 1-2 "Zahlenwiese" die erste Stufe. jnrReihe=2
 // ueberspringt die Reihenwahl, damit Steuerung, Physik und HUD direkt im Level laufen.
@@ -1050,11 +1053,12 @@ test.describe('Lumo: Mitmach-Tutorial am Laptop (Tastatur)', () => {
     expect((await state(page)).leben).toBe(3);
   });
 
-  test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page }) => {
+  test('Überspringen per Tastatur (Tab + Enter) startet direkt das gewählte Level und merkt es sich', async ({ page, browserName }) => {
     await page.goto('/jumpnrun/index.html?jnrDebug=1&jnrReihe=2');
     await page.click('button[data-level="1-2"]');
     await expect(page.locator('#tut-box')).toBeVisible();
-    await page.keyboard.press('Tab');
+    // Safari springt mit Tab nur zwischen Eingabefeldern, Knöpfe erreicht man mit Option+Tab.
+    await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab');
     await expect(page.locator('#tut-skip')).toBeFocused();
     await expect(page.locator('#tut-skip')).toHaveText('Überspringen');
     await page.keyboard.press('Enter');

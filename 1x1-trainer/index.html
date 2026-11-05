@@ -450,7 +450,7 @@
     }
     .game-card-icon { font-size: 1.4rem; }
     .game-card-title { font-size: 0.8rem; font-weight: 800; hyphens: auto; } /* 320px: "Knobelwerkstatt" lief sonst aus der Karte */
-    .game-card-sub { font-size: 0.75rem; color: rgba(255,255,255,0.7); line-height: 1.3; }
+    .game-card-sub { font-size: 0.75rem; color: rgba(255,255,255,0.7); line-height: 1.3; overflow-wrap: anywhere; } /* Firefox: Sternreihe ist breiter als die Karte bei 320px */
     .game-card-btn {
       background: linear-gradient(135deg, #F59E0B, #EF4444);
       border: none; border-radius: 8px; color: #fff;
@@ -4609,7 +4609,11 @@ window.addEventListener('load', () => {
   }
 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; reg.update(); });
+    // Safari bricht die Registrierung ab, wenn die Seite währenddessen neu lädt; beim
+    // nächsten Laden klappt sie. reg fehlt, wenn ein Test Service Worker blockiert. Als Warnung
+    // loggen, damit eine kaputte sw.js sichtbar bleibt.
+    navigator.serviceWorker.register('./sw.js').then(reg => { _swReg = reg; if (reg) reg.update(); })
+      .catch(e => console.warn('SW-Registrierung', e));
     // Die eingebetteten Spiele haben eigene SWs (eigene Scopes). Hier mit registrieren,
     // damit sie schon offline gehen, bevor das Kind sie einmal online geöffnet hat.
     ['../knobel/sw.js', '../jumpnrun/sw.js'].forEach(src => {

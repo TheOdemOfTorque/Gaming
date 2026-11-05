@@ -21,7 +21,7 @@ The trainer embeds Knobelwerkstatt and Lumo via iframe, so serve from the repo r
 
 ```bash
 npm install                                  # once; installs Jest and Playwright
-npx playwright install chromium firefox      # once; browsers for the E2E projects
+npx playwright install chromium firefox webkit   # once; browsers for the E2E projects
 npm run test:unit      # Jest, tests/unit/*.test.js (pure logic, no browser)
 npm run test:e2e       # Playwright, localhost only (own http.server on port 8080)
 ```
@@ -30,6 +30,30 @@ npm run test:e2e       # Playwright, localhost only (own http.server on port 808
 - The default E2E run reaches only localhost: `playwright.config.js` sends every other host to a closed proxy port, and `tests/e2e/netz-sperre.spec.js` checks that. `multiplayer.mocked.spec.js` uses `page.route` mocks.
 - `tests/e2e/multiplayer.spec.js` writes to the real multiplayer backend and is skipped by default. Run it only on purpose and always with the file filter: `PW_PROD=1 npx playwright test multiplayer.spec` (without the filter the whole suite runs without the host lock).
 - New features and bug fixes are developed test-first (red test, then the fix).
+
+## Browser compatibility
+
+We test by engine, not by browser brand. Three engines cover practically all browsers the kids use:
+
+| Engine | Browsers | Playwright project |
+|---|---|---|
+| Blink | Chrome, Edge, Opera, Brave, Samsung Internet | `chromium` |
+| Gecko | Firefox on desktop and Android | `firefox` |
+| WebKit | Safari and every browser on iPhone and iPad (Apple requires WebKit; as of 2026 no other engine has shipped, not even in the EU) | `webkit` |
+
+- Every E2E spec runs in all three projects unless a `test.skip` names a tool limit. Skip a test in one engine only for a tool limit, never for an app bug, and name the reason in `test.skip`. Known limits: Firefox cannot emulate `isMobile`; Playwright-Firefox sometimes hangs for 30 s in `evaluate` or `click`, more often under load and while a service worker controls the page (the Firefox project retries twice, so such tests show up as flaky; service worker specs skip Firefox); Chromium and Firefox latch the mouse wheel to the previous target for a moment, so scroll tests use several small wheel steps; CDP (`newCDPSession`) exists only in Chromium; Safari reaches buttons with Option+Tab instead of Tab. Open: `offline.spec.js` runs only in Chromium until the WebKit stall during the first service worker install under Playwright is understood; the device check covers offline on the iPhone meanwhile.
+- Use only web features that are Baseline "widely available" (supported in all three engines for a while). Anything newer needs feature detection and a fallback, like `100dvh` with `100vh`.
+- A bug that shows up in one browser first gets a failing test in that engine, then the fix.
+- Flaky tests are findings, not noise: list every flaky test of a run in the night report or the release notes for Marco, and look into any test that is flaky twice in a row.
+
+### Device check before a release
+
+Emulation does not cover browser toolbars, the home-screen app or real offline use. Before each release, serve the release candidate on the home-network test server and check on real devices: iPhone in Safari and in one other browser (Chrome or Firefox), the installed home-screen app including offline start, and desktop Firefox and Chrome. Add an Android device when one is available.
+
+- Trainer, Knobelwerkstatt and Lumo open; a training round, a Blitz and one Lumo level can be played.
+- Portrait and landscape: no cut-off dialogs, the start buttons are reachable.
+- Home-screen app: starts offline (flight mode) and shows the update banner after a cache bump.
+- Star time counts down and stops in pause; results come back to the trainer.
 
 ## Projects
 
