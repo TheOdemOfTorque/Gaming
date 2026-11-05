@@ -86,9 +86,11 @@ for (const vp of [{ width: 844, height: 390 }, { width: 667, height: 375 }]) {
         const start = page.locator(m.start);
         await radScrollen(page, sheet, 3000);
         await expect(start).toBeInViewport();
-        const b = await start.boundingBox();
-        expect(b.y).toBeGreaterThanOrEqual(0);
-        expect(b.y + b.height).toBeLessThanOrEqual(vp.height);
+        // Firefox meldet die neue Position erst kurz nach dem Rad-Scrollen, deshalb pollen.
+        await expect.poll(async () => {
+          const b = await start.boundingBox();
+          return b.y >= 0 && b.y + b.height <= vp.height;
+        }, { message: 'Startknopf ganz im Bild' }).toBe(true);
         await expect(start).toBeEnabled();
         await start.click();
         await expect(page.locator(m.modal)).not.toHaveClass(/active/);

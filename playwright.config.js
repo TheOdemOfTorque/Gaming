@@ -18,7 +18,10 @@ module.exports = defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    // Firefox hält ein Mausrad-Ziel 1,5 s fest (Wheel Transaction). Tests, die erst hoch
+    // und dann runter scrollen, landen sonst am alten Ziel.
+    { name: 'firefox', use: { ...devices['Desktop Firefox'],
+      launchOptions: { firefoxUserPrefs: { 'mousewheel.transaction.timeout': 0 } } } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
   webServer: {
