@@ -7,6 +7,10 @@ const { test, expect } = require('@playwright/test');
 // Achtung: Unter 'allow' greift page.route() nicht für Requests, die der Service Worker selbst stellt.
 // Tests mit Netz-Mocks gehören deshalb nicht in diese Datei.
 test.use({ serviceWorkers: 'allow' });
+// Playwright-Firefox: Steuert ein Service Worker die Seite, bleibt page.evaluate gelegentlich
+// hängen, obwohl die Seite weiterläuft (gemessen 05.11.: 1 bis 3 von 10 Läufen, Lebenszeichen
+// per console.log liefen weiter). Echtes Firefox prüft die Geräte-Checkliste vor dem Release.
+test.skip(({ browserName }) => browserName === 'firefox', 'Playwright-Firefox hängt mit aktivem Service Worker');
 
 // Top-level: no beforeEach — listeners are attached before any navigation.
 test('App lädt ohne Console-Errors', async ({ page }) => {
@@ -17,6 +21,15 @@ test('App lädt ohne Console-Errors', async ({ page }) => {
   await page.waitForLoadState('networkidle');
   // Clear state and reload to also capture errors during a second boot cycle.
   await page.evaluate(() => localStorage.removeItem('henry_einmaleins'));
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  expect(errors).toEqual([]);
+});
+
+test('Neuladen während der SW-Registrierung wirft keinen unbehandelten Fehler', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('/1x1-trainer/');
   await page.reload();
   await page.waitForLoadState('networkidle');
   expect(errors).toEqual([]);
